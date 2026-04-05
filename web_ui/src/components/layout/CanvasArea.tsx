@@ -10,10 +10,10 @@ export function CanvasArea() {
       aria-label="Canvas workspace"
     >
       <div
-        className="min-h-0 flex-1 overflow-auto p-6"
+        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-6"
         style={{ backgroundColor: background }}
       >
-        <div className="inline-block min-w-min">
+        <div className="shrink-0">
           <CanvasWorkspace />
         </div>
       </div>

@@ -12,6 +12,12 @@ import {
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
 import { applyScreenshotToDeviceGroup } from '../../canvas/applyScreenshotToDevice'
 import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
+import {
+  SCREEN_LAYOUT_COUNT_MAX,
+  SCREEN_LAYOUT_COUNT_MIN,
+  SCREEN_LAYOUT_GAP_MAX,
+  SCREEN_LAYOUT_GAP_MIN,
+} from '../../constants/appStoreScreens'
 import { useDesignStore } from '../../store/useDesignStore'
 
 export function LeftSidebar() {
@@ -19,6 +25,8 @@ export function LeftSidebar() {
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
+  const screens = useDesignStore((s) => s.config.screens)
+  const gap = useDesignStore((s) => s.config.gap)
   const setConfig = useDesignStore((s) => s.setConfig)
 
   const deviceShotInputRef = useRef<HTMLInputElement>(null)
@@ -107,6 +115,46 @@ export function LeftSidebar() {
             onChange={(e) => setConfig({ background: e.target.value })}
           />
         </label>
+
+        <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Screenshot layout
+          </h3>
+          <p className="text-[11px] leading-snug text-zinc-600">
+            Side-by-side App Store panels (6.7&quot; portrait) with a fixed gap between
+            each.
+          </p>
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            <span className="w-14 shrink-0">Count</span>
+            <input
+              type="number"
+              min={SCREEN_LAYOUT_COUNT_MIN}
+              max={SCREEN_LAYOUT_COUNT_MAX}
+              className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 tabular-nums"
+              value={screens}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (!Number.isNaN(v)) setConfig({ screens: v })
+              }}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            <span className="w-14 shrink-0">Gap (px)</span>
+            <input
+              type="number"
+              min={SCREEN_LAYOUT_GAP_MIN}
+              max={SCREEN_LAYOUT_GAP_MAX}
+              step={5}
+              className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 tabular-nums"
+              value={gap}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (!Number.isNaN(v)) setConfig({ gap: v })
+              }}
+            />
+          </label>
+        </div>
+
         <button
           type="button"
           onClick={openCanvasBackgroundPicker}

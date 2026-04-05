@@ -1,23 +1,29 @@
 import {
+  APP_STORE_SCREEN_HEIGHT,
+  APP_STORE_SCREEN_WIDTH,
+  screenshotLeftEdgeXs,
+  totalContinuousWidth,
+} from '../../constants/appStoreScreens'
+import {
   ActiveSelection,
   Canvas,
   FabricImage,
   Group,
   IText,
   Line,
+  Rect,
 } from 'fabric'
 import { useEffect, useRef } from 'react'
-import {
-  APP_STORE_SCREEN_HEIGHT,
-  totalContinuousWidth,
-  screenshotLeftEdgeXs,
-} from '../../constants/appStoreScreens'
-import { applyViewportZoom } from '../../canvas/applyViewportZoom'
+
+import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
 import { getFabricObjectId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
 
 const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
+
+const PANEL_SLOT_FILL = 'rgba(255,255,255,0.045)'
+const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
 function attachSelectionSync(canvas: Canvas): void {
   const pushSelectionToStore = (eventName: string) => {
@@ -59,6 +65,7 @@ export function CanvasWorkspace() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<Canvas | null>(null)
   const guideLinesRef = useRef<Line[]>([])
+  const panelSlotRectsRef = useRef<Rect[]>([])
 
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
@@ -100,10 +107,32 @@ export function CanvasWorkspace() {
     canvas.setDimensions({ width, height })
     canvas.backgroundColor = background
 
+    panelSlotRectsRef.current.forEach((r) => canvas.remove(r))
+    panelSlotRectsRef.current = []
     guideLinesRef.current.forEach((line) => canvas.remove(line))
     guideLinesRef.current = []
 
+    for (let i = 0; i < screens; i++) {
+      const left = i * (APP_STORE_SCREEN_WIDTH + gap)
+      const rect = new Rect({
+        left,
+        top: 0,
+        width: APP_STORE_SCREEN_WIDTH,
+        height: APP_STORE_SCREEN_HEIGHT,
+        fill: PANEL_SLOT_FILL,
+        stroke: PANEL_SLOT_STROKE,
+        strokeWidth: 1,
+        selectable: false,
+        evented: false,
+        objectCaching: false,
+        excludeFromExport: true,
+      })
+      canvas.insertAt(0, rect)
+      panelSlotRectsRef.current.push(rect)
+    }
+
     const xs = screenshotLeftEdgeXs(screens, gap)
+    let guideInsertAt = screens
     for (const x of xs) {
       const line = new Line([x, 0, x, height], {
         stroke: GUIDE_STROKE,
@@ -114,20 +143,27 @@ export function CanvasWorkspace() {
         objectCaching: false,
         excludeFromExport: true,
       })
-      canvas.add(line)
-      canvas.sendObjectToBack(line)
+      canvas.insertAt(guideInsertAt, line)
+      guideInsertAt += 1
       guideLinesRef.current.push(line)
     }
 
     canvas.requestRenderAll()
-    applyViewportZoom(canvas, useDesignStore.getState().canvasZoom)
+    applyCanvasCssZoom(
+      canvas,
+      width,
+      height,
+      useDesignStore.getState().canvasZoom,
+    )
   }, [screens, gap, background])
 
   useEffect(() => {
     const canvas = fabricRef.current
     if (!canvas) return
-    applyViewportZoom(canvas, canvasZoom)
-  }, [canvasZoom])
+    const w = totalContinuousWidth(screens, gap)
+    const h = APP_STORE_SCREEN_HEIGHT
+    applyCanvasCssZoom(canvas, w, h, canvasZoom)
+  }, [canvasZoom, screens, gap])
 
   useEffect(() => {
     const canvas = fabricRef.current
@@ -192,6 +228,7 @@ export function CanvasWorkspace() {
     return () => {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
       guideLinesRef.current = []
+      panelSlotRectsRef.current = []
       const c = fabricRef.current
       c?.backgroundImage?.dispose()
       if (c) c.backgroundImage = undefined

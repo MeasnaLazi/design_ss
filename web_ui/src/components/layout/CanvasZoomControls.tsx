@@ -1,4 +1,5 @@
 import {
+  CANVAS_ZOOM_DEFAULT,
   CANVAS_ZOOM_MAX,
   CANVAS_ZOOM_MIN,
   useDesignStore,
@@ -35,8 +36,8 @@ export function CanvasZoomControls() {
         type="button"
         onClick={resetCanvasZoom}
         className="min-w-[3.25rem] px-1 py-1.5 text-center text-xs font-medium tabular-nums text-zinc-200 hover:bg-zinc-700/80"
-        title="Reset zoom to 100%"
-        aria-label={`Zoom ${pct} percent. Click to reset to 100 percent.`}
+        title={`Reset zoom to ${Math.round(CANVAS_ZOOM_DEFAULT * 100)}%`}
+        aria-label={`Zoom ${pct} percent. Click to reset to default ${Math.round(CANVAS_ZOOM_DEFAULT * 100)} percent.`}
       >
         {pct}%
       </button>

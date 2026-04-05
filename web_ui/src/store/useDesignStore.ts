@@ -1,6 +1,23 @@
+import type { DesignConfig, DesignObjectRecord } from './designTypes'
+import {
+  SCREEN_LAYOUT_COUNT_MAX,
+  SCREEN_LAYOUT_COUNT_MIN,
+  SCREEN_LAYOUT_GAP_MAX,
+  SCREEN_LAYOUT_GAP_MIN,
+} from '../constants/appStoreScreens'
+
 import type { Canvas } from 'fabric'
 import { create } from 'zustand'
-import type { DesignConfig, DesignObjectRecord } from './designTypes'
+
+function clampLayoutScreens(value: number): number {
+  const n = Math.round(Number.isFinite(value) ? value : SCREEN_LAYOUT_COUNT_MIN)
+  return Math.min(SCREEN_LAYOUT_COUNT_MAX, Math.max(SCREEN_LAYOUT_COUNT_MIN, n))
+}
+
+function clampLayoutGap(value: number): number {
+  const n = Math.round(Number.isFinite(value) ? value : SCREEN_LAYOUT_GAP_MIN)
+  return Math.min(SCREEN_LAYOUT_GAP_MAX, Math.max(SCREEN_LAYOUT_GAP_MIN, n))
+}
 
 const defaultConfig: DesignConfig = {
   screens: 5,
@@ -9,7 +26,10 @@ const defaultConfig: DesignConfig = {
   backgroundImageUrl: null,
 }
 
-export const CANVAS_ZOOM_MIN = 0.25
+/** Default / reset zoom: 20% on-screen vs full App Store artboard (CSS scale; backstore stays 1:1). */
+export const CANVAS_ZOOM_DEFAULT = 0.2
+
+export const CANVAS_ZOOM_MIN = 0.1
 export const CANVAS_ZOOM_MAX = 4
 const CANVAS_ZOOM_STEP_RATIO = 1.15
 
@@ -25,7 +45,7 @@ export interface DesignStoreState {
   selectedObject: string | null
   /** Singleton Fabric canvas; set by CanvasWorkspace only */
   fabricCanvas: Canvas | null
-  /** Viewport zoom for the design canvas (1 = 100%). Applied by CanvasWorkspace to Fabric only. */
+  /** On-screen scale vs full artboard (0.2 = 20%). CSS-only; backstore stays native pixels. */
   canvasZoom: number
 }
 
@@ -48,12 +68,19 @@ export const useDesignStore = create<DesignStore>((set) => ({
   objects: [],
   selectedObject: null,
   fabricCanvas: null,
-  canvasZoom: 1,
+  canvasZoom: CANVAS_ZOOM_DEFAULT,
 
   setConfig: (partial) =>
-    set((state) => ({
-      config: { ...state.config, ...partial },
-    })),
+    set((state) => {
+      const next: DesignConfig = { ...state.config, ...partial }
+      if (partial.screens !== undefined) {
+        next.screens = clampLayoutScreens(next.screens)
+      }
+      if (partial.gap !== undefined) {
+        next.gap = clampLayoutGap(next.gap)
+      }
+      return { config: next }
+    }),
 
   setObjects: (objects) => set({ objects }),
 
@@ -88,5 +115,5 @@ export const useDesignStore = create<DesignStore>((set) => ({
       canvasZoom: clampCanvasZoom(state.canvasZoom / CANVAS_ZOOM_STEP_RATIO),
     })),
 
-  resetCanvasZoom: () => set({ canvasZoom: 1 }),
+  resetCanvasZoom: () => set({ canvasZoom: CANVAS_ZOOM_DEFAULT }),
 }))

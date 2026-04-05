@@ -5,6 +5,12 @@
 export const APP_STORE_SCREEN_WIDTH = 1290
 export const APP_STORE_SCREEN_HEIGHT = 2796
 
+/** Allowed range when configuring the horizontal screenshot strip in the UI. */
+export const SCREEN_LAYOUT_COUNT_MIN = 1
+export const SCREEN_LAYOUT_COUNT_MAX = 10
+export const SCREEN_LAYOUT_GAP_MIN = 0
+export const SCREEN_LAYOUT_GAP_MAX = 200
+
 export function totalContinuousWidth(
   screenCount: number,
   gapPx: number,
