@@ -17,6 +17,11 @@ import {
   SCREEN_LAYOUT_GAP_MAX,
   SCREEN_LAYOUT_GAP_MIN,
 } from '../../constants/appStoreScreens'
+import {
+  DEFAULT_DEVICE_FRAME_STYLE_ID,
+  DEVICE_FRAME_STYLES,
+  type DeviceFrameStyleId,
+} from '../../constants/deviceFrameStyles'
 import { useDesignStore } from '../../store/useDesignStore'
 
 type CanvasFillTab = 'solid' | 'gradient' | 'image'
@@ -39,6 +44,10 @@ export function LeftSidebar() {
     return 'solid'
   })
 
+  const [deviceFrameStyleId, setDeviceFrameStyleId] = useState<DeviceFrameStyleId>(
+    DEFAULT_DEVICE_FRAME_STYLE_ID,
+  )
+
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
 
   const handleAddText = () => {
@@ -57,7 +66,7 @@ export function LeftSidebar() {
       return
     }
     try {
-      await addDeviceFrameToCanvas(canvas)
+      await addDeviceFrameToCanvas(canvas, deviceFrameStyleId)
     } catch (e) {
       console.error('[LeftSidebar] add device failed', e)
     }
@@ -319,14 +328,48 @@ export function LeftSidebar() {
               Text
             </button>
           </li>
-          <li>
+          <li className="space-y-2">
+            <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+              Device frame
+            </p>
+            <div
+              className="grid grid-cols-2 gap-1.5"
+              role="radiogroup"
+              aria-label="Device perspective"
+            >
+              {DEVICE_FRAME_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={deviceFrameStyleId === s.id}
+                  aria-label={s.label}
+                  title={s.label}
+                  onClick={() => setDeviceFrameStyleId(s.id)}
+                  className={`flex flex-col items-center gap-0.5 rounded-md border p-1.5 transition-colors ${
+                    deviceFrameStyleId === s.id
+                      ? 'border-emerald-500/60 bg-zinc-800 ring-1 ring-emerald-500/30'
+                      : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600'
+                  }`}
+                >
+                  <img
+                    src={s.src}
+                    alt=""
+                    className="pointer-events-none h-11 w-auto max-w-[2.75rem] object-contain opacity-90"
+                  />
+                  <span className="line-clamp-2 w-full text-center text-[9px] leading-tight text-zinc-400">
+                    {s.label}
+                  </span>
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleAddDevice}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
             >
               <Smartphone className="size-4 shrink-0" aria-hidden />
-              Device frame
+              Add device
             </button>
           </li>
           <li>

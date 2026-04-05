@@ -1,14 +1,23 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
-import { DEVICE_FRAME_SRC, DEVICE_FRAME_TARGET_WIDTH } from '../constants/deviceFrame'
+import { DEVICE_FRAME_TARGET_WIDTH } from '../constants/deviceFrame'
+import {
+  DEFAULT_DEVICE_FRAME_STYLE_ID,
+  getDeviceFrameStyle,
+  type DeviceFrameStyleId,
+} from '../constants/deviceFrameStyles'
 import { registerFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 
 /**
  * Adds a phone-style frame (SVG with transparent screen) as a {@link Group} so a screenshot can be inserted behind it later.
  */
-export async function addDeviceFrameToCanvas(canvas: Canvas): Promise<void> {
+export async function addDeviceFrameToCanvas(
+  canvas: Canvas,
+  styleId: DeviceFrameStyleId = DEFAULT_DEVICE_FRAME_STYLE_ID,
+): Promise<void> {
+  const style = getDeviceFrameStyle(styleId)
   const frame = await FabricImage.fromURL(
-    DEVICE_FRAME_SRC,
+    style.src,
     { crossOrigin: 'anonymous' },
     {
       originX: 'left',
@@ -54,8 +63,9 @@ export async function addDeviceFrameToCanvas(canvas: Canvas): Promise<void> {
   useDesignStore.getState().upsertObject({
     id,
     kind: 'device',
-    name: 'Device',
+    name: `Device · ${style.label}`,
     zIndex,
+    deviceFrameStyleId: style.id,
   })
 
   canvas.add(group)

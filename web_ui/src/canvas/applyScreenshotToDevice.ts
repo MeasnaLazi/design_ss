@@ -1,5 +1,8 @@
 import { ActiveSelection, FabricImage, Group, Rect, type Canvas } from 'fabric'
-import { DEVICE_FRAME } from '../constants/deviceFrame'
+import {
+  getDeviceFrameMetricsForStyle,
+  type DeviceFrameMetrics,
+} from '../constants/deviceFrame'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 
@@ -16,18 +19,18 @@ function readFileDataUrl(file: File): Promise<string> {
  * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric’s group
  * layout offsets children to center the bbox, so we anchor to {@link FabricImage#left} / `top`.
  */
-function screenRectForFrame(frame: FabricImage) {
+function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
-  const fx = fw / DEVICE_FRAME.viewW
-  const fy = fh / DEVICE_FRAME.viewH
+  const fx = fw / m.viewW
+  const fy = fh / m.viewH
   return {
-    sx: frame.left + DEVICE_FRAME.screenX * fx,
-    sy: frame.top + DEVICE_FRAME.screenY * fy,
-    sw: DEVICE_FRAME.screenW * fx,
-    sh: DEVICE_FRAME.screenH * fy,
-    rx: DEVICE_FRAME.cornerRadius * fx,
-    ry: DEVICE_FRAME.cornerRadius * fy,
+    sx: frame.left + m.screenX * fx,
+    sy: frame.top + m.screenY * fy,
+    sw: m.screenW * fx,
+    sh: m.screenH * fy,
+    rx: m.cornerRadius * fx,
+    ry: m.cornerRadius * fy,
   }
 }
 
@@ -61,7 +64,10 @@ export async function applyScreenshotToDeviceGroup(
     return
   }
 
-  const { sx, sy, sw, sh, rx, ry } = screenRectForFrame(frame)
+  const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
+  const metrics = getDeviceFrameMetricsForStyle(existing?.deviceFrameStyleId)
+
+  const { sx, sy, sw, sh, rx, ry } = screenRectForFrame(frame, metrics)
 
   const dataUrl = await readFileDataUrl(file)
   const shot = await FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' })
@@ -110,7 +116,7 @@ export async function applyScreenshotToDeviceGroup(
   const afterObjects = target.getObjects()
   const frameAfter = afterObjects[afterObjects.length - 1]
   if (frameAfter instanceof FabricImage) {
-    const r = screenRectForFrame(frameAfter)
+    const r = screenRectForFrame(frameAfter, metrics)
     const cx2 = r.sx + r.sw / 2
     const cy2 = r.sy + r.sh / 2
     shot.set({
@@ -137,7 +143,6 @@ export async function applyScreenshotToDeviceGroup(
   }
 
   const baseName = file.name.replace(/\.[^/.]+$/, '') || 'Screenshot'
-  const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
   if (existing) {
     useDesignStore.getState().upsertObject({
       ...existing,

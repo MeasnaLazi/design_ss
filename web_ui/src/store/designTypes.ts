@@ -1,3 +1,5 @@
+import type { DeviceFrameStyleId } from '../constants/deviceFrameStyles'
+
 /**
  * Serializable design-layer metadata kept in sync with the Fabric canvas in later phases.
  * Fabric.Object instances are not stored in Zustand (see project architecture rules).
@@ -36,4 +38,6 @@ export interface DesignObjectRecord {
   name: string
   /** Layer order; higher values draw on top */
   zIndex: number
+  /** Set for {@link DesignObjectKind} `device` when using a perspective preset. */
+  deviceFrameStyleId?: DeviceFrameStyleId
 }
