@@ -1,4 +1,4 @@
-import { useRef, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import {
   ImageIcon,
   ImagePlus,
@@ -20,16 +20,25 @@ import {
 } from '../../constants/appStoreScreens'
 import { useDesignStore } from '../../store/useDesignStore'
 
+type CanvasFillTab = 'solid' | 'gradient' | 'image'
+
 export function LeftSidebar() {
   const objects = useDesignStore((s) => s.objects)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
-  const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
   const backgroundGradient = useDesignStore((s) => s.config.backgroundGradient)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
   const setConfig = useDesignStore((s) => s.setConfig)
+  const clearCanvasBackgroundImage = useDesignStore((s) => s.clearCanvasBackgroundImage)
+
+  const [canvasFillTab, setCanvasFillTab] = useState<CanvasFillTab>(() => {
+    const c = useDesignStore.getState().config
+    if (c.backgroundImageUrl) return 'image'
+    if (c.backgroundMode === 'gradient') return 'gradient'
+    return 'solid'
+  })
 
   const deviceShotInputRef = useRef<HTMLInputElement>(null)
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
@@ -90,6 +99,7 @@ export function LeftSidebar() {
       const url = typeof fr.result === 'string' ? fr.result : ''
       if (url) {
         setConfig({ backgroundImageUrl: url })
+        setCanvasFillTab('image')
         console.log('[LeftSidebar] canvas background image set')
       }
     }
@@ -109,19 +119,24 @@ export function LeftSidebar() {
           Canvas
         </h2>
         <p className="mt-1 text-[11px] leading-snug text-zinc-600">
-          Solid, gradient, or image applies inside each screenshot panel only; gutters
+          Solid or gradient base fill per panel; optional image stacks on top. Gutters
           between panels use a neutral fill.
         </p>
         <div
           className="mt-2 flex rounded-md border border-zinc-800 p-0.5"
-          role="group"
+          role="tablist"
           aria-label="Canvas fill type"
         >
           <button
             type="button"
-            onClick={() => setConfig({ backgroundMode: 'solid' })}
-            className={`flex-1 rounded px-2 py-1.5 text-xs font-medium ${
-              backgroundMode === 'solid'
+            role="tab"
+            aria-selected={canvasFillTab === 'solid'}
+            onClick={() => {
+              setCanvasFillTab('solid')
+              setConfig({ backgroundMode: 'solid' })
+            }}
+            className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
+              canvasFillTab === 'solid'
                 ? 'bg-zinc-700 text-zinc-100'
                 : 'text-zinc-400 hover:bg-zinc-800/80'
             }`}
@@ -130,18 +145,36 @@ export function LeftSidebar() {
           </button>
           <button
             type="button"
-            onClick={() => setConfig({ backgroundMode: 'gradient' })}
-            className={`flex-1 rounded px-2 py-1.5 text-xs font-medium ${
-              backgroundMode === 'gradient'
+            role="tab"
+            aria-selected={canvasFillTab === 'gradient'}
+            onClick={() => {
+              setCanvasFillTab('gradient')
+              setConfig({ backgroundMode: 'gradient' })
+            }}
+            className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
+              canvasFillTab === 'gradient'
                 ? 'bg-zinc-700 text-zinc-100'
                 : 'text-zinc-400 hover:bg-zinc-800/80'
             }`}
           >
             Gradient
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={canvasFillTab === 'image'}
+            onClick={() => setCanvasFillTab('image')}
+            className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
+              canvasFillTab === 'image'
+                ? 'bg-zinc-700 text-zinc-100'
+                : 'text-zinc-400 hover:bg-zinc-800/80'
+            }`}
+          >
+            Image
+          </button>
         </div>
 
-        {backgroundMode === 'solid' ? (
+        {canvasFillTab === 'solid' ? (
           <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
             <span className="w-14 shrink-0">Color</span>
             <input
@@ -155,7 +188,9 @@ export function LeftSidebar() {
               onChange={(e) => setConfig({ background: e.target.value })}
             />
           </label>
-        ) : (
+        ) : null}
+
+        {canvasFillTab === 'gradient' ? (
           <div className="mt-2 space-y-2">
             <label className="flex items-center gap-2 text-xs text-zinc-400">
               <span className="w-14 shrink-0">From</span>
@@ -217,7 +252,40 @@ export function LeftSidebar() {
               </p>
             </div>
           </div>
-        )}
+        ) : null}
+
+        {canvasFillTab === 'image' ? (
+          <div className="mt-2 space-y-2">
+            <p className="text-[11px] leading-snug text-zinc-600">
+              Cover-crops per screenshot panel; solid or gradient still shows underneath
+              if the image has transparency.
+            </p>
+            <button
+              type="button"
+              onClick={openCanvasBackgroundPicker}
+              className="flex w-full items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
+            >
+              <ImagePlus className="size-4 shrink-0" aria-hidden />
+              Choose background…
+            </button>
+            {backgroundImageUrl != null && backgroundImageUrl.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => clearCanvasBackgroundImage()}
+                className="w-full rounded-md border border-zinc-700/80 px-2 py-1.5 text-left text-xs text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800/60"
+              >
+                Remove background
+              </button>
+            ) : null}
+            <input
+              ref={canvasBgInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCanvasBackgroundFile}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -257,31 +325,6 @@ export function LeftSidebar() {
             />
           </label>
         </div>
-
-        <button
-          type="button"
-          onClick={openCanvasBackgroundPicker}
-          className="mt-2 flex w-full items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
-        >
-          <ImagePlus className="size-4 shrink-0" aria-hidden />
-          Background image…
-        </button>
-        {backgroundImageUrl ? (
-          <button
-            type="button"
-            onClick={() => setConfig({ backgroundImageUrl: null })}
-            className="mt-1 w-full text-left text-xs text-zinc-500 hover:text-zinc-300"
-          >
-            Remove background image
-          </button>
-        ) : null}
-        <input
-          ref={canvasBgInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleCanvasBackgroundFile}
-        />
       </div>
 
       <div className="border-b border-zinc-800 p-3">

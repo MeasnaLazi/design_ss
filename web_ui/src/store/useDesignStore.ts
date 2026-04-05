@@ -61,6 +61,8 @@ export interface DesignStoreState {
 
 export interface DesignStoreActions {
   setConfig: (partial: DesignConfigPartial) => void
+  /** Clears the canvas background image URL (explicit null merge). */
+  clearCanvasBackgroundImage: () => void
   setObjects: (objects: DesignObjectRecord[]) => void
   upsertObject: (object: DesignObjectRecord) => void
   removeObject: (id: string) => void
@@ -98,6 +100,11 @@ export const useDesignStore = create<DesignStore>((set) => ({
       }
       return { config: next }
     }),
+
+  clearCanvasBackgroundImage: () =>
+    set((state) => ({
+      config: { ...state.config, backgroundImageUrl: null },
+    })),
 
   setObjects: (objects) => set({ objects }),
 

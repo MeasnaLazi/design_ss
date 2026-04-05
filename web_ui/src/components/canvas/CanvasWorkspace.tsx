@@ -28,6 +28,35 @@ const GUIDE_DASH: [number, number] = [6, 6]
 
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
+const PANEL_BG_MARK = '__appsPublisherPanelBg' as const
+type PanelBgImage = FabricImage & { [PANEL_BG_MARK]?: true }
+
+function isPanelBackgroundImage(o: unknown): o is PanelBgImage {
+  return o instanceof FabricImage && !!(o as PanelBgImage)[PANEL_BG_MARK]
+}
+
+/** Removes tracked and any stray per-panel background images (avoids stale refs / async races). */
+function removeAllPanelBackgroundImagesFromCanvas(
+  canvas: Canvas,
+  ref: { current: FabricImage[] },
+): void {
+  ref.current.forEach((img) => {
+    try {
+      canvas.remove(img)
+    } catch {
+      /* already detached */
+    }
+    img.dispose()
+  })
+  ref.current = []
+  for (const o of [...canvas.getObjects()]) {
+    if (isPanelBackgroundImage(o)) {
+      canvas.remove(o)
+      o.dispose()
+    }
+  }
+}
+
 function attachSelectionSync(canvas: Canvas): void {
   const pushSelectionToStore = (eventName: string) => {
     const active = canvas.getActiveObject()
@@ -142,11 +171,7 @@ export function CanvasWorkspace() {
       return
     }
 
-    panelBackgroundImagesRef.current.forEach((img) => {
-      canvas.remove(img)
-      img.dispose()
-    })
-    panelBackgroundImagesRef.current = []
+    removeAllPanelBackgroundImagesFromCanvas(canvas, panelBackgroundImagesRef)
 
     panelBackgroundRectsRef.current.forEach((r) => canvas.remove(r))
     panelBackgroundRectsRef.current = []
@@ -221,11 +246,7 @@ export function CanvasWorkspace() {
 
     let cancelled = false
 
-    panelBackgroundImagesRef.current.forEach((img) => {
-      canvas.remove(img)
-      img.dispose()
-    })
-    panelBackgroundImagesRef.current = []
+    removeAllPanelBackgroundImagesFromCanvas(canvas, panelBackgroundImagesRef)
 
     const url = useDesignStore.getState().config.backgroundImageUrl
     const W = APP_STORE_SCREEN_WIDTH
@@ -256,7 +277,12 @@ export function CanvasWorkspace() {
           if (cancelled) break
           if (useDesignStore.getState().config.backgroundImageUrl !== url) break
 
-          const img = await base.clone()
+          const img = (await base.clone()) as PanelBgImage
+          img[PANEL_BG_MARK] = true
+
+          if (cancelled) break
+          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
+
           const left = i * (W + g)
           const scale = Math.max(W / iw, H / ih)
 
@@ -282,6 +308,9 @@ export function CanvasWorkspace() {
               evented: false,
             }),
           })
+
+          if (cancelled) break
+          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
 
           canvas.insertAt(n + i, img)
           panelBackgroundImagesRef.current.push(img)
