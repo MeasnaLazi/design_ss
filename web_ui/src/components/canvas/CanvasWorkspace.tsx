@@ -12,6 +12,7 @@ import {
   totalContinuousWidth,
   screenshotLeftEdgeXs,
 } from '../../constants/appStoreScreens'
+import { applyViewportZoom } from '../../canvas/applyViewportZoom'
 import { getFabricObjectId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
 
@@ -63,6 +64,7 @@ export function CanvasWorkspace() {
   const gap = useDesignStore((s) => s.config.gap)
   const background = useDesignStore((s) => s.config.background)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
+  const canvasZoom = useDesignStore((s) => s.canvasZoom)
 
   useEffect(() => {
     const el = canvasElRef.current
@@ -118,7 +120,14 @@ export function CanvasWorkspace() {
     }
 
     canvas.requestRenderAll()
+    applyViewportZoom(canvas, useDesignStore.getState().canvasZoom)
   }, [screens, gap, background])
+
+  useEffect(() => {
+    const canvas = fabricRef.current
+    if (!canvas) return
+    applyViewportZoom(canvas, canvasZoom)
+  }, [canvasZoom])
 
   useEffect(() => {
     const canvas = fabricRef.current

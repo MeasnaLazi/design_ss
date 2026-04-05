@@ -1,3 +1,4 @@
+import { BottomFooter } from './BottomFooter'
 import { CanvasArea } from './CanvasArea'
 import { LeftSidebar } from './LeftSidebar'
 import { TopToolbar } from './TopToolbar'
@@ -10,6 +11,7 @@ export function AppShell() {
         <LeftSidebar />
         <CanvasArea />
       </div>
+      <BottomFooter />
     </div>
   )
 }

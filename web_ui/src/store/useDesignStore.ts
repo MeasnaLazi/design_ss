@@ -9,6 +9,15 @@ const defaultConfig: DesignConfig = {
   backgroundImageUrl: null,
 }
 
+export const CANVAS_ZOOM_MIN = 0.25
+export const CANVAS_ZOOM_MAX = 4
+const CANVAS_ZOOM_STEP_RATIO = 1.15
+
+function clampCanvasZoom(value: number): number {
+  const n = Math.round(value * 100) / 100
+  return Math.min(CANVAS_ZOOM_MAX, Math.max(CANVAS_ZOOM_MIN, n))
+}
+
 export interface DesignStoreState {
   config: DesignConfig
   objects: DesignObjectRecord[]
@@ -16,6 +25,8 @@ export interface DesignStoreState {
   selectedObject: string | null
   /** Singleton Fabric canvas; set by CanvasWorkspace only */
   fabricCanvas: Canvas | null
+  /** Viewport zoom for the design canvas (1 = 100%). Applied by CanvasWorkspace to Fabric only. */
+  canvasZoom: number
 }
 
 export interface DesignStoreActions {
@@ -25,6 +36,9 @@ export interface DesignStoreActions {
   removeObject: (id: string) => void
   setSelectedObject: (id: string | null) => void
   setFabricCanvas: (canvas: Canvas | null) => void
+  zoomCanvasIn: () => void
+  zoomCanvasOut: () => void
+  resetCanvasZoom: () => void
 }
 
 export type DesignStore = DesignStoreState & DesignStoreActions
@@ -34,6 +48,7 @@ export const useDesignStore = create<DesignStore>((set) => ({
   objects: [],
   selectedObject: null,
   fabricCanvas: null,
+  canvasZoom: 1,
 
   setConfig: (partial) =>
     set((state) => ({
@@ -62,4 +77,16 @@ export const useDesignStore = create<DesignStore>((set) => ({
   setSelectedObject: (selectedObject) => set({ selectedObject }),
 
   setFabricCanvas: (fabricCanvas) => set({ fabricCanvas }),
+
+  zoomCanvasIn: () =>
+    set((state) => ({
+      canvasZoom: clampCanvasZoom(state.canvasZoom * CANVAS_ZOOM_STEP_RATIO),
+    })),
+
+  zoomCanvasOut: () =>
+    set((state) => ({
+      canvasZoom: clampCanvasZoom(state.canvasZoom / CANVAS_ZOOM_STEP_RATIO),
+    })),
+
+  resetCanvasZoom: () => set({ canvasZoom: 1 }),
 }))
