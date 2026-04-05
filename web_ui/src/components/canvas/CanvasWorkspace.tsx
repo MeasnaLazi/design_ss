@@ -117,6 +117,8 @@ export function CanvasWorkspace() {
       const rect = new Rect({
         left,
         top: 0,
+        originX: 'left',
+        originY: 'top',
         width: APP_STORE_SCREEN_WIDTH,
         height: APP_STORE_SCREEN_HEIGHT,
         fill: PANEL_SLOT_FILL,
