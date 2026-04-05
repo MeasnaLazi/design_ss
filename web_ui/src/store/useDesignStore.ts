@@ -1,4 +1,8 @@
-import type { DesignConfig, DesignObjectRecord } from './designTypes'
+import type {
+  DesignConfig,
+  DesignConfigPartial,
+  DesignObjectRecord,
+} from './designTypes'
 import {
   SCREEN_LAYOUT_COUNT_MAX,
   SCREEN_LAYOUT_COUNT_MIN,
@@ -23,6 +27,12 @@ const defaultConfig: DesignConfig = {
   screens: 5,
   gap: 40,
   background: '#1a1a1a',
+  backgroundMode: 'solid',
+  backgroundGradient: {
+    colorFrom: '#0f172a',
+    colorTo: '#1e293b',
+    angleDeg: 135,
+  },
   backgroundImageUrl: null,
 }
 
@@ -50,7 +60,7 @@ export interface DesignStoreState {
 }
 
 export interface DesignStoreActions {
-  setConfig: (partial: Partial<DesignConfig>) => void
+  setConfig: (partial: DesignConfigPartial) => void
   setObjects: (objects: DesignObjectRecord[]) => void
   upsertObject: (object: DesignObjectRecord) => void
   removeObject: (id: string) => void
@@ -70,9 +80,16 @@ export const useDesignStore = create<DesignStore>((set) => ({
   fabricCanvas: null,
   canvasZoom: CANVAS_ZOOM_DEFAULT,
 
-  setConfig: (partial) =>
+  setConfig: (partial: DesignConfigPartial) =>
     set((state) => {
-      const next: DesignConfig = { ...state.config, ...partial }
+      const { backgroundGradient: partialGradient, ...restPartial } = partial
+      const next: DesignConfig = { ...state.config, ...restPartial }
+      if (partialGradient !== undefined) {
+        next.backgroundGradient = {
+          ...state.config.backgroundGradient,
+          ...partialGradient,
+        }
+      }
       if (partial.screens !== undefined) {
         next.screens = clampLayoutScreens(next.screens)
       }

@@ -24,6 +24,8 @@ export function LeftSidebar() {
   const objects = useDesignStore((s) => s.objects)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
+  const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
+  const backgroundGradient = useDesignStore((s) => s.config.backgroundGradient)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
@@ -106,15 +108,116 @@ export function LeftSidebar() {
           <Palette className="size-3.5" aria-hidden />
           Canvas
         </h2>
-        <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
-          <span className="w-14 shrink-0">Color</span>
-          <input
-            type="color"
-            className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
-            value={background.startsWith('#') && background.length >= 7 ? background.slice(0, 7) : '#1a1a1a'}
-            onChange={(e) => setConfig({ background: e.target.value })}
-          />
-        </label>
+        <p className="mt-1 text-[11px] leading-snug text-zinc-600">
+          Solid, gradient, or image applies inside each screenshot panel only; gutters
+          between panels use a neutral fill.
+        </p>
+        <div
+          className="mt-2 flex rounded-md border border-zinc-800 p-0.5"
+          role="group"
+          aria-label="Canvas fill type"
+        >
+          <button
+            type="button"
+            onClick={() => setConfig({ backgroundMode: 'solid' })}
+            className={`flex-1 rounded px-2 py-1.5 text-xs font-medium ${
+              backgroundMode === 'solid'
+                ? 'bg-zinc-700 text-zinc-100'
+                : 'text-zinc-400 hover:bg-zinc-800/80'
+            }`}
+          >
+            Solid
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfig({ backgroundMode: 'gradient' })}
+            className={`flex-1 rounded px-2 py-1.5 text-xs font-medium ${
+              backgroundMode === 'gradient'
+                ? 'bg-zinc-700 text-zinc-100'
+                : 'text-zinc-400 hover:bg-zinc-800/80'
+            }`}
+          >
+            Gradient
+          </button>
+        </div>
+
+        {backgroundMode === 'solid' ? (
+          <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+            <span className="w-14 shrink-0">Color</span>
+            <input
+              type="color"
+              className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
+              value={
+                background.startsWith('#') && background.length >= 7
+                  ? background.slice(0, 7)
+                  : '#1a1a1a'
+              }
+              onChange={(e) => setConfig({ background: e.target.value })}
+            />
+          </label>
+        ) : (
+          <div className="mt-2 space-y-2">
+            <label className="flex items-center gap-2 text-xs text-zinc-400">
+              <span className="w-14 shrink-0">From</span>
+              <input
+                type="color"
+                className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
+                value={
+                  backgroundGradient.colorFrom.startsWith('#') &&
+                  backgroundGradient.colorFrom.length >= 7
+                    ? backgroundGradient.colorFrom.slice(0, 7)
+                    : '#0f172a'
+                }
+                onChange={(e) =>
+                  setConfig({ backgroundGradient: { colorFrom: e.target.value } })
+                }
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-zinc-400">
+              <span className="w-14 shrink-0">To</span>
+              <input
+                type="color"
+                className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
+                value={
+                  backgroundGradient.colorTo.startsWith('#') &&
+                  backgroundGradient.colorTo.length >= 7
+                    ? backgroundGradient.colorTo.slice(0, 7)
+                    : '#1e293b'
+                }
+                onChange={(e) =>
+                  setConfig({ backgroundGradient: { colorTo: e.target.value } })
+                }
+              />
+            </label>
+            <div>
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>Angle</span>
+                <span className="tabular-nums text-zinc-500">
+                  {Math.round(backgroundGradient.angleDeg)}°
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={360}
+                step={1}
+                className="mt-1 w-full accent-emerald-500"
+                value={((backgroundGradient.angleDeg % 360) + 360) % 360}
+                onChange={(e) =>
+                  setConfig({
+                    backgroundGradient: {
+                      angleDeg: Number(e.target.value),
+                    },
+                  })
+                }
+                aria-label="Gradient angle in degrees"
+              />
+              <p className="mt-0.5 text-[10px] leading-tight text-zinc-600">
+                0° → right, 90° → down, 180° → left.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">

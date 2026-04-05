@@ -16,13 +16,16 @@ import {
 import { useEffect, useRef } from 'react'
 
 import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
+import {
+  CANVAS_GUTTER_COLOR,
+  fabricPanelRectFill,
+} from '../../lib/canvasBackground'
 import { getFabricObjectId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
 
 const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
 
-const PANEL_SLOT_FILL = 'rgba(255,255,255,0.045)'
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
 function attachSelectionSync(canvas: Canvas): void {
@@ -65,11 +68,20 @@ export function CanvasWorkspace() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<Canvas | null>(null)
   const guideLinesRef = useRef<Line[]>([])
-  const panelSlotRectsRef = useRef<Rect[]>([])
+  const panelBackgroundRectsRef = useRef<Rect[]>([])
+  const panelBackgroundImagesRef = useRef<FabricImage[]>([])
+  const prevScreensGapRef = useRef<{ screens: number; gap: number }>({
+    screens: -1,
+    gap: -1,
+  })
 
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
   const background = useDesignStore((s) => s.config.background)
+  const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
+  const gradientFrom = useDesignStore((s) => s.config.backgroundGradient.colorFrom)
+  const gradientTo = useDesignStore((s) => s.config.backgroundGradient.colorTo)
+  const gradientAngle = useDesignStore((s) => s.config.backgroundGradient.angleDeg)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const canvasZoom = useDesignStore((s) => s.canvasZoom)
 
@@ -84,7 +96,7 @@ export function CanvasWorkspace() {
       canvas = new Canvas(el, {
         width,
         height,
-        backgroundColor: background,
+        backgroundColor: CANVAS_GUTTER_COLOR,
         preserveObjectStacking: true,
       })
       fabricRef.current = canvas
@@ -105,10 +117,39 @@ export function CanvasWorkspace() {
     })
 
     canvas.setDimensions({ width, height })
-    canvas.backgroundColor = background
+    canvas.backgroundColor = CANVAS_GUTTER_COLOR
 
-    panelSlotRectsRef.current.forEach((r) => canvas.remove(r))
-    panelSlotRectsRef.current = []
+    const prev = prevScreensGapRef.current
+    const screensOrGapChanged = prev.screens !== screens || prev.gap !== gap
+    prevScreensGapRef.current = { screens, gap }
+
+    const cfg = useDesignStore.getState().config
+    const panelFill = fabricPanelRectFill(cfg)
+
+    if (
+      !screensOrGapChanged &&
+      panelBackgroundRectsRef.current.length === screens &&
+      screens > 0
+    ) {
+      panelBackgroundRectsRef.current.forEach((r) => r.set({ fill: panelFill }))
+      canvas.requestRenderAll()
+      applyCanvasCssZoom(
+        canvas,
+        width,
+        height,
+        useDesignStore.getState().canvasZoom,
+      )
+      return
+    }
+
+    panelBackgroundImagesRef.current.forEach((img) => {
+      canvas.remove(img)
+      img.dispose()
+    })
+    panelBackgroundImagesRef.current = []
+
+    panelBackgroundRectsRef.current.forEach((r) => canvas.remove(r))
+    panelBackgroundRectsRef.current = []
     guideLinesRef.current.forEach((line) => canvas.remove(line))
     guideLinesRef.current = []
 
@@ -121,16 +162,15 @@ export function CanvasWorkspace() {
         originY: 'top',
         width: APP_STORE_SCREEN_WIDTH,
         height: APP_STORE_SCREEN_HEIGHT,
-        fill: PANEL_SLOT_FILL,
+        fill: panelFill,
         stroke: PANEL_SLOT_STROKE,
         strokeWidth: 1,
         selectable: false,
         evented: false,
         objectCaching: false,
-        excludeFromExport: true,
       })
       canvas.insertAt(0, rect)
-      panelSlotRectsRef.current.push(rect)
+      panelBackgroundRectsRef.current.push(rect)
     }
 
     const xs = screenshotLeftEdgeXs(screens, gap)
@@ -157,7 +197,15 @@ export function CanvasWorkspace() {
       height,
       useDesignStore.getState().canvasZoom,
     )
-  }, [screens, gap, background])
+  }, [
+    screens,
+    gap,
+    background,
+    backgroundMode,
+    gradientFrom,
+    gradientTo,
+    gradientAngle,
+  ])
 
   useEffect(() => {
     const canvas = fabricRef.current
@@ -172,52 +220,81 @@ export function CanvasWorkspace() {
     if (!canvas) return
 
     let cancelled = false
-    const w = totalContinuousWidth(screens, gap)
-    const h = APP_STORE_SCREEN_HEIGHT
+
+    panelBackgroundImagesRef.current.forEach((img) => {
+      canvas.remove(img)
+      img.dispose()
+    })
+    panelBackgroundImagesRef.current = []
+
+    const url = useDesignStore.getState().config.backgroundImageUrl
+    const W = APP_STORE_SCREEN_WIDTH
+    const H = APP_STORE_SCREEN_HEIGHT
+
+    if (!url) {
+      canvas.requestRenderAll()
+      return
+    }
 
     void (async () => {
-      const url = useDesignStore.getState().config.backgroundImageUrl
-      const oldBg = canvas.backgroundImage
-
-      if (!url) {
-        canvas.backgroundImage = undefined
-        oldBg?.dispose()
-        canvas.requestRenderAll()
-        console.log('[CanvasWorkspace] background image cleared')
-        return
-      }
-
+      let base: FabricImage | undefined
       try {
-        const img = await FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
+        base = await FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
         if (cancelled) {
-          img.dispose()
           return
         }
         if (useDesignStore.getState().config.backgroundImageUrl !== url) {
-          img.dispose()
           return
         }
 
-        oldBg?.dispose()
+        const iw = Math.max(base.width || 1, 1)
+        const ih = Math.max(base.height || 1, 1)
+        const n = useDesignStore.getState().config.screens
+        const g = useDesignStore.getState().config.gap
 
-        const iw = img.width || 1
-        const ih = img.height || 1
-        const scale = Math.max(w / iw, h / ih)
-        img.set({
-          scaleX: scale,
-          scaleY: scale,
-          originX: 'center',
-          originY: 'center',
-          left: w / 2,
-          top: h / 2,
-          selectable: false,
-          evented: false,
-        })
-        canvas.backgroundImage = img
-        canvas.requestRenderAll()
-        console.log('[CanvasWorkspace] background image applied', { w, h, scale })
+        for (let i = 0; i < n; i++) {
+          if (cancelled) break
+          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
+
+          const img = await base.clone()
+          const left = i * (W + g)
+          const scale = Math.max(W / iw, H / ih)
+
+          img.set({
+            originX: 'center',
+            originY: 'center',
+            left: left + W / 2,
+            top: H / 2,
+            scaleX: scale,
+            scaleY: scale,
+            selectable: false,
+            evented: false,
+            objectCaching: false,
+            clipPath: new Rect({
+              left: left + W / 2,
+              top: H / 2,
+              width: W,
+              height: H,
+              originX: 'center',
+              originY: 'center',
+              absolutePositioned: true,
+              selectable: false,
+              evented: false,
+            }),
+          })
+
+          canvas.insertAt(n + i, img)
+          panelBackgroundImagesRef.current.push(img)
+        }
+
+        if (!cancelled) {
+          canvas.requestRenderAll()
+          console.log('[CanvasWorkspace] per-panel background images applied', { n })
+        }
       } catch (e) {
         console.error('[CanvasWorkspace] background image load failed', e)
+      } finally {
+        base?.dispose()
       }
     })()
 
@@ -230,7 +307,8 @@ export function CanvasWorkspace() {
     return () => {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
       guideLinesRef.current = []
-      panelSlotRectsRef.current = []
+      panelBackgroundRectsRef.current = []
+      panelBackgroundImagesRef.current = []
       const c = fabricRef.current
       c?.backgroundImage?.dispose()
       if (c) c.backgroundImage = undefined
