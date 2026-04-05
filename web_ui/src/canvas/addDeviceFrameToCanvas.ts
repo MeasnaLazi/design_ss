@@ -35,7 +35,20 @@ export async function addDeviceFrameToCanvas(canvas: Canvas): Promise<void> {
     originY: 'top',
     subTargetCheck: false,
     interactive: false,
+    lockRotation: false,
+    /** Extra space so the rotate handle clears the tall frame. */
+    padding: 28,
   })
+
+  const w = group.getScaledWidth()
+  const h = group.getScaledHeight()
+  group.set({
+    originX: 'center',
+    originY: 'center',
+    left: 160 + w / 2,
+    top: 140 + h / 2,
+  })
+  group.setCoords()
 
   registerFabricObjectId(group, id)
   useDesignStore.getState().upsertObject({

@@ -1,6 +1,8 @@
 import { Download, LayoutTemplate } from 'lucide-react'
 import { useDesignStore } from '../../store/useDesignStore'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
+import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
+import { ContextualPositionToolbar } from './ContextualPositionToolbar'
 import { ContextualTextToolbar } from './ContextualTextToolbar'
 
 export function TopToolbar() {
@@ -33,11 +35,13 @@ export function TopToolbar() {
         </span>
       </div>
 
-      <div className="flex min-w-0 flex-1 justify-center overflow-x-auto">
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-x-auto px-1">
         <ContextualTextToolbar />
+        <ContextualDeviceToolbar />
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <ContextualPositionToolbar />
         <button
           type="button"
           onClick={handleExportZip}

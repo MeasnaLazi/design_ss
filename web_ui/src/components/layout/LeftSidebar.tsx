@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
-import { applyScreenshotToDeviceGroup } from '../../canvas/applyScreenshotToDevice'
 import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
 import {
   SCREEN_LAYOUT_COUNT_MAX,
@@ -40,12 +39,7 @@ export function LeftSidebar() {
     return 'solid'
   })
 
-  const deviceShotInputRef = useRef<HTMLInputElement>(null)
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
-
-  const deviceSelected =
-    selectedObject != null &&
-    objects.some((o) => o.id === selectedObject && o.kind === 'device')
 
   const handleAddText = () => {
     const canvas = useDesignStore.getState().fabricCanvas
@@ -66,23 +60,6 @@ export function LeftSidebar() {
       await addDeviceFrameToCanvas(canvas)
     } catch (e) {
       console.error('[LeftSidebar] add device failed', e)
-    }
-  }
-
-  const openDeviceScreenshotPicker = () => {
-    deviceShotInputRef.current?.click()
-  }
-
-  const handleDeviceScreenshotFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !selectedObject) return
-    const canvas = useDesignStore.getState().fabricCanvas
-    if (!canvas) return
-    try {
-      await applyScreenshotToDeviceGroup(canvas, selectedObject, file)
-    } catch (err) {
-      console.error('[LeftSidebar] upload screenshot failed', err)
     }
   }
 
@@ -376,28 +353,6 @@ export function LeftSidebar() {
           </li>
         </ul>
       </div>
-
-      {deviceSelected ? (
-        <div className="border-b border-zinc-800 p-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Device
-          </h2>
-          <button
-            type="button"
-            onClick={openDeviceScreenshotPicker}
-            className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
-          >
-            Upload screenshot…
-          </button>
-          <input
-            ref={deviceShotInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleDeviceScreenshotFile}
-          />
-        </div>
-      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
         <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">

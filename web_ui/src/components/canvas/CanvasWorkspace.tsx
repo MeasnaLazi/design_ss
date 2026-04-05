@@ -16,6 +16,7 @@ import {
 import { useEffect, useRef } from 'react'
 
 import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
+import { attachDeviceGroupUniformScaling } from '../../canvas/deviceGroupUniformScaling'
 import {
   CANVAS_GUTTER_COLOR,
   fabricPanelRectFill,
@@ -131,6 +132,7 @@ export function CanvasWorkspace() {
       fabricRef.current = canvas
       useDesignStore.getState().setFabricCanvas(canvas)
       attachSelectionSync(canvas)
+      attachDeviceGroupUniformScaling(canvas)
       console.log('[CanvasWorkspace] fabric.Canvas initialized', { width, height })
     }
 

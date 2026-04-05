@@ -1,3 +1,5 @@
+import { APP_STORE_SCREEN_WIDTH } from './appStoreScreens'
+
 /**
  * Must match `public/device-frame.svg` viewBox and the masked “screen” opening.
  */
@@ -11,7 +13,7 @@ export const DEVICE_FRAME = {
   cornerRadius: 28,
 } as const
 
-/** Rendered width on canvas (height follows aspect ratio). */
-export const DEVICE_FRAME_TARGET_WIDTH = 320
+/** Rendered width on canvas (height follows aspect ratio). ~45% of one App Store panel. */
+export const DEVICE_FRAME_TARGET_WIDTH = Math.round(APP_STORE_SCREEN_WIDTH * 0.75)
 
 export const DEVICE_FRAME_SRC = '/device-frame.svg'
