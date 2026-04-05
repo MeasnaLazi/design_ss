@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="640" viewBox="0 0 320 640" fill="none">
+  <defs>
+    <mask id="phoneBezelMask" maskUnits="userSpaceOnUse" x="0" y="0" width="320" height="640">
+      <rect width="320" height="640" fill="white" />
+      <rect x="28" y="76" width="264" height="488" rx="28" ry="28" fill="black" />
+    </mask>
+  </defs>
+  <rect width="320" height="640" rx="42" ry="42" fill="#1f1f22" mask="url(#phoneBezelMask)" />
+  <rect x="28" y="76" width="264" height="488" rx="28" ry="28" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2" />
+</svg>
