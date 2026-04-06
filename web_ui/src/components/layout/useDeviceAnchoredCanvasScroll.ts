@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TPointerEventInfo } from 'fabric'
 
 import { deviceFramesUnionBBox } from '../../canvas/deviceFramesUnionBBox'
 import {
@@ -22,6 +23,8 @@ export type DeviceAnchoredCanvasLayout = {
   trackHeight: number
   canvasCssW: number
   canvasCssH: number
+  /** True while the user has pressed on a canvas object — freezes anchored layout and viewport scroll. */
+  scrollLocked: boolean
 }
 
 export function useDeviceAnchoredCanvasScroll(
@@ -35,14 +38,30 @@ export function useDeviceAnchoredCanvasScroll(
 
   const [viewportW, setViewportW] = useState(0)
   const [tick, setTick] = useState(0)
+  const [scrollLocked, setScrollLocked] = useState(false)
 
   const rafRef = useRef<number | null>(null)
+  const freezeAnchoredLayoutRef = useRef(false)
+
   const bump = useCallback(() => {
+    if (freezeAnchoredLayoutRef.current) return
     if (rafRef.current != null) return
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
+      if (freezeAnchoredLayoutRef.current) return
       setTick((t) => t + 1)
     })
+  }, [])
+
+  const unlockScrollAndRelayout = useCallback(() => {
+    if (!freezeAnchoredLayoutRef.current) return
+    freezeAnchoredLayoutRef.current = false
+    setScrollLocked(false)
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    setTick((t) => t + 1)
   }, [])
 
   useEffect(() => {
@@ -76,6 +95,32 @@ export function useDeviceAnchoredCanvasScroll(
       }
     }
   }, [fabricCanvas, bump])
+
+  /** Freeze anchored layout + block viewport scroll while dragging / transforming a layer. */
+  useEffect(() => {
+    const c = fabricCanvas
+    if (!c) return
+
+    const onDown = (opt: TPointerEventInfo) => {
+      if (opt.target == null) return
+      const e = opt.e
+      if (e instanceof MouseEvent && e.button !== 0) return
+      freezeAnchoredLayoutRef.current = true
+      setScrollLocked(true)
+    }
+
+    c.on('mouse:down', onDown)
+    window.addEventListener('pointerup', unlockScrollAndRelayout)
+    window.addEventListener('pointercancel', unlockScrollAndRelayout)
+
+    return () => {
+      c.off('mouse:down', onDown)
+      window.removeEventListener('pointerup', unlockScrollAndRelayout)
+      window.removeEventListener('pointercancel', unlockScrollAndRelayout)
+      freezeAnchoredLayoutRef.current = false
+      setScrollLocked(false)
+    }
+  }, [fabricCanvas, unlockScrollAndRelayout])
 
   useEffect(() => {
     return () => {
@@ -119,6 +164,7 @@ export function useDeviceAnchoredCanvasScroll(
         trackHeight: canvasCssH,
         canvasCssW,
         canvasCssH,
+        scrollLocked,
       }
     }
 
@@ -132,6 +178,7 @@ export function useDeviceAnchoredCanvasScroll(
         trackHeight: canvasCssH,
         canvasCssW,
         canvasCssH,
+        scrollLocked,
       }
     }
 
@@ -148,6 +195,7 @@ export function useDeviceAnchoredCanvasScroll(
       trackHeight,
       canvasCssW,
       canvasCssH,
+      scrollLocked,
     }
   }, [
     fabricCanvas,
@@ -157,5 +205,6 @@ export function useDeviceAnchoredCanvasScroll(
     gap,
     viewportW,
     tick,
+    scrollLocked,
   ])
 }

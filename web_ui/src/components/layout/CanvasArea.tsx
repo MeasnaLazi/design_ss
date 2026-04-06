@@ -15,7 +15,7 @@ export function CanvasArea() {
     >
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-x-auto overflow-y-auto p-6"
+        className={`min-h-0 flex-1 p-6 ${layout.scrollLocked ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}
         style={canvasAreaBackdropStyle()}
       >
         <div
