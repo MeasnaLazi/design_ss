@@ -8,11 +8,13 @@ export function CanvasArea() {
       aria-label="Canvas workspace"
     >
       <div
-        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-6"
+        className="min-h-0 flex-1 overflow-x-auto overflow-y-auto p-6"
         style={canvasAreaBackdropStyle()}
       >
-        <div className="shrink-0">
-          <CanvasWorkspace />
+        <div className="flex min-h-full min-w-full items-center justify-center">
+          <div className="shrink-0">
+            <CanvasWorkspace />
+          </div>
         </div>
       </div>
     </main>

@@ -1,19 +1,12 @@
 import { ActiveSelection, FabricImage, Group, Rect, type Canvas } from 'fabric'
 import {
   getDeviceFrameMetricsForStyle,
+  screenshotVerticalNudgeY,
   type DeviceFrameMetrics,
 } from '../constants/deviceFrame'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
-
-function readFileDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader()
-    fr.onload = () => resolve(fr.result as string)
-    fr.onerror = () => reject(fr.error ?? new Error('read failed'))
-    fr.readAsDataURL(file)
-  })
-}
+import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
 
 /**
  * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric’s group
@@ -23,7 +16,7 @@ function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
   const fx = fw / m.viewW
-  const fy = fh / m.viewH
+  const fy = (fh / m.viewH)
   return {
     sx: frame.left + m.screenX * fx,
     sy: frame.top + m.screenY * fy,
@@ -35,7 +28,8 @@ function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
 }
 
 /**
- * Places the image behind the device frame inside the group, with a rounded {@link Rect} clipPath (cover crop).
+ * Places the image behind the device frame inside the group, with a rounded {@link Rect} clipPath.
+ * Uploads are resampled to the bake size from `deviceFrame.ts` (e.g. 1242×2622 for front) via {@link bakeScreenshotFileForMetrics}, then scaled with uniform cover to the hole.
  */
 export async function applyScreenshotToDeviceGroup(
   canvas: Canvas,
@@ -69,39 +63,44 @@ export async function applyScreenshotToDeviceGroup(
 
   const { sx, sy, sw, sh, rx, ry } = screenRectForFrame(frame, metrics)
 
-  const dataUrl = await readFileDataUrl(file)
+  const dataUrl = await bakeScreenshotFileForMetrics(file, metrics)
   const shot = await FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' })
 
   const natW = Math.max(shot.width || 1, 1)
   const natH = Math.max(shot.height || 1, 1)
   const scale = Math.max(sw / natW, sh / natH)
 
+  /** Clip and radii are in image local space (Fabric applies scaleX/Y after). */
+  function clipForScreenRect(r: { sw: number; sh: number; rx: number; ry: number }, s: number) {
+    return new Rect({
+      originX: 'center',
+      originY: 'center',
+      left: 0,
+      top: 0,
+      width: r.sw / s,
+      height: (r.sh / s),
+      rx: r.rx / s,
+      ry: r.ry / s,
+      absolutePositioned: false,
+    })
+  }
+
   const cx = sx + sw / 2
-  const cy = sy + sh / 2
+  const nudgeY = screenshotVerticalNudgeY(sh, metrics)
+  const cy = sy + sh / 2 + nudgeY
 
   shot.set({
     originX: 'center',
     originY: 'center',
-    left: cx,
-    top: cy,
+    left: 0,
+    top: 0,
     scaleX: scale,
     scaleY: scale,
     selectable: false,
     evented: false,
     objectCaching: false,
     dirty: true,
-  })
-
-  shot.clipPath = new Rect({
-    originX: 'center',
-    originY: 'center',
-    left: 0,
-    top: 0,
-    width: sw,
-    height: sh,
-    rx,
-    ry,
-    absolutePositioned: false,
+    clipPath: clipForScreenRect({ sw, sh, rx, ry }, scale),
   })
 
   const overlays = objects.slice(0, -1)
@@ -109,6 +108,9 @@ export async function applyScreenshotToDeviceGroup(
     target.remove(o)
   }
   target.insertAt(0, shot)
+  // `enterGroup(..., true)` maps from canvas plane; set group-local center after the child is in the group.
+  shot.set({ left: cx, top: cy })
+  shot.setCoords()
   target.set('dirty', true)
   target.triggerLayout({})
 
@@ -118,21 +120,14 @@ export async function applyScreenshotToDeviceGroup(
   if (frameAfter instanceof FabricImage) {
     const r = screenRectForFrame(frameAfter, metrics)
     const cx2 = r.sx + r.sw / 2
-    const cy2 = r.sy + r.sh / 2
+    const cy2 = r.sy + r.sh / 2 + screenshotVerticalNudgeY(r.sh, metrics)
+    const s2 = Math.max(r.sw / natW, r.sh / natH)
     shot.set({
       left: cx2,
       top: cy2,
-      clipPath: new Rect({
-        originX: 'center',
-        originY: 'center',
-        left: 0,
-        top: 0,
-        width: r.sw,
-        height: r.sh,
-        rx: r.rx,
-        ry: r.ry,
-        absolutePositioned: false,
-      }),
+      scaleX: s2,
+      scaleY: s2,
+      clipPath: clipForScreenRect(r, s2),
       dirty: true,
     })
     shot.setCoords()
