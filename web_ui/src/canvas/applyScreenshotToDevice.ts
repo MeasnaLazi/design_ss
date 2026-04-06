@@ -13,6 +13,7 @@ import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
  * layout offsets children to center the bbox, so we anchor to {@link FabricImage#left} / `top`.
  */
 function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
+  const ADJUSTMENT_Y = 30
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
   const fx = fw / m.viewW
@@ -21,9 +22,9 @@ function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
     sx: frame.left + m.screenX * fx,
     sy: frame.top + m.screenY * fy,
     sw: m.screenW * fx,
-    sh: m.screenH * fy,
+    sh: (m.screenH * fy) - ADJUSTMENT_Y,
     rx: m.cornerRadius * fx,
-    ry: m.cornerRadius * fy,
+    ry: (m.cornerRadius * fy) - ADJUSTMENT_Y,
   }
 }
 
