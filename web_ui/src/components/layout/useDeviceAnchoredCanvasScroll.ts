@@ -1,18 +1,20 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Canvas } from 'fabric'
 import type { TPointerEventInfo } from 'fabric'
 
-import { deviceFramesUnionBBox } from '../../canvas/deviceFramesUnionBBox'
+import { deviceGroupFrameUnionBBox } from '../../canvas/deviceFramesUnionBBox'
 import {
   APP_STORE_SCREEN_HEIGHT,
   totalContinuousWidth,
 } from '../../constants/appStoreScreens'
+import type { DesignObjectRecord } from '../../store/designTypes'
 import { useDesignStore } from '../../store/useDesignStore'
 
 /** Matches `p-6` on the scroll viewport — keeps union aligned with the same inset as padding. */
 const SCROLL_END_PAD_PX = 24
 
-/** Extra space (CSS px) around the device union so bezels / controls stay in view. */
+/** Extra space (CSS px) around the canvas so bezels / edges stay clear of the scroll edge. */
 const DEVICE_FRAME_SCROLL_MARGIN_CSS_PX = 50
 
 export type DeviceAnchoredCanvasLayout = {
@@ -25,6 +27,53 @@ export type DeviceAnchoredCanvasLayout = {
   canvasCssH: number
   /** True while the user has pressed on a canvas object — freezes anchored layout and viewport scroll. */
   scrollLocked: boolean
+}
+
+type AnchoredFrameLayout = {
+  canvasLeft: number
+  canvasTop: number
+  contentW: number
+  trackHeight: number
+  canvasCssW: number
+  canvasCssH: number
+}
+
+/**
+ * Positions the **entire** artboard in the scroll track with a fixed inset so panel 1 starts at a
+ * stable offset. We intentionally do **not** shift `canvasLeft` by device position — that made the
+ * strip extend mostly left of the scroll origin and hid early panels from horizontal scroll.
+ */
+function computeAnchoredFrameLayout(
+  fabricCanvas: Canvas | null,
+  objects: DesignObjectRecord[],
+  screens: number,
+  gap: number,
+  canvasZoom: number,
+  viewportW: number,
+): AnchoredFrameLayout | null {
+  if (!fabricCanvas) return null
+  if (!deviceGroupFrameUnionBBox(fabricCanvas, objects)) return null
+
+  const artboardW = totalContinuousWidth(screens, gap)
+  const artboardH = APP_STORE_SCREEN_HEIGHT
+  const z = canvasZoom
+  const canvasCssW = artboardW * z
+  const canvasCssH = artboardH * z
+  const pad = SCROLL_END_PAD_PX
+  const m = DEVICE_FRAME_SCROLL_MARGIN_CSS_PX
+  const canvasLeft = pad + m
+  const contentW = Math.max(viewportW, canvasLeft + canvasCssW + pad + m)
+  const canvasTop = m
+  const trackHeight = canvasCssH + 2 * m
+
+  return {
+    canvasLeft,
+    canvasTop,
+    contentW,
+    trackHeight,
+    canvasCssW,
+    canvasCssH,
+  }
 }
 
 export function useDeviceAnchoredCanvasScroll(
@@ -96,7 +145,6 @@ export function useDeviceAnchoredCanvasScroll(
     }
   }, [fabricCanvas, bump])
 
-  /** Freeze anchored layout + block viewport scroll while dragging / transforming a layer. */
   useEffect(() => {
     const c = fabricCanvas
     if (!c) return
@@ -148,14 +196,18 @@ export function useDeviceAnchoredCanvasScroll(
     const z = canvasZoom
     const canvasCssW = artboardW * z
     const canvasCssH = artboardH * z
-    const pad = SCROLL_END_PAD_PX
-    const V = viewportW
 
     void tick
 
-    const m = DEVICE_FRAME_SCROLL_MARGIN_CSS_PX
-
-    if (!fabricCanvas) {
+    const inner = computeAnchoredFrameLayout(
+      fabricCanvas,
+      objects,
+      screens,
+      gap,
+      canvasZoom,
+      viewportW,
+    )
+    if (!inner) {
       return {
         deviceAnchored: false,
         contentW: 0,
@@ -167,34 +219,15 @@ export function useDeviceAnchoredCanvasScroll(
         scrollLocked,
       }
     }
-
-    const union = deviceFramesUnionBBox(fabricCanvas, objects)
-    if (!union) {
-      return {
-        deviceAnchored: false,
-        contentW: 0,
-        canvasLeft: 0,
-        canvasTop: 0,
-        trackHeight: canvasCssH,
-        canvasCssW,
-        canvasCssH,
-        scrollLocked,
-      }
-    }
-
-    const canvasLeft = pad + m - union.left * z
-    const contentW = Math.max(V, canvasLeft + canvasCssW + pad + m)
-    const canvasTop = m
-    const trackHeight = canvasCssH + 2 * m
 
     return {
       deviceAnchored: true,
-      contentW,
-      canvasLeft,
-      canvasTop,
-      trackHeight,
-      canvasCssW,
-      canvasCssH,
+      contentW: inner.contentW,
+      canvasLeft: inner.canvasLeft,
+      canvasTop: inner.canvasTop,
+      trackHeight: inner.trackHeight,
+      canvasCssW: inner.canvasCssW,
+      canvasCssH: inner.canvasCssH,
       scrollLocked,
     }
   }, [

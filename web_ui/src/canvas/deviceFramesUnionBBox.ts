@@ -1,4 +1,5 @@
 import type { Canvas } from 'fabric'
+import { FabricImage, Group } from 'fabric'
 
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import type { DesignObjectRecord } from '../store/designTypes'
@@ -6,10 +7,13 @@ import type { DesignObjectRecord } from '../store/designTypes'
 export type ArtboardBBox = { left: number; top: number; width: number; height: number }
 
 /**
- * Axis-aligned union of all device-frame groups on the canvas (artboard coordinates).
- * Used to anchor horizontal scrolling so the strip reveals the frames, not only empty gutters.
+ * Axis-aligned union of each device group’s **frame image** (bezel asset), in canvas/artboard coordinates.
+ * The frame is always the **last** child in the group (screenshot, if any, is inserted at index 0).
+ *
+ * Use this for scroll anchoring and scroll-range clamping — not {@link Group#getBoundingRect}, which
+ * includes Fabric selection padding and transform-control bounds around the whole group.
  */
-export function deviceFramesUnionBBox(
+export function deviceGroupFrameUnionBBox(
   canvas: Canvas,
   objects: DesignObjectRecord[],
 ): ArtboardBBox | null {
@@ -26,8 +30,11 @@ export function deviceFramesUnionBBox(
 
   for (const id of deviceIds) {
     const obj = findObjectOnCanvasByAppId(canvas, id)
-    if (!obj) continue
-    const b = obj.getBoundingRect()
+    if (!(obj instanceof Group)) continue
+    const children = obj.getObjects()
+    const frame = children[children.length - 1]
+    if (!(frame instanceof FabricImage)) continue
+    const b = frame.getBoundingRect()
     any = true
     left = Math.min(left, b.left)
     top = Math.min(top, b.top)
