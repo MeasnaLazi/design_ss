@@ -1,17 +1,28 @@
 import { Group } from 'fabric'
 import { ImagePlus } from 'lucide-react'
-import { useEffect, useReducer, useRef, type ChangeEvent } from 'react'
+import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
 
 import { applyScreenshotToDeviceGroup } from '../../canvas/applyScreenshotToDevice'
+import { APP_STORE_SCREEN_WIDTH } from '../../constants/appStoreScreens'
 import { findObjectOnCanvasByAppId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
+
+const DEVICE_SIZE_MIN_PX = 80
+const DEVICE_SIZE_MAX_PX = Math.round(APP_STORE_SCREEN_WIDTH * 3)
+
+function clampDeviceSizePx(n: number): number {
+  if (!Number.isFinite(n)) return DEVICE_SIZE_MIN_PX
+  return Math.min(DEVICE_SIZE_MAX_PX, Math.max(DEVICE_SIZE_MIN_PX, Math.round(n)))
+}
 
 export function ContextualDeviceToolbar() {
   const objects = useDesignStore((s) => s.objects)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const fabricCanvas = useDesignStore((s) => s.fabricCanvas)
-  const [, bump] = useReducer((n: number) => n + 1, 0)
+  const [bumpCount, bump] = useReducer((n: number) => n + 1, 0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [widthText, setWidthText] = useState('')
+  const [heightText, setHeightText] = useState('')
 
   const deviceSelected =
     selectedObject != null &&
@@ -20,34 +31,62 @@ export function ContextualDeviceToolbar() {
   useEffect(() => {
     if (!fabricCanvas || !deviceSelected) return
     const onBump = () => bump()
-    fabricCanvas.on('object:rotating', onBump)
     fabricCanvas.on('object:modified', onBump)
     fabricCanvas.on('object:scaling', onBump)
     return () => {
-      fabricCanvas.off('object:rotating', onBump)
       fabricCanvas.off('object:modified', onBump)
       fabricCanvas.off('object:scaling', onBump)
     }
   }, [fabricCanvas, deviceSelected])
 
-  if (!deviceSelected || !selectedObject || !fabricCanvas) return null
+  useEffect(() => {
+    if (!deviceSelected || !selectedObject || !fabricCanvas) return
+    const target = findObjectOnCanvasByAppId(fabricCanvas, selectedObject)
+    if (!(target instanceof Group)) return
+    setWidthText(String(Math.round(target.getScaledWidth())))
+    setHeightText(String(Math.round(target.getScaledHeight())))
+  }, [deviceSelected, selectedObject, fabricCanvas, bumpCount])
 
-  const target = findObjectOnCanvasByAppId(fabricCanvas, selectedObject)
-  if (!(target instanceof Group)) return null
+  if (
+    !deviceSelected ||
+    !selectedObject ||
+    !fabricCanvas ||
+    !(findObjectOnCanvasByAppId(fabricCanvas, selectedObject) instanceof Group)
+  ) {
+    return null
+  }
 
-  const deviceAngleDeg = target.angle ?? 0
-  const normalizedAngle = ((deviceAngleDeg % 360) + 360) % 360
-
-  const applyDeviceRotation = (deg: number) => {
+  const commitDeviceDimensions = () => {
     const canvas = useDesignStore.getState().fabricCanvas
     if (!canvas || !selectedObject) return
     const o = findObjectOnCanvasByAppId(canvas, selectedObject)
     if (!(o instanceof Group)) return
     const rec = useDesignStore.getState().objects.find((x) => x.id === selectedObject)
     if (rec?.kind !== 'device') return
-    o.set({ angle: deg })
+
+    const wRaw = Number(widthText)
+    const hRaw = Number(heightText)
+    if (!Number.isFinite(wRaw) || !Number.isFinite(hRaw)) {
+      setWidthText(String(Math.round(o.getScaledWidth())))
+      setHeightText(String(Math.round(o.getScaledHeight())))
+      return
+    }
+
+    const wPx = clampDeviceSizePx(wRaw)
+    const hPx = clampDeviceSizePx(hRaw)
+
+    const cw = o.getScaledWidth()
+    const ch = o.getScaledHeight()
+    if (cw < 1e-6 || ch < 1e-6) return
+
+    const sx = (o.scaleX ?? 1) * (wPx / cw)
+    const sy = (o.scaleY ?? 1) * (hPx / ch)
+    o.set({ scaleX: sx, scaleY: sy })
     o.setCoords()
+    canvas.fire('object:modified', { target: o })
     canvas.requestRenderAll()
+    setWidthText(String(wPx))
+    setHeightText(String(hPx))
     bump()
   }
 
@@ -89,36 +128,48 @@ export function ContextualDeviceToolbar() {
         onChange={handleScreenshotFile}
       />
 
-      <div className="flex min-w-0 max-w-[11rem] flex-1 items-center gap-2 sm:max-w-[14rem]">
-        <span className="hidden shrink-0 text-xs text-zinc-500 sm:inline">Rotate</span>
-        <input
-          type="range"
-          min={0}
-          max={360}
-          step={1}
-          className="min-w-0 flex-1 accent-emerald-500"
-          value={normalizedAngle}
-          onChange={(e) => applyDeviceRotation(Number(e.target.value))}
-          aria-label="Device rotation in degrees"
-        />
-        <span className="w-8 shrink-0 text-right text-xs tabular-nums text-zinc-400">
-          {Math.round(normalizedAngle)}°
-        </span>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span className="w-9 shrink-0 sm:w-10">Width</span>
+          <input
+            type="number"
+            min={DEVICE_SIZE_MIN_PX}
+            max={DEVICE_SIZE_MAX_PX}
+            step={1}
+            className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
+            value={widthText}
+            onChange={(e) => setWidthText(e.target.value)}
+            onBlur={() => commitDeviceDimensions()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
+            aria-label="Device frame width in pixels"
+          />
+          <span className="text-[10px] text-zinc-600">px</span>
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span className="w-9 shrink-0 sm:w-10">Height</span>
+          <input
+            type="number"
+            min={DEVICE_SIZE_MIN_PX}
+            max={DEVICE_SIZE_MAX_PX}
+            step={1}
+            className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
+            value={heightText}
+            onChange={(e) => setHeightText(e.target.value)}
+            onBlur={() => commitDeviceDimensions()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
+            aria-label="Device frame height in pixels"
+          />
+          <span className="text-[10px] text-zinc-600">px</span>
+        </label>
       </div>
-
-      <label className="flex items-center gap-1.5 text-xs text-zinc-400">
-        <span className="hidden sm:inline">Angle</span>
-        <input
-          type="number"
-          step={1}
-          className="w-14 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
-          value={Math.round(deviceAngleDeg * 100) / 100}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            if (Number.isFinite(n)) applyDeviceRotation(n)
-          }}
-        />
-      </label>
     </div>
   )
 }
