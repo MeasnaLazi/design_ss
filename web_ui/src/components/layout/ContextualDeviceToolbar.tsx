@@ -33,9 +33,11 @@ export function ContextualDeviceToolbar() {
     const onBump = () => bump()
     fabricCanvas.on('object:modified', onBump)
     fabricCanvas.on('object:scaling', onBump)
+    fabricCanvas.on('object:rotating', onBump)
     return () => {
       fabricCanvas.off('object:modified', onBump)
       fabricCanvas.off('object:scaling', onBump)
+      fabricCanvas.off('object:rotating', onBump)
     }
   }, [fabricCanvas, deviceSelected])
 
@@ -47,13 +49,25 @@ export function ContextualDeviceToolbar() {
     setHeightText(String(Math.round(target.getScaledHeight())))
   }, [deviceSelected, selectedObject, fabricCanvas, bumpCount])
 
-  if (
-    !deviceSelected ||
-    !selectedObject ||
-    !fabricCanvas ||
-    !(findObjectOnCanvasByAppId(fabricCanvas, selectedObject) instanceof Group)
-  ) {
-    return null
+  if (!deviceSelected || !selectedObject || !fabricCanvas) return null
+
+  const target = findObjectOnCanvasByAppId(fabricCanvas, selectedObject)
+  if (!(target instanceof Group)) return null
+
+  const deviceAngleDeg = target.angle ?? 0
+
+  const applyDeviceRotation = (deg: number) => {
+    const canvas = useDesignStore.getState().fabricCanvas
+    if (!canvas || !selectedObject) return
+    const o = findObjectOnCanvasByAppId(canvas, selectedObject)
+    if (!(o instanceof Group)) return
+    const rec = useDesignStore.getState().objects.find((x) => x.id === selectedObject)
+    if (rec?.kind !== 'device') return
+    o.set({ angle: deg })
+    o.setCoords()
+    canvas.fire('object:modified', { target: o })
+    canvas.requestRenderAll()
+    bump()
   }
 
   const commitDeviceDimensions = () => {
@@ -168,6 +182,21 @@ export function ContextualDeviceToolbar() {
             aria-label="Device frame height in pixels"
           />
           <span className="text-[10px] text-zinc-600">px</span>
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span className="w-9 shrink-0 sm:w-10">Angle</span>
+          <input
+            type="number"
+            step={1}
+            className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
+            value={Math.round(deviceAngleDeg * 100) / 100}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n)) applyDeviceRotation(n)
+            }}
+            aria-label="Device rotation in degrees"
+          />
+          <span className="text-[10px] text-zinc-600">°</span>
         </label>
       </div>
     </div>
