@@ -19,6 +19,12 @@ import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
 import { attachDeviceGroupPanelClamp } from '../../canvas/deviceGroupPanelClamp'
 import { attachDeviceGroupUniformScaling } from '../../canvas/deviceGroupUniformScaling'
 import {
+  addGutterOverlayRects,
+  attachGutterOverlaysAlwaysOnTop,
+  removeGutterOverlaysFromCanvas,
+  type GutterOverlayRect,
+} from '../../canvas/gutterOverlayRects'
+import {
   CANVAS_GUTTER_COLOR,
   fabricPanelRectFill,
 } from '../../lib/canvasBackground'
@@ -101,6 +107,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const guideLinesRef = useRef<Line[]>([])
   const panelBackgroundRectsRef = useRef<Rect[]>([])
   const panelBackgroundImagesRef = useRef<FabricImage[]>([])
+  const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
+  const gutterStackCleanupRef = useRef<(() => void) | null>(null)
   const prevScreensGapRef = useRef<{ screens: number; gap: number }>({
     screens: -1,
     gap: -1,
@@ -141,6 +149,10 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       attachSelectionSync(canvas)
       attachDeviceGroupUniformScaling(canvas)
       attachDeviceGroupPanelClamp(canvas)
+      gutterStackCleanupRef.current = attachGutterOverlaysAlwaysOnTop(
+        canvas,
+        () => gutterOverlayRectsRef.current,
+      )
       console.log('[CanvasWorkspace] fabric.Canvas initialized', { width, height })
     }
 
@@ -222,6 +234,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       guideInsertAt += 1
       guideLinesRef.current.push(line)
     }
+
+    addGutterOverlayRects(canvas, gutterOverlayRectsRef, screens, gap)
 
     canvas.requestRenderAll()
     applyCanvasCssZoom(
@@ -342,10 +356,16 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   useEffect(() => {
     return () => {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
+      gutterStackCleanupRef.current?.()
+      gutterStackCleanupRef.current = null
+      const c = fabricRef.current
+      if (c) {
+        removeGutterOverlaysFromCanvas(c, gutterOverlayRectsRef)
+      }
       guideLinesRef.current = []
       panelBackgroundRectsRef.current = []
       panelBackgroundImagesRef.current = []
-      const c = fabricRef.current
+      gutterOverlayRectsRef.current = []
       c?.backgroundImage?.dispose()
       if (c) c.backgroundImage = undefined
       useDesignStore.getState().setFabricCanvas(null)
