@@ -90,3 +90,9 @@ export function screenshotVerticalNudgeY(scaledHoleHeight: number, m: DeviceFram
 
 /** Rendered width on canvas (height follows aspect ratio). ~45% of one App Store panel. */
 export const DEVICE_FRAME_TARGET_WIDTH = Math.round(APP_STORE_SCREEN_WIDTH * 0.75)
+
+/**
+ * After dragging, clamping allows the bezel to extend past the artboard top/bottom by this many
+ * canvas px so a frame can sit partly “above” the screenshot row (e.g. spanning two+ panels).
+ */
+export const DEVICE_FRAME_PANEL_CLAMP_VERTICAL_BLEED_PX = 900
