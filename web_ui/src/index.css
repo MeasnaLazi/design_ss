@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@layer base {
+  /* Native scrollbars follow the OS “light” chrome unless we opt into dark UI. */
+  :root {
+    color-scheme: dark;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(63 63 70) rgb(24 24 27); /* thumb, track — zinc-700 / zinc-900 */
+  }
+
+  /* Chromium, Safari, Edge */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: rgb(24 24 27);
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(63 63 70);
+    border-radius: 9999px;
+    border: 2px solid rgb(24 24 27);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(82 82 91);
+  }
+}
