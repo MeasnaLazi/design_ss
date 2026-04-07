@@ -90,14 +90,13 @@ export function clampDeviceGroupToNearestPanel(target: Group): void {
 }
 
 export function attachDeviceGroupPanelClamp(canvas: Canvas): void {
-  const onAdjust = (opt: { target?: unknown }) => {
+  /** Clamping during `object:moving` fights the pointer and feels janky; apply once the gesture ends. */
+  const onModified = (opt: { target?: unknown }) => {
     const t = opt.target
     if (t instanceof Group && isDeviceGroup(t)) {
       clampDeviceGroupToNearestPanel(t)
     }
   }
 
-  canvas.on('object:moving', onAdjust)
-  canvas.on('object:scaling', onAdjust)
-  canvas.on('object:modified', onAdjust)
+  canvas.on('object:modified', onModified)
 }

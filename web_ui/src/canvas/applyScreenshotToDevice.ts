@@ -101,7 +101,6 @@ export async function applyScreenshotToDeviceGroup(
     evented: false,
     lockMovementX: true,
     lockMovementY: true,
-    objectCaching: false,
     dirty: true,
     clipPath: clipForScreenRect({ sw, sh, rx, ry }, scale),
   })

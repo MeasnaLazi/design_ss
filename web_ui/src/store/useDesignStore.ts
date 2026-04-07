@@ -125,7 +125,10 @@ export const useDesignStore = create<DesignStore>((set) => ({
       selectedObject: state.selectedObject === id ? null : state.selectedObject,
     })),
 
-  setSelectedObject: (selectedObject) => set({ selectedObject }),
+  setSelectedObject: (selectedObject) =>
+    set((state) =>
+      state.selectedObject === selectedObject ? state : { selectedObject },
+    ),
 
   setFabricCanvas: (fabricCanvas) => set({ fabricCanvas }),
 

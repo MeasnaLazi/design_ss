@@ -13,7 +13,7 @@ import {
   Line,
   Rect,
 } from 'fabric'
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 
 import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
 import { attachDeviceGroupPanelClamp } from '../../canvas/deviceGroupPanelClamp'
@@ -95,7 +95,7 @@ function attachSelectionSync(canvas: Canvas): void {
   })
 }
 
-export function CanvasWorkspace() {
+export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<Canvas | null>(null)
   const guideLinesRef = useRef<Line[]>([])
@@ -129,6 +129,12 @@ export function CanvasWorkspace() {
         height,
         backgroundColor: CANVAS_GUTTER_COLOR,
         preserveObjectStacking: true,
+        /**
+         * Default `enableRetinaScaling` multiplies backing-store pixels by devicePixelRatio.
+         * At full App Store artboard resolution that makes each drag-frame paint enormous; CSS zoom
+         * already scales the element for preview, so logical-pixel buffers keep drags smooth.
+         */
+        enableRetinaScaling: false,
       })
       fabricRef.current = canvas
       useDesignStore.getState().setFabricCanvas(canvas)
@@ -196,7 +202,6 @@ export function CanvasWorkspace() {
         strokeWidth: 1,
         selectable: false,
         evented: false,
-        objectCaching: false,
       })
       canvas.insertAt(0, rect)
       panelBackgroundRectsRef.current.push(rect)
@@ -211,7 +216,6 @@ export function CanvasWorkspace() {
         strokeDashArray: [...GUIDE_DASH],
         selectable: false,
         evented: false,
-        objectCaching: false,
         excludeFromExport: true,
       })
       canvas.insertAt(guideInsertAt, line)
@@ -299,7 +303,6 @@ export function CanvasWorkspace() {
             scaleY: scale,
             selectable: false,
             evented: false,
-            objectCaching: false,
             clipPath: new Rect({
               left: left + W / 2,
               top: H / 2,
@@ -359,4 +362,4 @@ export function CanvasWorkspace() {
       aria-label="Design canvas"
     />
   )
-}
+})

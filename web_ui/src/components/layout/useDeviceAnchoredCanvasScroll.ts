@@ -25,8 +25,6 @@ export type DeviceAnchoredCanvasLayout = {
   trackHeight: number
   canvasCssW: number
   canvasCssH: number
-  /** True while the user has pressed on a canvas object — freezes anchored layout and viewport scroll. */
-  scrollLocked: boolean
 }
 
 type AnchoredFrameLayout = {
@@ -87,7 +85,6 @@ export function useDeviceAnchoredCanvasScroll(
 
   const [viewportW, setViewportW] = useState(0)
   const [tick, setTick] = useState(0)
-  const [scrollLocked, setScrollLocked] = useState(false)
 
   const rafRef = useRef<number | null>(null)
   const freezeAnchoredLayoutRef = useRef(false)
@@ -105,13 +102,13 @@ export function useDeviceAnchoredCanvasScroll(
   const unlockScrollAndRelayout = useCallback(() => {
     if (!freezeAnchoredLayoutRef.current) return
     freezeAnchoredLayoutRef.current = false
-    setScrollLocked(false)
+    viewportRef.current?.style.removeProperty('overflow')
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
     setTick((t) => t + 1)
-  }, [])
+  }, [viewportRef])
 
   useEffect(() => {
     const el = viewportRef.current
@@ -124,17 +121,14 @@ export function useDeviceAnchoredCanvasScroll(
     return () => ro.disconnect()
   }, [viewportRef])
 
+  /**
+   * Never tie `bump` to `after:render` or `object:moving` — that schedules ~60 React updates/sec
+   * while dragging and makes layer moves stutter. Layout no longer depends on live device position.
+   */
   useEffect(() => {
     const c = fabricCanvas
     if (!c) return
-    const events = [
-      'after:render',
-      'object:modified',
-      'object:moving',
-      'object:scaling',
-      'object:rotating',
-      'object:skewing',
-    ] as const
+    const events = ['object:modified', 'object:added', 'object:removed'] as const
     for (const e of events) {
       c.on(e, bump)
     }
@@ -154,7 +148,8 @@ export function useDeviceAnchoredCanvasScroll(
       const e = opt.e
       if (e instanceof MouseEvent && e.button !== 0) return
       freezeAnchoredLayoutRef.current = true
-      setScrollLocked(true)
+      /** Imperative lock avoids a React commit + `CanvasArea` re-render on drag start (layout thrash). */
+      viewportRef.current?.style.setProperty('overflow', 'hidden')
     }
 
     c.on('mouse:down', onDown)
@@ -166,9 +161,9 @@ export function useDeviceAnchoredCanvasScroll(
       window.removeEventListener('pointerup', unlockScrollAndRelayout)
       window.removeEventListener('pointercancel', unlockScrollAndRelayout)
       freezeAnchoredLayoutRef.current = false
-      setScrollLocked(false)
+      viewportRef.current?.style.removeProperty('overflow')
     }
-  }, [fabricCanvas, unlockScrollAndRelayout])
+  }, [fabricCanvas, unlockScrollAndRelayout, viewportRef])
 
   useEffect(() => {
     return () => {
@@ -216,7 +211,6 @@ export function useDeviceAnchoredCanvasScroll(
         trackHeight: canvasCssH,
         canvasCssW,
         canvasCssH,
-        scrollLocked,
       }
     }
 
@@ -228,7 +222,6 @@ export function useDeviceAnchoredCanvasScroll(
       trackHeight: inner.trackHeight,
       canvasCssW: inner.canvasCssW,
       canvasCssH: inner.canvasCssH,
-      scrollLocked,
     }
   }, [
     fabricCanvas,
@@ -238,6 +231,5 @@ export function useDeviceAnchoredCanvasScroll(
     gap,
     viewportW,
     tick,
-    scrollLocked,
   ])
 }

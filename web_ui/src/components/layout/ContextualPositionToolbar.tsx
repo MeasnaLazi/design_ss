@@ -16,18 +16,18 @@ export function ContextualPositionToolbar() {
   const isLayer =
     selectedObject != null && objects.some((o) => o.id === selectedObject)
 
+  /**
+   * Do not listen to `object:moving` / `object:scaling` / `object:rotating` here: those fire every
+   * pointer frame and this component used `useReducer` → full React re-renders + controlled inputs
+   * updating ~60×/s, which starves the main thread and makes Fabric drags feel stuttery.
+   * Sync X/Y when the gesture completes via `object:modified` only.
+   */
   useEffect(() => {
     if (!fabricCanvas || !isLayer) return
     const onBump = () => bump()
-    fabricCanvas.on('object:moving', onBump)
     fabricCanvas.on('object:modified', onBump)
-    fabricCanvas.on('object:scaling', onBump)
-    fabricCanvas.on('object:rotating', onBump)
     return () => {
-      fabricCanvas.off('object:moving', onBump)
       fabricCanvas.off('object:modified', onBump)
-      fabricCanvas.off('object:scaling', onBump)
-      fabricCanvas.off('object:rotating', onBump)
     }
   }, [fabricCanvas, isLayer])
 
