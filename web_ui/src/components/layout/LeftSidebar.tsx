@@ -96,7 +96,7 @@ export function LeftSidebar() {
 
   return (
     <aside
-      className="flex w-60 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/50"
+      className="flex min-h-0 w-60 shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-zinc-800 bg-zinc-900/50"
       aria-label="Assets and layers"
     >
       <div className="border-b border-zinc-800 p-3">
@@ -397,7 +397,7 @@ export function LeftSidebar() {
         </ul>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
+      <div className="flex flex-col p-3 pb-4">
         <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           <Layers className="size-3.5" aria-hidden />
           Layers
