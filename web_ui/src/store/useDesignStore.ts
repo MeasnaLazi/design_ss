@@ -1,3 +1,5 @@
+import type { DisplayDesignSnapshot } from '../types/displayDocument'
+
 import type {
   DesignConfig,
   DesignConfigPartial,
@@ -71,6 +73,8 @@ export interface DesignStoreActions {
   zoomCanvasIn: () => void
   zoomCanvasOut: () => void
   resetCanvasZoom: () => void
+  /** Replace layout + layer list + zoom from a saved display document (see `datasource/display.json`). */
+  loadDesignSnapshot: (snapshot: DisplayDesignSnapshot) => void
 }
 
 export type DesignStore = DesignStoreState & DesignStoreActions
@@ -143,4 +147,25 @@ export const useDesignStore = create<DesignStore>((set) => ({
     })),
 
   resetCanvasZoom: () => set({ canvasZoom: CANVAS_ZOOM_DEFAULT }),
+
+  loadDesignSnapshot: (snapshot) =>
+    set(() => ({
+      config: {
+        ...defaultConfig,
+        ...snapshot.config,
+        backgroundGradient: {
+          ...defaultConfig.backgroundGradient,
+          ...snapshot.config.backgroundGradient,
+        },
+        screens: clampLayoutScreens(snapshot.config.screens),
+        gap: clampLayoutGap(snapshot.config.gap),
+      },
+      objects: snapshot.objects ?? [],
+      canvasZoom: clampCanvasZoom(
+        Number.isFinite(snapshot.canvasZoom)
+          ? snapshot.canvasZoom
+          : CANVAS_ZOOM_DEFAULT,
+      ),
+      selectedObject: null,
+    })),
 }))

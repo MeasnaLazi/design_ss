@@ -26,6 +26,13 @@ import {
   type GutterOverlayRect,
 } from '../../canvas/gutterOverlayRects'
 import {
+  isPanelBackgroundImage,
+  type PanelBgImage,
+  type PanelSlotRect,
+  PANEL_BG_MARK,
+  PANEL_SLOT_MARK,
+} from '../../canvas/canvasObjectMarks'
+import {
   CANVAS_GUTTER_COLOR,
   fabricPanelRectFill,
 } from '../../lib/canvasBackground'
@@ -36,13 +43,6 @@ const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
 
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
-
-const PANEL_BG_MARK = '__appsPublisherPanelBg' as const
-type PanelBgImage = FabricImage & { [PANEL_BG_MARK]?: true }
-
-function isPanelBackgroundImage(o: unknown): o is PanelBgImage {
-  return o instanceof FabricImage && !!(o as PanelBgImage)[PANEL_BG_MARK]
-}
 
 /** Removes tracked and any stray per-panel background images (avoids stale refs / async races). */
 function removeAllPanelBackgroundImagesFromCanvas(
@@ -216,7 +216,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
         strokeWidth: 1,
         selectable: false,
         evented: false,
-      })
+      }) as PanelSlotRect
+      rect[PANEL_SLOT_MARK] = true
       canvas.insertAt(0, rect)
       panelBackgroundRectsRef.current.push(rect)
     }
