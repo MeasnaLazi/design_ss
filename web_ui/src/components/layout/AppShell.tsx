@@ -1,3 +1,4 @@
+import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
 import { ToastHost } from '../ui/ToastHost'
 
 import { BottomFooter } from './BottomFooter'
@@ -6,6 +7,8 @@ import { LeftSidebar } from './LeftSidebar'
 import { TopToolbar } from './TopToolbar'
 
 export function AppShell() {
+  useDeleteLayerHotkeys()
+
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-zinc-950 text-zinc-100 antialiased">
       <TopToolbar />

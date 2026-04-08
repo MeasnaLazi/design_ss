@@ -7,11 +7,13 @@ import {
   Palette,
   Shapes,
   Smartphone,
+  Trash2,
   Type,
 } from 'lucide-react'
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
+import { deleteLayerById, selectLayerById } from '../../canvas/deleteLayerById'
 import {
   SCREEN_LAYOUT_COUNT_MAX,
   SCREEN_LAYOUT_COUNT_MIN,
@@ -443,17 +445,31 @@ export function LeftSidebar() {
         ) : (
           <ul className="mt-2 space-y-1">
             {sortedLayers.map((o) => (
-              <li key={o.id}>
-                <span
-                  className={`block truncate rounded px-2 py-1 text-sm ${
+              <li key={o.id} className="flex items-stretch gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => selectLayerById(o.id)}
+                  className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors ${
                     selectedObject === o.id
                       ? 'bg-zinc-800 text-zinc-100'
-                      : 'text-zinc-400'
+                      : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
                   }`}
                 >
                   {o.name}
                   <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
-                </span>
+                </button>
+                <button
+                  type="button"
+                  title="Delete layer"
+                  aria-label={`Delete layer ${o.name}`}
+                  className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-red-950/50 hover:text-red-300"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteLayerById(o.id)
+                  }}
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
               </li>
             ))}
           </ul>
