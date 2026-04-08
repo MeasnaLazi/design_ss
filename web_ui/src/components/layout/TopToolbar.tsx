@@ -7,6 +7,7 @@ import { parseDisplayDocument } from '../../canvas/parseDisplayDocument'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
 import { fetchDisplayDocument, putDisplayDocument } from '../../lib/datasourceApi'
 import { useDesignStore } from '../../store/useDesignStore'
+import { useToastStore } from '../../store/useToastStore'
 import type { DisplayDocumentV1 } from '../../types/displayDocument'
 
 import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
@@ -33,14 +34,18 @@ export function TopToolbar() {
   const handleExportZip = async () => {
     const canvas = useDesignStore.getState().fabricCanvas
     const { screens: n, gap: g } = useDesignStore.getState().config
+    const { showToast } = useToastStore.getState()
     if (!canvas) {
       console.warn('[TopToolbar] export: no canvas')
+      showToast('Export failed — canvas is not ready yet.', 'error')
       return
     }
     try {
       await exportAppStoreScreensToZip(canvas, n, g)
+      showToast('Screens exported — ZIP download started.', 'success')
     } catch (e) {
       console.error('[TopToolbar] export failed', e)
+      showToast('Export failed — could not build the ZIP.', 'error')
     }
   }
 
@@ -54,35 +59,49 @@ export function TopToolbar() {
   }
 
   const handleSaveToDatasource = async () => {
+    const { showToast } = useToastStore.getState()
     const doc = buildCurrentDisplayDocument()
-    if (!doc) return
+    if (!doc) {
+      showToast('Save failed — canvas is not ready yet.', 'error')
+      return
+    }
     try {
       await putDisplayDocument(doc)
       console.log('[TopToolbar] saved display.json to datasource/')
+      showToast('Saved to datasource/display.json.', 'success')
     } catch (e) {
       console.error('[TopToolbar] save to datasource failed (dev server only)', e)
       downloadDisplayJson(doc)
-      window.alert(
-        'Could not write to the project datasource folder (is the Vite dev server running?). Downloaded display.json instead.',
+      showToast(
+        'Could not write to datasource (dev server only). Downloaded display.json instead.',
+        'warning',
       )
     }
   }
 
   const handleDownloadDisplayJson = () => {
+    const { showToast } = useToastStore.getState()
     const doc = buildCurrentDisplayDocument()
-    if (!doc) return
+    if (!doc) {
+      showToast('Download failed — canvas is not ready yet.', 'error')
+      return
+    }
     downloadDisplayJson(doc)
+    showToast('Download started — display.json.', 'success')
   }
 
   const handleLoadFromDatasource = async () => {
+    const { showToast } = useToastStore.getState()
     try {
       const raw = await fetchDisplayDocument()
       const doc = parseDisplayDocument(raw)
       await loadDisplayDocumentIntoCanvas(doc)
+      showToast('Design loaded from datasource/display.json.', 'success')
     } catch (e) {
       console.error('[TopToolbar] load from datasource failed', e)
-      window.alert(
-        'Could not load datasource/display.json. Create it with Save, or use Import to datasource.',
+      showToast(
+        'Could not load datasource/display.json. Save or import a design first.',
+        'error',
       )
     }
   }
@@ -94,6 +113,7 @@ export function TopToolbar() {
   const handleImportFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    const { showToast } = useToastStore.getState()
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -101,19 +121,29 @@ export function TopToolbar() {
       const text = await file.text()
       const raw: unknown = JSON.parse(text)
       const doc = parseDisplayDocument(raw)
+      let wroteDatasource = false
       try {
         await putDisplayDocument(doc)
+        wroteDatasource = true
         console.log('[TopToolbar] copied display file into datasource/display.json')
       } catch (putErr) {
         console.error('[TopToolbar] import: could not write datasource', putErr)
-        window.alert(
-          'Loaded the design into the canvas, but could not write to datasource/display.json (dev server only).',
-        )
       }
       await loadDisplayDocumentIntoCanvas(doc)
+      if (wroteDatasource) {
+        showToast(
+          `Imported “${file.name}” — saved to datasource and applied.`,
+          'success',
+        )
+      } else {
+        showToast(
+          'Design applied from file, but datasource could not be updated (dev server only).',
+          'warning',
+        )
+      }
     } catch (err) {
       console.error('[TopToolbar] display file failed', err)
-      window.alert('Invalid display.json or failed to apply design.')
+      showToast('Invalid display.json or could not apply the design.', 'error')
     }
   }
 

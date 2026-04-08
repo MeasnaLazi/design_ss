@@ -1,3 +1,5 @@
+import { ToastHost } from '../ui/ToastHost'
+
 import { BottomFooter } from './BottomFooter'
 import { CanvasArea } from './CanvasArea'
 import { LeftSidebar } from './LeftSidebar'
@@ -12,6 +14,7 @@ export function AppShell() {
         <CanvasArea />
       </div>
       <BottomFooter />
+      <ToastHost />
     </div>
   )
 }
