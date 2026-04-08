@@ -16,6 +16,7 @@ import {
 import { memo, useEffect, useRef } from 'react'
 
 import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
+import { attachDeviceGroupNoCacheForScreenshotClip } from '../../canvas/deviceGroupDisableCachingForClipRotation'
 import { attachDeviceGroupPanelClamp } from '../../canvas/deviceGroupPanelClamp'
 import { attachDeviceGroupUniformScaling } from '../../canvas/deviceGroupUniformScaling'
 import {
@@ -149,6 +150,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       attachSelectionSync(canvas)
       attachDeviceGroupUniformScaling(canvas)
       attachDeviceGroupPanelClamp(canvas)
+      attachDeviceGroupNoCacheForScreenshotClip(canvas)
       gutterStackCleanupRef.current = attachGutterOverlaysAlwaysOnTop(
         canvas,
         () => gutterOverlayRectsRef.current,

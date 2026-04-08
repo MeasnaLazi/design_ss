@@ -1,4 +1,11 @@
-import { ActiveSelection, FabricImage, Group, Rect, type Canvas } from 'fabric'
+import {
+  ActiveSelection,
+  FabricImage,
+  Group,
+  Rect,
+  type Canvas,
+  type FabricObject,
+} from 'fabric'
 import {
   getDeviceFrameMetricsForStyle,
   screenshotVerticalNudgeY,
@@ -7,6 +14,23 @@ import {
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
+
+/** Fabric’s internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
+type GroupWithEnter = Group & {
+  _enterGroup(object: FabricObject, removeParentTransform?: boolean): void
+}
+
+/**
+ * {@link Group#drawObject} (with `preserveObjectStacking`) only paints a child through the group when
+ * `child.group === group`. Otherwise it applies the inverse group matrix and the child looks
+ * axis-aligned (screenshot at 0° while the bezel is rotated). Assigning `child.group = group` is not
+ * enough — we must run the same path as {@link Group#_enterGroup} so `group`, `canvas`, and event
+ * wiring match Fabric’s expectations after `fromURL` + layout.
+ */
+function resyncScreenshotChildInDeviceGroup(child: FabricObject, group: Group): void {
+  ;(group as GroupWithEnter)._enterGroup(child, false)
+  child.setCoords()
+}
 
 /**
  * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric’s group
@@ -79,10 +103,12 @@ export async function applyScreenshotToDeviceGroup(
       left: 0,
       top: 0,
       width: r.sw / s,
-      height: (r.sh / s),
+      height: r.sh / s,
       rx: r.rx / s,
       ry: r.ry / s,
       absolutePositioned: false,
+      /** With a rotated parent {@link Group}, cached clip + image can draw as if angle were 0. */
+      objectCaching: false,
     })
   }
 
@@ -97,11 +123,17 @@ export async function applyScreenshotToDeviceGroup(
     top: 0,
     scaleX: scale,
     scaleY: scale,
+    angle: 0,
+    skewX: 0,
+    skewY: 0,
     selectable: false,
     evented: false,
     lockMovementX: true,
     lockMovementY: true,
+    lockRotation: true,
     dirty: true,
+    /** Required so the screenshot + clipPath rotate correctly with the device {@link Group}. */
+    objectCaching: false,
     clipPath: clipForScreenRect({ sw, sh, rx, ry }, scale),
   })
 
@@ -115,6 +147,7 @@ export async function applyScreenshotToDeviceGroup(
   shot.setCoords()
   target.set('dirty', true)
   target.triggerLayout({})
+  resyncScreenshotChildInDeviceGroup(shot, target)
 
   // Re-read the frame after layout so the screenshot + clip stay locked to the opening.
   const afterObjects = target.getObjects()
@@ -129,8 +162,13 @@ export async function applyScreenshotToDeviceGroup(
       top: cy2,
       scaleX: s2,
       scaleY: s2,
+      angle: 0,
+      skewX: 0,
+      skewY: 0,
       lockMovementX: true,
       lockMovementY: true,
+      lockRotation: true,
+      objectCaching: false,
       clipPath: clipForScreenRect(r, s2),
       dirty: true,
     })
@@ -140,6 +178,8 @@ export async function applyScreenshotToDeviceGroup(
       screen: r,
     })
   }
+
+  resyncScreenshotChildInDeviceGroup(shot, target)
 
   const baseName = file.name.replace(/\.[^/.]+$/, '') || 'Screenshot'
   if (existing) {

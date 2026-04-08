@@ -30,7 +30,7 @@ export async function addDeviceFrameToCanvas(
   )
 
   frame.scaleToWidth(DEVICE_FRAME_TARGET_WIDTH)
-  frame.set({ dirty: true })
+  frame.set({ dirty: true, objectCaching: false })
 
   const id = crypto.randomUUID()
   const zIndex =
@@ -47,6 +47,11 @@ export async function addDeviceFrameToCanvas(
     lockRotation: false,
     /** Extra space so the rotate handle clears the tall frame. */
     padding: 28,
+    /**
+     * Clipped screenshot child + rotation: a cached group bitmap can mis-compose clipPath vs
+     * group angle; disable caching for reliable preview when the frame is rotated.
+     */
+    objectCaching: false,
   })
 
   const w = group.getScaledWidth()
