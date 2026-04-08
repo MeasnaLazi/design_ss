@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
+  GripVertical,
   ImageIcon,
   ImagePlus,
   Layers,
@@ -17,6 +18,10 @@ import {
   SCREEN_LAYOUT_GAP_MAX,
   SCREEN_LAYOUT_GAP_MIN,
 } from '../../constants/appStoreScreens'
+import {
+  ASSET_DRAG_KIND_TEXT,
+  ASSET_DRAG_MIME,
+} from '../../constants/assetDrag'
 import {
   DEFAULT_DEVICE_FRAME_STYLE_ID,
   DEVICE_FRAME_STYLES,
@@ -336,14 +341,27 @@ export function LeftSidebar() {
           Assets
         </h2>
         <ul className="mt-2 space-y-1">
-          <li>
+          <li className="flex items-stretch gap-0.5">
             <button
               type="button"
               onClick={handleAddText}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
             >
               <Type className="size-4 shrink-0" aria-hidden />
               Text
+            </button>
+            <button
+              type="button"
+              draggable
+              title="Drag onto canvas to place text"
+              aria-label="Drag text onto canvas"
+              className="flex shrink-0 items-center justify-center rounded-md border border-zinc-800 px-1.5 text-zinc-500 hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-300"
+              onDragStart={(e) => {
+                e.dataTransfer.setData(ASSET_DRAG_MIME, ASSET_DRAG_KIND_TEXT)
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+            >
+              <GripVertical className="size-4" aria-hidden />
             </button>
           </li>
           <li className="space-y-2">

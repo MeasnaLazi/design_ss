@@ -43,3 +43,4 @@ Icon
 
 # Optional: Cursor specific (if you don't want to track cursor workspace states)
 .cursor/
+package-lock.json
