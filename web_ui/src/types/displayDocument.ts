@@ -34,6 +34,9 @@ export interface DisplayDesignSnapshot {
  *   ]
  * }
  * ```
+ *
+ * `design.config.backgroundImageUrl` may be a same-origin path such as
+ * `/__api/datasource/screenshots/<uuid>.png` when images were stored via the Vite dev upload API.
  */
 export interface DisplayDocumentV1 {
   version: typeof DISPLAY_DOCUMENT_VERSION

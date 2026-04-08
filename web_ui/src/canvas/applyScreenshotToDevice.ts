@@ -11,8 +11,10 @@ import {
   screenshotVerticalNudgeY,
   type DeviceFrameMetrics,
 } from '../constants/deviceFrame'
+import { uploadScreenshotBlob } from '../lib/datasourceScreenshotsApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
+import { useToastStore } from '../store/useToastStore'
 import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
 
 /** Fabric’s internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
@@ -89,7 +91,19 @@ export async function applyScreenshotToDeviceGroup(
   const { sx, sy, sw, sh, rx, ry } = screenRectForFrame(frame, metrics)
 
   const dataUrl = await bakeScreenshotFileForMetrics(file, metrics)
-  const shot = await FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' })
+  let imageUrl = dataUrl
+  try {
+    const blob = await (await fetch(dataUrl)).blob()
+    imageUrl = await uploadScreenshotBlob(blob, 'device-screenshot.png')
+  } catch {
+    useToastStore
+      .getState()
+      .showToast(
+        'Saved as embedded image; dev server required to store under datasource.',
+        'warning',
+      )
+  }
+  const shot = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' })
 
   const natW = Math.max(shot.width || 1, 1)
   const natH = Math.max(shot.height || 1, 1)

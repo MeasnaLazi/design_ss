@@ -21,7 +21,11 @@ export interface DesignConfig {
   /** Base fill before optional {@link backgroundImageUrl}. */
   backgroundMode: CanvasBackgroundMode
   backgroundGradient: BackgroundGradientConfig
-  /** Optional full-bleed background image (data URL or remote URL), cover-scaled to the canvas. */
+  /**
+   * Optional full-bleed background image, cover-scaled to the canvas.
+   * May be a legacy `data:image/...` URL (fallback when upload API is unavailable) or a
+   * same-origin dev asset path such as `/__api/datasource/screenshots/<file>.png`.
+   */
   backgroundImageUrl: string | null
 }
 

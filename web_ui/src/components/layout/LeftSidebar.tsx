@@ -22,7 +22,9 @@ import {
   DEVICE_FRAME_STYLES,
   type DeviceFrameStyleId,
 } from '../../constants/deviceFrameStyles'
+import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
 import { useDesignStore } from '../../store/useDesignStore'
+import { useToastStore } from '../../store/useToastStore'
 
 type CanvasFillTab = 'solid' | 'gradient' | 'image'
 
@@ -76,20 +78,36 @@ export function LeftSidebar() {
     canvasBgInputRef.current?.click()
   }
 
-  const handleCanvasBackgroundFile = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleCanvasBackgroundFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const fr = new FileReader()
-    fr.onload = () => {
-      const url = typeof fr.result === 'string' ? fr.result : ''
-      if (url) {
-        setConfig({ backgroundImageUrl: url })
-        setCanvasFillTab('image')
-        console.log('[LeftSidebar] canvas background image set')
+    const applyDataUrl = () => {
+      const fr = new FileReader()
+      fr.onload = () => {
+        const url = typeof fr.result === 'string' ? fr.result : ''
+        if (url) {
+          setConfig({ backgroundImageUrl: url })
+          setCanvasFillTab('image')
+          console.log('[LeftSidebar] canvas background image set (embedded)')
+        }
       }
+      fr.readAsDataURL(file)
     }
-    fr.readAsDataURL(file)
+    try {
+      const url = await uploadScreenshotFile(file)
+      setConfig({ backgroundImageUrl: url })
+      setCanvasFillTab('image')
+      console.log('[LeftSidebar] canvas background image set')
+    } catch {
+      useToastStore
+        .getState()
+        .showToast(
+          'Saved as embedded image; dev server required to store under datasource.',
+          'warning',
+        )
+      applyDataUrl()
+    }
   }
 
   const sortedLayers = [...objects].sort((a, b) => b.zIndex - a.zIndex)
