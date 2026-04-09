@@ -12,10 +12,37 @@ function isDeviceGroup(target: unknown): target is Group {
   return rec?.kind === 'device'
 }
 
+const ANGLE_EPS = 1e-3
+
+/** Caching is unsafe when the device group is rotated/skewed (clip + bezel mis-compose). */
+function deviceGroupEligibleForTranslateCache(group: Group): boolean {
+  if (Math.abs(group.angle ?? 0) > ANGLE_EPS) return false
+  if (Math.abs(group.skewX ?? 0) > ANGLE_EPS) return false
+  if (Math.abs(group.skewY ?? 0) > ANGLE_EPS) return false
+  return true
+}
+
+/**
+ * While dragging at 0°/0 skew, cached bitmaps avoid repainting large clipped screenshots every
+ * pointer frame. {@link markScreenshotImagesNoCache} restores the safe state on gesture end.
+ */
+function enableDeviceGroupTranslateCache(group: Group): void {
+  if (group.objectCaching) return
+  for (const o of group.getObjects()) {
+    if (!(o instanceof FabricImage)) continue
+    o.set({ objectCaching: true, dirty: true })
+    o.setCoords()
+    const cp = o.clipPath as FabricObject | undefined
+    if (cp) {
+      cp.set({ objectCaching: true, dirty: true })
+    }
+  }
+  group.set({ objectCaching: true, dirty: true })
+}
+
 /** Screenshot(s) sit before the bezel image (last child). */
 function markScreenshotImagesNoCache(group: Group): void {
   const objs = group.getObjects()
-  if (objs.length < 2) return
   for (let i = 0; i < objs.length - 1; i++) {
     const o = objs[i]
     if (!(o instanceof FabricImage)) continue
@@ -37,6 +64,11 @@ function markScreenshotImagesNoCache(group: Group): void {
       cp.set({ objectCaching: false, dirty: true })
     }
   }
+  const frame = objs[objs.length - 1]
+  if (frame instanceof FabricImage) {
+    frame.set({ objectCaching: false, dirty: true })
+    frame.setCoords()
+  }
   group.set({ objectCaching: false, dirty: true })
 }
 
@@ -51,6 +83,14 @@ export function attachDeviceGroupNoCacheForScreenshotClip(canvas: Canvas): void 
     markScreenshotImagesNoCache(t)
   }
 
+  const onMoving = (opt: { target?: FabricObject }) => {
+    const t = opt.target
+    if (!isDeviceGroup(t)) return
+    if (!deviceGroupEligibleForTranslateCache(t)) return
+    enableDeviceGroupTranslateCache(t)
+  }
+
+  canvas.on('object:moving', onMoving)
   canvas.on('object:rotating', refresh)
   canvas.on('object:scaling', refresh)
   canvas.on('object:modified', refresh)

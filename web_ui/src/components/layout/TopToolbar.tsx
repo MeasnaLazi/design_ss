@@ -4,12 +4,10 @@ import { ChevronDown, Download, LayoutTemplate, Save, Trash2 } from 'lucide-reac
 import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
 import {
-  displayDocumentFilenameForPreset,
   getArtboardDimensionsFromConfig,
-  getDisplayFileSlug,
 } from '../../constants/artboardPresets'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
-import { putDisplayDocument } from '../../lib/datasourceApi'
+import { saveDisplayToDatasource } from '../../lib/saveDisplayToDatasource'
 import {
   deleteDesignTemplate,
   listDesignTemplates,
@@ -24,18 +22,6 @@ import type { DisplayDocumentV1 } from '../../types/displayDocument'
 import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
 import { ContextualPositionToolbar } from './ContextualPositionToolbar'
 import { ContextualTextToolbar } from './ContextualTextToolbar'
-
-function downloadDisplayJson(doc: DisplayDocumentV1, filename: string): void {
-  const blob = new Blob([JSON.stringify(doc, null, 2)], {
-    type: 'application/json',
-  })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
 export function TopToolbar() {
   const screens = useDesignStore((s) => s.config.screens)
@@ -150,31 +136,6 @@ export function TopToolbar() {
     showToast(`Removed “${item.name}”.`, 'success')
   }
 
-  const handleSaveToDatasource = async () => {
-    const { showToast } = useToastStore.getState()
-    const doc = buildCurrentDisplayDocument()
-    if (!doc) {
-      showToast('Save failed — canvas is not ready yet.', 'error')
-      return
-    }
-    const slug = getDisplayFileSlug(useDesignStore.getState().config.artboardPresetId)
-    const basename = displayDocumentFilenameForPreset(
-      useDesignStore.getState().config.artboardPresetId,
-    )
-    try {
-      await putDisplayDocument(doc, slug)
-      console.log('[TopToolbar] saved to datasource/', basename)
-      showToast(`Saved to datasource/${basename}.`, 'success')
-    } catch (e) {
-      console.error('[TopToolbar] save to datasource failed (dev server only)', e)
-      downloadDisplayJson(doc, basename)
-      showToast(
-        `Could not write to datasource (dev server only). Downloaded ${basename} instead.`,
-        'warning',
-      )
-    }
-  }
-
   return (
     <header
       className="relative z-50 flex h-12 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-900/80 px-4 backdrop-blur-sm"
@@ -208,7 +169,7 @@ export function TopToolbar() {
               type="button"
               role="menuitem"
               className="px-3 py-1.5 text-left text-xs text-zinc-100 hover:bg-zinc-800"
-              onClick={() => void handleSaveToDatasource()}
+              onClick={() => void saveDisplayToDatasource()}
             >
               Save to datasource…
             </button>

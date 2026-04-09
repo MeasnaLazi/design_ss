@@ -1,6 +1,9 @@
 import { ActiveSelection, IText, type Canvas } from 'fabric'
 
-import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
+import {
+  findObjectOnCanvasByAppId,
+  getFabricObjectId,
+} from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 
 import { isDesignSystemCanvasObject } from './canvasObjectMarks'
@@ -39,6 +42,47 @@ export function deleteLayerById(id: string): void {
   }
 
   useDesignStore.getState().removeObject(id)
+}
+
+/**
+ * Deletes whatever is selected on the canvas (single layer or {@link ActiveSelection}), or falls back
+ * to the design store’s `selectedObject` when Fabric has no active object.
+ * Returns whether any layer was removed. No-op while editing canvas text.
+ */
+export function deleteSelectedCanvasLayers(): boolean {
+  const canvas = useDesignStore.getState().fabricCanvas
+  if (!canvas || isFabricTextEditing(canvas)) return false
+
+  const active = canvas.getActiveObject()
+
+  if (active instanceof ActiveSelection) {
+    const ids = active
+      .getObjects()
+      .filter((o) => !isDesignSystemCanvasObject(o))
+      .map((o) => getFabricObjectId(o))
+      .filter((id): id is string => typeof id === 'string')
+    if (ids.length === 0) return false
+    for (const id of ids) {
+      deleteLayerById(id)
+    }
+    return true
+  }
+
+  if (active && !isDesignSystemCanvasObject(active)) {
+    const id = getFabricObjectId(active)
+    if (id) {
+      deleteLayerById(id)
+      return true
+    }
+  }
+
+  const selectedObject = useDesignStore.getState().selectedObject
+  if (selectedObject) {
+    deleteLayerById(selectedObject)
+    return true
+  }
+
+  return false
 }
 
 /** Selects a user layer on the canvas (updates Fabric + store via existing selection handlers). */

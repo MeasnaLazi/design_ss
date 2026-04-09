@@ -1,5 +1,8 @@
+import { useArrowNudgeLayerHotkeys } from '../../hooks/useArrowNudgeLayerHotkeys'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
+import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
+import { useSaveDesignHotkey } from '../../hooks/useSaveDesignHotkey'
 import { ToastHost } from '../ui/ToastHost'
 
 import { BottomFooter } from './BottomFooter'
@@ -8,7 +11,10 @@ import { LeftSidebar } from './LeftSidebar'
 import { TopToolbar } from './TopToolbar'
 
 export function AppShell() {
+  useArrowNudgeLayerHotkeys()
+  useCopyPasteLayerHotkeys()
   useDeleteLayerHotkeys()
+  useSaveDesignHotkey()
   useArtboardPresetDisplaySync()
 
   return (

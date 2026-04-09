@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 
-import { deleteLayerById, isFabricTextEditing } from '../canvas/deleteLayerById'
-import { useDesignStore } from '../store/useDesignStore'
+import { deleteSelectedCanvasLayers } from '../canvas/deleteLayerById'
 
 function isTypingInField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -11,7 +10,8 @@ function isTypingInField(target: EventTarget | null): boolean {
 }
 
 /**
- * Delete / Backspace removes the selected canvas layer when not editing text or typing in a control.
+ * Delete (and Backspace) removes the selected canvas layer(s) when not editing text or typing in a control.
+ * Uses Fabric’s active object so deletion matches what is selected on the canvas, including multi-select.
  */
 export function useDeleteLayerHotkeys(): void {
   useEffect(() => {
@@ -19,14 +19,9 @@ export function useDeleteLayerHotkeys(): void {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       if (isTypingInField(e.target)) return
 
-      const selectedObject = useDesignStore.getState().selectedObject
-      if (!selectedObject) return
-
-      const canvas = useDesignStore.getState().fabricCanvas
-      if (isFabricTextEditing(canvas)) return
-
-      e.preventDefault()
-      deleteLayerById(selectedObject)
+      if (deleteSelectedCanvasLayers()) {
+        e.preventDefault()
+      }
     }
 
     window.addEventListener('keydown', onKeyDown)
