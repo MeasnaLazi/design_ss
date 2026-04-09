@@ -1,6 +1,9 @@
 import type { DesignConfig, DesignObjectRecord } from '../store/designTypes'
 
-/** Root file written to `datasource/display.json` and portable copies. */
+/**
+ * Design snapshot shape. Persisted per artboard as `datasource/display_<slug>.json` (see
+ * `artboardPresets.ts` `displayFileSlug`), or legacy `datasource/display.json`.
+ */
 export const DISPLAY_DOCUMENT_VERSION = 1 as const
 
 export interface DisplayDesignSnapshot {

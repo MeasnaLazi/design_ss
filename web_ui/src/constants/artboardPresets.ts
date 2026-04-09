@@ -5,6 +5,8 @@
 export const ARTBOARD_PRESETS = [
   {
     id: 'appstore_iphone_67',
+    /** File: `datasource/display_iphone.json` */
+    displayFileSlug: 'iphone',
     label: 'App Store · iPhone 6.7″',
     width: 1290,
     height: 2796,
@@ -13,6 +15,8 @@ export const ARTBOARD_PRESETS = [
   },
   {
     id: 'appstore_ipad_129',
+    /** File: `datasource/display_ipad.json` */
+    displayFileSlug: 'ipad',
     label: 'App Store · iPad 12.9″',
     width: 2048,
     height: 2732,
@@ -21,6 +25,8 @@ export const ARTBOARD_PRESETS = [
   },
   {
     id: 'play_phone_portrait',
+    /** File: `datasource/display_play_phone.json` */
+    displayFileSlug: 'play_phone',
     label: 'Play Store · phone portrait',
     width: 1080,
     height: 1920,
@@ -41,6 +47,13 @@ export const DEFAULT_ARTBOARD_HEIGHT = ARTBOARD_PRESETS[0].height
 export const ARTBOARD_PRESET_IDS: readonly ArtboardPresetId[] = ARTBOARD_PRESETS.map(
   (p) => p.id,
 )
+
+/** Allowed `slug` query values for `GET|PUT /__api/datasource/display?slug=…` → `display_<slug>.json`. */
+export const DISPLAY_FILE_SLUGS: readonly string[] = ARTBOARD_PRESETS.map((p) => p.displayFileSlug)
+
+export function isDisplayFileSlug(s: string): boolean {
+  return (DISPLAY_FILE_SLUGS as readonly string[]).includes(s)
+}
 
 const PRESET_BY_ID: Record<ArtboardPresetId, ArtboardPreset> = Object.fromEntries(
   ARTBOARD_PRESETS.map((p) => [p.id, p]),
@@ -73,3 +86,17 @@ export function screenshotBucketForConfig(config: {
 }): ArtboardPresetId {
   return normalizeArtboardPresetId(config.artboardPresetId)
 }
+
+export function getDisplayFileSlug(presetId: string | undefined): string {
+  return getArtboardPreset(presetId).displayFileSlug
+}
+
+export function displayDocumentFilenameForPreset(presetId: string | undefined): string {
+  return `display_${getDisplayFileSlug(presetId)}.json`
+}
+
+/**
+ * Slug that may fall back to legacy `display.json` on load when the per-preset file is missing.
+ * Matches {@link DEFAULT_ARTBOARD_PRESET_ID}.
+ */
+export const DEFAULT_DISPLAY_FILE_SLUG = getDisplayFileSlug(DEFAULT_ARTBOARD_PRESET_ID)

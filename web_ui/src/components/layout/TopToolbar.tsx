@@ -2,10 +2,18 @@ import { ChevronDown, Download, LayoutTemplate, Save } from 'lucide-react'
 import { useRef } from 'react'
 
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
-import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
+import {
+  displayDocumentFilenameForPreset,
+  getArtboardDimensionsFromConfig,
+  getDisplayFileSlug,
+} from '../../constants/artboardPresets'
 import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
 import { parseDisplayDocument } from '../../canvas/parseDisplayDocument'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
+import {
+  clearArtboardPresetDatasourceSyncSuppress,
+  suppressArtboardPresetDatasourceSyncOnce,
+} from '../../hooks/useArtboardPresetDisplaySync'
 import { fetchDisplayDocument, putDisplayDocument } from '../../lib/datasourceApi'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
@@ -15,14 +23,14 @@ import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
 import { ContextualPositionToolbar } from './ContextualPositionToolbar'
 import { ContextualTextToolbar } from './ContextualTextToolbar'
 
-function downloadDisplayJson(doc: DisplayDocumentV1): void {
+function downloadDisplayJson(doc: DisplayDocumentV1, filename: string): void {
   const blob = new Blob([JSON.stringify(doc, null, 2)], {
     type: 'application/json',
   })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'display.json'
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -68,15 +76,19 @@ export function TopToolbar() {
       showToast('Save failed — canvas is not ready yet.', 'error')
       return
     }
+    const slug = getDisplayFileSlug(useDesignStore.getState().config.artboardPresetId)
+    const basename = displayDocumentFilenameForPreset(
+      useDesignStore.getState().config.artboardPresetId,
+    )
     try {
-      await putDisplayDocument(doc)
-      console.log('[TopToolbar] saved display.json to datasource/')
-      showToast('Saved to datasource/display.json.', 'success')
+      await putDisplayDocument(doc, slug)
+      console.log('[TopToolbar] saved to datasource/', basename)
+      showToast(`Saved to datasource/${basename}.`, 'success')
     } catch (e) {
       console.error('[TopToolbar] save to datasource failed (dev server only)', e)
-      downloadDisplayJson(doc)
+      downloadDisplayJson(doc, basename)
       showToast(
-        'Could not write to datasource (dev server only). Downloaded display.json instead.',
+        `Could not write to datasource (dev server only). Downloaded ${basename} instead.`,
         'warning',
       )
     }
@@ -89,23 +101,33 @@ export function TopToolbar() {
       showToast('Download failed — canvas is not ready yet.', 'error')
       return
     }
-    downloadDisplayJson(doc)
-    showToast('Download started — display.json.', 'success')
+    const basename = displayDocumentFilenameForPreset(
+      useDesignStore.getState().config.artboardPresetId,
+    )
+    downloadDisplayJson(doc, basename)
+    showToast(`Download started — ${basename}.`, 'success')
   }
 
   const handleLoadFromDatasource = async () => {
     const { showToast } = useToastStore.getState()
+    const slug = getDisplayFileSlug(useDesignStore.getState().config.artboardPresetId)
+    const basename = displayDocumentFilenameForPreset(
+      useDesignStore.getState().config.artboardPresetId,
+    )
+    suppressArtboardPresetDatasourceSyncOnce()
     try {
-      const raw = await fetchDisplayDocument()
+      const raw = await fetchDisplayDocument(slug)
       const doc = parseDisplayDocument(raw)
       await loadDisplayDocumentIntoCanvas(doc)
-      showToast('Design loaded from datasource/display.json.', 'success')
+      showToast(`Design loaded from datasource/${basename}.`, 'success')
     } catch (e) {
       console.error('[TopToolbar] load from datasource failed', e)
       showToast(
-        'Could not load datasource/display.json. Save or import a design first.',
+        `Could not load datasource/${basename}. Save or import a design first.`,
         'error',
       )
+    } finally {
+      queueMicrotask(() => clearArtboardPresetDatasourceSyncSuppress())
     }
   }
 
@@ -124,15 +146,24 @@ export function TopToolbar() {
       const text = await file.text()
       const raw: unknown = JSON.parse(text)
       const doc = parseDisplayDocument(raw)
+      const importSlug = getDisplayFileSlug(doc.design.config.artboardPresetId)
+      const importBasename = displayDocumentFilenameForPreset(
+        doc.design.config.artboardPresetId,
+      )
       let wroteDatasource = false
+      suppressArtboardPresetDatasourceSyncOnce()
       try {
-        await putDisplayDocument(doc)
-        wroteDatasource = true
-        console.log('[TopToolbar] copied display file into datasource/display.json')
-      } catch (putErr) {
-        console.error('[TopToolbar] import: could not write datasource', putErr)
+        await loadDisplayDocumentIntoCanvas(doc)
+        try {
+          await putDisplayDocument(doc, importSlug)
+          wroteDatasource = true
+          console.log('[TopToolbar] copied display file into datasource/', importBasename)
+        } catch (putErr) {
+          console.error('[TopToolbar] import: could not write datasource', putErr)
+        }
+      } finally {
+        queueMicrotask(() => clearArtboardPresetDatasourceSyncSuppress())
       }
-      await loadDisplayDocumentIntoCanvas(doc)
       if (wroteDatasource) {
         showToast(
           `Imported “${file.name}” — saved to datasource and applied.`,
@@ -193,7 +224,7 @@ export function TopToolbar() {
               className="px-3 py-1.5 text-left text-xs text-zinc-100 hover:bg-zinc-800"
               onClick={handleDownloadDisplayJson}
             >
-              Download display.json
+              Download preset JSON…
             </button>
             <button
               type="button"

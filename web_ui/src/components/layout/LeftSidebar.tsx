@@ -317,11 +317,12 @@ export function LeftSidebar() {
             Screenshot layout
           </h3>
           <p className="text-[11px] leading-snug text-zinc-600">
-            Export artboard preset sets each panel size. Dev uploads go under{' '}
+            Each preset uses its own{' '}
             <code className="rounded bg-zinc-800 px-0.5 text-[10px] text-zinc-400">
-              datasource/screenshots/&lt;preset&gt;/
-            </code>
-            .
+              display_*.json
+            </code>{' '}
+            in datasource: switching preset loads that file (or a blank layout if missing). Saves go to
+            the same file.
           </p>
           <label className="flex flex-col gap-1 text-xs text-zinc-400">
             <span className="font-medium text-zinc-500">Artboard preset</span>

@@ -11,6 +11,7 @@ import {
   SCREEN_LAYOUT_GAP_MAX,
   SCREEN_LAYOUT_GAP_MIN,
 } from '../constants/appStoreScreens'
+import type { ArtboardPresetId } from '../constants/artboardPresets'
 import { DEFAULT_ARTBOARD_PRESET_ID, normalizeArtboardPresetId } from '../constants/artboardPresets'
 
 import type { Canvas } from 'fabric'
@@ -75,11 +76,25 @@ export interface DesignStoreActions {
   zoomCanvasIn: () => void
   zoomCanvasOut: () => void
   resetCanvasZoom: () => void
-  /** Replace layout + layer list + zoom from a saved display document (see `datasource/display.json`). */
+  /** Replace layout + layer list + zoom from a saved display document (see `datasource/display_*.json`). */
   loadDesignSnapshot: (snapshot: DisplayDesignSnapshot) => void
 }
 
 export type DesignStore = DesignStoreState & DesignStoreActions
+
+/** Blank layout + default options for a preset (no Fabric objects). */
+export function createDefaultDesignSnapshotForPreset(
+  presetId: ArtboardPresetId,
+): DisplayDesignSnapshot {
+  return {
+    config: {
+      ...defaultConfig,
+      artboardPresetId: normalizeArtboardPresetId(presetId),
+    },
+    objects: [],
+    canvasZoom: CANVAS_ZOOM_DEFAULT,
+  }
+}
 
 export const useDesignStore = create<DesignStore>((set) => ({
   config: { ...defaultConfig },

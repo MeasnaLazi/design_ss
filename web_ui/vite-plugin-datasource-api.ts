@@ -6,7 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import busboy from 'busboy'
 
-import { ARTBOARD_PRESET_IDS } from './src/constants/artboardPresets'
+import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,6 +29,26 @@ const SAFE_SCREENSHOT_FILENAME = /^[a-zA-Z0-9._-]+$/
 
 function isAllowedScreenshotBucket(bucket: string): boolean {
   return (ARTBOARD_PRESET_IDS as readonly string[]).includes(bucket)
+}
+
+/** `?slug=` → `display_<slug>.json`; omit → legacy `display.json`. */
+function resolveDisplayJsonFile(
+  datasourceDir: string,
+  reqUrl: string | undefined,
+): { ok: true; filePath: string } | { ok: false; status: number; body: string } {
+  try {
+    const u = new URL(reqUrl ?? '/', 'http://vite.datasource')
+    const slug = u.searchParams.get('slug')
+    if (slug === null || slug === '') {
+      return { ok: true, filePath: path.join(datasourceDir, 'display.json') }
+    }
+    if (!isDisplayFileSlug(slug)) {
+      return { ok: false, status: 400, body: JSON.stringify({ error: 'invalid_display_slug' }) }
+    }
+    return { ok: true, filePath: path.join(datasourceDir, `display_${slug}.json`) }
+  } catch {
+    return { ok: true, filePath: path.join(datasourceDir, 'display.json') }
+  }
 }
 
 async function sendScreenshotFile(
@@ -151,23 +171,30 @@ export function datasourceApiPlugin(): Plugin {
           }
 
           if (req.method === 'GET' && pathname === '/__api/datasource/display') {
-            const text = await fs.readFile(
-              path.join(datasourceDir, 'display.json'),
-              'utf8',
-            )
+            const resolved = resolveDisplayJsonFile(datasourceDir, req.url)
+            if (!resolved.ok) {
+              nodeRes.statusCode = resolved.status
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(resolved.body)
+              return
+            }
+            const text = await fs.readFile(resolved.filePath, 'utf8')
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(text)
             return
           }
 
           if (req.method === 'PUT' && pathname === '/__api/datasource/display') {
+            const resolved = resolveDisplayJsonFile(datasourceDir, req.url)
+            if (!resolved.ok) {
+              nodeRes.statusCode = resolved.status
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(resolved.body)
+              return
+            }
             const body = await readBody(req as IncomingMessage)
             JSON.parse(body)
-            await fs.writeFile(
-              path.join(datasourceDir, 'display.json'),
-              body,
-              'utf8',
-            )
+            await fs.writeFile(resolved.filePath, body, 'utf8')
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true }))
             return

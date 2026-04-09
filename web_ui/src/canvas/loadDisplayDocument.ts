@@ -2,8 +2,12 @@ import type { Canvas, FabricObject } from 'fabric'
 import { util } from 'fabric'
 
 import { registerFabricObjectId } from '../lib/fabricObjectRegistry'
+import type { ArtboardPresetId } from '../constants/artboardPresets'
 import type { DisplayDocumentV1 } from '../types/displayDocument'
-import { useDesignStore } from '../store/useDesignStore'
+import {
+  createDefaultDesignSnapshotForPreset,
+  useDesignStore,
+} from '../store/useDesignStore'
 
 import { isDesignSystemCanvasObject } from './canvasObjectMarks'
 import { parseDisplayDocument } from './parseDisplayDocument'
@@ -68,4 +72,20 @@ export async function loadDisplayDocumentFromJsonText(text: string): Promise<voi
   const raw: unknown = JSON.parse(text)
   const doc = parseDisplayDocument(raw)
   await loadDisplayDocumentIntoCanvas(doc)
+}
+
+/** Resets store + canvas to default layout for a preset when no `display_*.json` exists. */
+export async function applyEmptyDesignForPreset(presetId: ArtboardPresetId): Promise<void> {
+  useDesignStore.getState().loadDesignSnapshot(createDefaultDesignSnapshotForPreset(presetId))
+  await waitTwoFrames()
+  const canvas = useDesignStore.getState().fabricCanvas
+  if (!canvas) {
+    console.warn('[applyEmptyDesignForPreset] no fabric canvas after layout wait')
+    return
+  }
+  canvas.discardActiveObject()
+  removeUserObjectsFromCanvas(canvas)
+  useDesignStore.getState().setSelectedObject(null)
+  canvas.requestRenderAll()
+  console.log('[applyEmptyDesignForPreset] reset', presetId)
 }
