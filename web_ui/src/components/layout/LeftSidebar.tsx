@@ -21,6 +21,11 @@ import {
   moveLayerById,
 } from '../../canvas/moveLayerOrder'
 import {
+  ARTBOARD_PRESETS,
+  type ArtboardPresetId,
+  screenshotBucketForConfig,
+} from '../../constants/artboardPresets'
+import {
   SCREEN_LAYOUT_COUNT_MAX,
   SCREEN_LAYOUT_COUNT_MIN,
   SCREEN_LAYOUT_GAP_MAX,
@@ -50,6 +55,7 @@ export function LeftSidebar() {
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
+  const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
   const setConfig = useDesignStore((s) => s.setConfig)
   const clearCanvasBackgroundImage = useDesignStore((s) => s.clearCanvasBackgroundImage)
 
@@ -109,7 +115,8 @@ export function LeftSidebar() {
       fr.readAsDataURL(file)
     }
     try {
-      const url = await uploadScreenshotFile(file)
+      const bucket = screenshotBucketForConfig(useDesignStore.getState().config)
+      const url = await uploadScreenshotFile(file, { bucket })
       setConfig({ backgroundImageUrl: url })
       setCanvasFillTab('image')
       console.log('[LeftSidebar] canvas background image set')
@@ -310,9 +317,29 @@ export function LeftSidebar() {
             Screenshot layout
           </h3>
           <p className="text-[11px] leading-snug text-zinc-600">
-            Side-by-side App Store panels (6.7&quot; portrait) with a fixed gap between
-            each.
+            Export artboard preset sets each panel size. Dev uploads go under{' '}
+            <code className="rounded bg-zinc-800 px-0.5 text-[10px] text-zinc-400">
+              datasource/screenshots/&lt;preset&gt;/
+            </code>
+            .
           </p>
+          <label className="flex flex-col gap-1 text-xs text-zinc-400">
+            <span className="font-medium text-zinc-500">Artboard preset</span>
+            <select
+              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100"
+              value={artboardPresetId}
+              onChange={(e) =>
+                setConfig({ artboardPresetId: e.target.value as ArtboardPresetId })
+              }
+              aria-label="Artboard export preset"
+            >
+              {ARTBOARD_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} ({p.width}×{p.height})
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-xs text-zinc-400">
             <span className="w-14 shrink-0">Count</span>
             <input

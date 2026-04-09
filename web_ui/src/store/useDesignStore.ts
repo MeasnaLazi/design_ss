@@ -11,6 +11,7 @@ import {
   SCREEN_LAYOUT_GAP_MAX,
   SCREEN_LAYOUT_GAP_MIN,
 } from '../constants/appStoreScreens'
+import { DEFAULT_ARTBOARD_PRESET_ID, normalizeArtboardPresetId } from '../constants/artboardPresets'
 
 import type { Canvas } from 'fabric'
 import { create } from 'zustand'
@@ -26,6 +27,7 @@ function clampLayoutGap(value: number): number {
 }
 
 const defaultConfig: DesignConfig = {
+  artboardPresetId: DEFAULT_ARTBOARD_PRESET_ID,
   screens: 5,
   gap: 40,
   background: '#1a1a1a',
@@ -102,6 +104,9 @@ export const useDesignStore = create<DesignStore>((set) => ({
       if (partial.gap !== undefined) {
         next.gap = clampLayoutGap(next.gap)
       }
+      if (partial.artboardPresetId !== undefined) {
+        next.artboardPresetId = normalizeArtboardPresetId(partial.artboardPresetId)
+      }
       return { config: next }
     }),
 
@@ -157,6 +162,7 @@ export const useDesignStore = create<DesignStore>((set) => ({
           ...defaultConfig.backgroundGradient,
           ...snapshot.config.backgroundGradient,
         },
+        artboardPresetId: normalizeArtboardPresetId(snapshot.config.artboardPresetId),
         screens: clampLayoutScreens(snapshot.config.screens),
         gap: clampLayoutGap(snapshot.config.gap),
       },

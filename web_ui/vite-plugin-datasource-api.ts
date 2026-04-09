@@ -6,6 +6,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import busboy from 'busboy'
 
+import { ARTBOARD_PRESET_IDS } from './src/constants/artboardPresets'
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -24,6 +26,48 @@ const ALLOWED_MIME_EXT: Record<string, string> = {
 }
 
 const SAFE_SCREENSHOT_FILENAME = /^[a-zA-Z0-9._-]+$/
+
+function isAllowedScreenshotBucket(bucket: string): boolean {
+  return (ARTBOARD_PRESET_IDS as readonly string[]).includes(bucket)
+}
+
+async function sendScreenshotFile(
+  nodeRes: ServerResponse,
+  baseDir: string,
+  filename: string,
+): Promise<void> {
+  if (!SAFE_SCREENSHOT_FILENAME.test(filename)) {
+    nodeRes.statusCode = 400
+    nodeRes.end()
+    return
+  }
+  try {
+    const baseReal = await fs.realpath(baseDir)
+    const candidate = path.resolve(baseDir, filename)
+    let fileReal: string
+    try {
+      fileReal = await fs.realpath(candidate)
+    } catch {
+      nodeRes.statusCode = 404
+      nodeRes.end()
+      return
+    }
+    const rel = path.relative(baseReal, fileReal)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      nodeRes.statusCode = 403
+      nodeRes.end()
+      return
+    }
+    const buf = await fs.readFile(fileReal)
+    nodeRes.setHeader('Content-Type', contentTypeForScreenshotFilename(filename))
+    nodeRes.setHeader('Cache-Control', 'no-store')
+    nodeRes.end(buf)
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException
+    nodeRes.statusCode = err.code === 'ENOENT' ? 404 : 500
+    nodeRes.end()
+  }
+}
 
 function contentTypeForScreenshotFilename(filename: string): string {
   const lower = filename.toLowerCase()
@@ -58,51 +102,34 @@ export function datasourceApiPlugin(): Plugin {
           /* ignore */
         }
 
-        // GET /__api/datasource/screenshots/<filename>
+        // GET /__api/datasource/screenshots/<file> or …/screenshots/<bucket>/<file>
         if (req.method === 'GET' && pathname.startsWith(SCREENSHOTS_PREFIX)) {
-          const filename = pathname.slice(SCREENSHOTS_PREFIX.length)
-          if (!filename || filename.includes('/') || filename.includes('\\')) {
-            nodeRes.statusCode = 404
-            nodeRes.end()
+          const rest = pathname.slice(SCREENSHOTS_PREFIX.length)
+          const segments = rest.split('/').filter(Boolean)
+          if (segments.length === 1) {
+            await sendScreenshotFile(nodeRes, screenshotsDir, segments[0]!)
             return
           }
-          if (!SAFE_SCREENSHOT_FILENAME.test(filename)) {
-            nodeRes.statusCode = 400
-            nodeRes.end()
-            return
-          }
-          try {
-            const baseReal = await fs.realpath(screenshotsDir)
-            const candidate = path.resolve(screenshotsDir, filename)
-            let fileReal: string
-            try {
-              fileReal = await fs.realpath(candidate)
-            } catch {
+          if (segments.length === 2) {
+            const bucket = segments[0]!
+            const filename = segments[1]!
+            if (!isAllowedScreenshotBucket(bucket)) {
               nodeRes.statusCode = 404
               nodeRes.end()
               return
             }
-            const rel = path.relative(baseReal, fileReal)
-            if (rel.startsWith('..') || path.isAbsolute(rel)) {
-              nodeRes.statusCode = 403
-              nodeRes.end()
-              return
-            }
-            const buf = await fs.readFile(fileReal)
-            nodeRes.setHeader('Content-Type', contentTypeForScreenshotFilename(filename))
-            nodeRes.setHeader('Cache-Control', 'no-store')
-            nodeRes.end(buf)
-          } catch (e: unknown) {
-            const err = e as NodeJS.ErrnoException
-            nodeRes.statusCode = err.code === 'ENOENT' ? 404 : 500
-            nodeRes.end()
+            const bucketDir = path.join(screenshotsDir, bucket)
+            await sendScreenshotFile(nodeRes, bucketDir, filename)
+            return
           }
+          nodeRes.statusCode = 404
+          nodeRes.end()
           return
         }
 
         // POST /__api/datasource/screenshots
         if (req.method === 'POST' && pathname === '/__api/datasource/screenshots') {
-          await handleScreenshotUpload(req, nodeRes, screenshotsDir)
+          await handleScreenshotUpload(req, nodeRes, screenshotsDir, req.url)
           return
         }
 
@@ -175,6 +202,7 @@ async function handleScreenshotUpload(
   req: IncomingMessage,
   res: ServerResponse,
   screenshotsDir: string,
+  reqUrl: string | undefined,
 ): Promise<void> {
   const contentType = req.headers['content-type'] ?? ''
   if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
@@ -182,7 +210,24 @@ async function handleScreenshotUpload(
     return
   }
 
-  await fs.mkdir(screenshotsDir, { recursive: true })
+  let uploadBucket: string | null = null
+  try {
+    const u = new URL(reqUrl ?? '/', 'http://vite.datasource')
+    const b = u.searchParams.get('bucket')
+    if (b !== null && b !== '') {
+      if (!isAllowedScreenshotBucket(b)) {
+        sendJson(res, 400, { error: 'invalid_bucket' })
+        return
+      }
+      uploadBucket = b
+    }
+  } catch {
+    /* ignore malformed URL */
+  }
+
+  const targetDir =
+    uploadBucket !== null ? path.join(screenshotsDir, uploadBucket) : screenshotsDir
+  await fs.mkdir(targetDir, { recursive: true })
 
   let fileHandled = false
   let savePromise: Promise<void> = Promise.resolve()
@@ -234,8 +279,11 @@ async function handleScreenshotUpload(
             return
           }
           const filename = `${randomUUID()}${ext}`
-          await fs.writeFile(path.join(screenshotsDir, filename), Buffer.concat(chunks))
-          savedUrl = `${SCREENSHOTS_PREFIX}${filename}`
+          await fs.writeFile(path.join(targetDir, filename), Buffer.concat(chunks))
+          savedUrl =
+            uploadBucket !== null
+              ? `${SCREENSHOTS_PREFIX}${uploadBucket}/${filename}`
+              : `${SCREENSHOTS_PREFIX}${filename}`
         } catch {
           clientError = clientError ?? 'write_failed'
         }

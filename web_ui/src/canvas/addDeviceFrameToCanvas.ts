@@ -1,5 +1,6 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
-import { DEVICE_FRAME_TARGET_WIDTH } from '../constants/deviceFrame'
+import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
+import { deviceFrameTargetWidth } from '../constants/deviceFrame'
 import {
   DEFAULT_DEVICE_FRAME_STYLE_ID,
   getDeviceFrameStyle,
@@ -16,6 +17,7 @@ export async function addDeviceFrameToCanvas(
   styleId: DeviceFrameStyleId = DEFAULT_DEVICE_FRAME_STYLE_ID,
 ): Promise<void> {
   const style = getDeviceFrameStyle(styleId)
+  const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
   const frame = await FabricImage.fromURL(
     style.src,
     { crossOrigin: 'anonymous' },
@@ -29,7 +31,7 @@ export async function addDeviceFrameToCanvas(
     },
   )
 
-  frame.scaleToWidth(DEVICE_FRAME_TARGET_WIDTH)
+  frame.scaleToWidth(deviceFrameTargetWidth(panelW))
   frame.set({ dirty: true, objectCaching: false })
 
   const id = crypto.randomUUID()

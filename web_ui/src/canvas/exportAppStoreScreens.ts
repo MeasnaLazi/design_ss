@@ -22,8 +22,10 @@ export async function exportAppStoreScreensToZip(
   canvas: Canvas,
   screens: number,
   gap: number,
+  screenWidth: number,
+  screenHeight: number,
 ): Promise<void> {
-  console.log('[export] start', { screens, gap })
+  console.log('[export] start', { screens, gap, screenWidth, screenHeight })
 
   const guides = canvas.getObjects().filter(isScreenGuideLine)
   const prevVisible = guides.map((g) => g.visible)
@@ -37,7 +39,7 @@ export async function exportAppStoreScreensToZip(
     const zip = new JSZip()
 
     for (let i = 0; i < screens; i++) {
-      const { left, top, width, height } = screenExportRect(i, gap)
+      const { left, top, width, height } = screenExportRect(i, gap, screenWidth, screenHeight)
       console.log('[export] slice', i + 1, { left, top, width, height })
 
       const dataUrl = canvas.toDataURL({

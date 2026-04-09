@@ -1,3 +1,4 @@
+import { normalizeArtboardPresetId } from '../constants/artboardPresets'
 import type { DesignConfig, DesignObjectRecord } from '../store/designTypes'
 import type { DisplayDesignSnapshot, DisplayDocumentV1 } from '../types/displayDocument'
 import { DISPLAY_DOCUMENT_VERSION } from '../types/displayDocument'
@@ -6,9 +7,10 @@ function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x)
 }
 
-function isDesignConfig(x: unknown): x is DesignConfig {
+function isDesignConfigShape(x: unknown): boolean {
   if (!isRecord(x)) return false
   return (
+    (x.artboardPresetId === undefined || typeof x.artboardPresetId === 'string') &&
     typeof x.screens === 'number' &&
     typeof x.gap === 'number' &&
     typeof x.background === 'string' &&
@@ -56,7 +58,7 @@ export function parseDisplayDocument(raw: unknown): DisplayDocumentV1 {
     throw new Error('Display document missing design')
   }
   const { design } = raw
-  if (!isDesignConfig(design.config)) {
+  if (!isDesignConfigShape(design.config)) {
     throw new Error('Display document has invalid design.config')
   }
   if (!Array.isArray(design.objects) || !design.objects.every(isDesignObjectRecord)) {
@@ -69,8 +71,14 @@ export function parseDisplayDocument(raw: unknown): DisplayDocumentV1 {
     throw new Error('Display document missing fabricObjects array')
   }
 
+  const rawCfg = design.config as Record<string, unknown>
   const snapshot: DisplayDesignSnapshot = {
-    config: design.config,
+    config: {
+      ...(design.config as DesignConfig),
+      artboardPresetId: normalizeArtboardPresetId(
+        typeof rawCfg.artboardPresetId === 'string' ? rawCfg.artboardPresetId : undefined,
+      ),
+    },
     objects: design.objects,
     canvasZoom: design.canvasZoom,
   }

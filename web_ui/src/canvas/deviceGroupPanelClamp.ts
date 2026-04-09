@@ -1,10 +1,7 @@
 import type { Canvas } from 'fabric'
 import { Group } from 'fabric'
 
-import {
-  APP_STORE_SCREEN_HEIGHT,
-  APP_STORE_SCREEN_WIDTH,
-} from '../constants/appStoreScreens'
+import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { DEVICE_FRAME_PANEL_CLAMP_VERTICAL_BLEED_PX } from '../constants/deviceFrame'
 import { getFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
@@ -22,9 +19,9 @@ function panelBoundsForCenterX(
   centerX: number,
   screens: number,
   gap: number,
+  W: number,
+  H: number,
 ): { left: number; top: number; right: number; bottom: number } {
-  const W = APP_STORE_SCREEN_WIDTH
-  const H = APP_STORE_SCREEN_HEIGHT
   let bestIdx = 0
   let bestDist = Infinity
   for (let i = 0; i < screens; i++) {
@@ -45,8 +42,8 @@ function panelIndicesOverlappingHorizontally(
   bboxRight: number,
   screens: number,
   gap: number,
+  W: number,
 ): number[] {
-  const W = APP_STORE_SCREEN_WIDTH
   const hit: number[] = []
   for (let i = 0; i < screens; i++) {
     const pl = i * (W + gap)
@@ -62,10 +59,10 @@ function panelIndicesOverlappingHorizontally(
 function unionPanelBoundsFromIndices(
   indices: number[],
   gap: number,
+  W: number,
+  H: number,
 ): { left: number; top: number; right: number; bottom: number } | null {
   if (indices.length === 0) return null
-  const W = APP_STORE_SCREEN_WIDTH
-  const H = APP_STORE_SCREEN_HEIGHT
   const minI = Math.min(...indices)
   const maxI = Math.max(...indices)
   const left = minI * (W + gap)
@@ -84,16 +81,19 @@ export function clampDeviceGroupToNearestPanel(target: Group): void {
   const rec = useDesignStore.getState().objects.find((o) => o.id === id)
   if (rec?.kind !== 'device') return
 
-  const { screens, gap } = useDesignStore.getState().config
+  const cfg = useDesignStore.getState().config
+  const { screens, gap } = cfg
   if (screens < 1) return
+
+  const { width: W, height: H } = getArtboardDimensionsFromConfig(cfg)
 
   const b = target.getBoundingRect()
   const br = b.left + b.width
-  const indices = panelIndicesOverlappingHorizontally(b.left, br, screens, gap)
-  const union = unionPanelBoundsFromIndices(indices, gap)
+  const indices = panelIndicesOverlappingHorizontally(b.left, br, screens, gap, W)
+  const union = unionPanelBoundsFromIndices(indices, gap, W, H)
   const cx = b.left + b.width / 2
   const { left: pl, top: pt, right: pr, bottom: pb } =
-    union ?? panelBoundsForCenterX(cx, screens, gap)
+    union ?? panelBoundsForCenterX(cx, screens, gap, W, H)
 
   const bleed = DEVICE_FRAME_PANEL_CLAMP_VERTICAL_BLEED_PX
   const vSpan = pb - pt + 2 * bleed

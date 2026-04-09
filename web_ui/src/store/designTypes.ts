@@ -1,3 +1,4 @@
+import type { ArtboardPresetId } from '../constants/artboardPresets'
 import type { DeviceFrameStyleId } from '../constants/deviceFrameStyles'
 
 /**
@@ -14,6 +15,8 @@ export interface BackgroundGradientConfig {
 }
 
 export interface DesignConfig {
+  /** Active export artboard; drives panel size and screenshot upload subfolder in dev. */
+  artboardPresetId: ArtboardPresetId
   screens: number
   gap: number
   /** Solid fill when {@link backgroundMode} is `solid`; also used as fallback in UI chrome. */

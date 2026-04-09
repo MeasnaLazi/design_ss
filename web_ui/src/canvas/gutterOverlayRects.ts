@@ -1,10 +1,6 @@
 import type { Canvas, FabricObject } from 'fabric'
 import { Rect } from 'fabric'
 
-import {
-  APP_STORE_SCREEN_HEIGHT,
-  APP_STORE_SCREEN_WIDTH,
-} from '../constants/appStoreScreens'
 import { CANVAS_GUTTER_COLOR } from '../lib/canvasBackground'
 
 export const GUTTER_OVERLAY_MARK = '__appsPublisherGutterOverlay' as const
@@ -45,12 +41,14 @@ export function addGutterOverlayRects(
   ref: { current: GutterOverlayRect[] },
   screens: number,
   gap: number,
+  panelWidth: number,
+  panelHeight: number,
 ): void {
   removeGutterOverlaysFromCanvas(canvas, ref)
   if (gap <= 0 || screens < 2) return
 
-  const W = APP_STORE_SCREEN_WIDTH
-  const H = APP_STORE_SCREEN_HEIGHT
+  const W = panelWidth
+  const H = panelHeight
 
   for (let k = 0; k < screens - 1; k++) {
     const left = k * (W + gap) + W

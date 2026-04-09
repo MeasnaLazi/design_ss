@@ -4,10 +4,8 @@ import type { Canvas } from 'fabric'
 import type { TPointerEventInfo } from 'fabric'
 
 import { deviceGroupFrameUnionBBox } from '../../canvas/deviceFramesUnionBBox'
-import {
-  APP_STORE_SCREEN_HEIGHT,
-  totalContinuousWidth,
-} from '../../constants/appStoreScreens'
+import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
+import { totalContinuousWidth } from '../../constants/appStoreScreens'
 import type { DesignObjectRecord } from '../../store/designTypes'
 import { useDesignStore } from '../../store/useDesignStore'
 
@@ -46,14 +44,16 @@ function computeAnchoredFrameLayout(
   objects: DesignObjectRecord[],
   screens: number,
   gap: number,
+  panelWidth: number,
+  panelHeight: number,
   canvasZoom: number,
   viewportW: number,
 ): AnchoredFrameLayout | null {
   if (!fabricCanvas) return null
   if (!deviceGroupFrameUnionBBox(fabricCanvas, objects)) return null
 
-  const artboardW = totalContinuousWidth(screens, gap)
-  const artboardH = APP_STORE_SCREEN_HEIGHT
+  const artboardW = totalContinuousWidth(screens, gap, panelWidth)
+  const artboardH = panelHeight
   const z = canvasZoom
   const canvasCssW = artboardW * z
   const canvasCssH = artboardH * z
@@ -82,6 +82,7 @@ export function useDeviceAnchoredCanvasScroll(
   const canvasZoom = useDesignStore((s) => s.canvasZoom)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
+  const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
 
   const [viewportW, setViewportW] = useState(0)
   const [tick, setTick] = useState(0)
@@ -186,8 +187,11 @@ export function useDeviceAnchoredCanvasScroll(
   }, [bump])
 
   return useMemo(() => {
-    const artboardW = totalContinuousWidth(screens, gap)
-    const artboardH = APP_STORE_SCREEN_HEIGHT
+    const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig({
+      artboardPresetId,
+    })
+    const artboardW = totalContinuousWidth(screens, gap, panelW)
+    const artboardH = panelH
     const z = canvasZoom
     const canvasCssW = artboardW * z
     const canvasCssH = artboardH * z
@@ -199,6 +203,8 @@ export function useDeviceAnchoredCanvasScroll(
       objects,
       screens,
       gap,
+      panelW,
+      panelH,
       canvasZoom,
       viewportW,
     )
@@ -229,6 +235,7 @@ export function useDeviceAnchoredCanvasScroll(
     canvasZoom,
     screens,
     gap,
+    artboardPresetId,
     viewportW,
     tick,
   ])

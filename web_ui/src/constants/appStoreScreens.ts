@@ -1,9 +1,14 @@
+import {
+  DEFAULT_ARTBOARD_HEIGHT,
+  DEFAULT_ARTBOARD_WIDTH,
+} from './artboardPresets'
+
 /**
- * Apple App Store — iPhone 6.7" display, portrait (pixel dimensions used for export).
- * @see https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications
+ * Default panel size (matches {@link DEFAULT_ARTBOARD_PRESET_ID} in `artboardPresets.ts`).
+ * Prefer {@link getArtboardDimensionsFromConfig} for the active artboard.
  */
-export const APP_STORE_SCREEN_WIDTH = 1290
-export const APP_STORE_SCREEN_HEIGHT = 2796
+export const APP_STORE_SCREEN_WIDTH = DEFAULT_ARTBOARD_WIDTH
+export const APP_STORE_SCREEN_HEIGHT = DEFAULT_ARTBOARD_HEIGHT
 
 /** Allowed range when configuring the horizontal screenshot strip in the UI. */
 export const SCREEN_LAYOUT_COUNT_MIN = 1

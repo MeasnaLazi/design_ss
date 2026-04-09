@@ -3,22 +3,25 @@ import { ImagePlus } from 'lucide-react'
 import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
 
 import { applyScreenshotToDeviceGroup } from '../../canvas/applyScreenshotToDevice'
-import { APP_STORE_SCREEN_WIDTH } from '../../constants/appStoreScreens'
+import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
 import { findObjectOnCanvasByAppId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
 
 const DEVICE_SIZE_MIN_PX = 80
-const DEVICE_SIZE_MAX_PX = Math.round(APP_STORE_SCREEN_WIDTH * 3)
 
-function clampDeviceSizePx(n: number): number {
+function clampDeviceSizePx(n: number, maxPx: number): number {
   if (!Number.isFinite(n)) return DEVICE_SIZE_MIN_PX
-  return Math.min(DEVICE_SIZE_MAX_PX, Math.max(DEVICE_SIZE_MIN_PX, Math.round(n)))
+  return Math.min(maxPx, Math.max(DEVICE_SIZE_MIN_PX, Math.round(n)))
 }
 
 export function ContextualDeviceToolbar() {
   const objects = useDesignStore((s) => s.objects)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const fabricCanvas = useDesignStore((s) => s.fabricCanvas)
+  const panelWidth = useDesignStore(
+    (s) => getArtboardDimensionsFromConfig(s.config).width,
+  )
+  const deviceSizeMaxPx = Math.round(panelWidth * 3)
   const [bumpCount, bump] = useReducer((n: number) => n + 1, 0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [widthText, setWidthText] = useState('')
@@ -45,8 +48,12 @@ export function ContextualDeviceToolbar() {
     if (!deviceSelected || !selectedObject || !fabricCanvas) return
     const target = findObjectOnCanvasByAppId(fabricCanvas, selectedObject)
     if (!(target instanceof Group)) return
-    setWidthText(String(Math.round(target.getScaledWidth())))
-    setHeightText(String(Math.round(target.getScaledHeight())))
+    const w = String(Math.round(target.getScaledWidth()))
+    const h = String(Math.round(target.getScaledHeight()))
+    queueMicrotask(() => {
+      setWidthText(w)
+      setHeightText(h)
+    })
   }, [deviceSelected, selectedObject, fabricCanvas, bumpCount])
 
   if (!deviceSelected || !selectedObject || !fabricCanvas) return null
@@ -86,8 +93,8 @@ export function ContextualDeviceToolbar() {
       return
     }
 
-    const wPx = clampDeviceSizePx(wRaw)
-    const hPx = clampDeviceSizePx(hRaw)
+    const wPx = clampDeviceSizePx(wRaw, deviceSizeMaxPx)
+    const hPx = clampDeviceSizePx(hRaw, deviceSizeMaxPx)
 
     const cw = o.getScaledWidth()
     const ch = o.getScaledHeight()
@@ -148,7 +155,7 @@ export function ContextualDeviceToolbar() {
           <input
             type="number"
             min={DEVICE_SIZE_MIN_PX}
-            max={DEVICE_SIZE_MAX_PX}
+            max={deviceSizeMaxPx}
             step={1}
             className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
             value={widthText}
@@ -168,7 +175,7 @@ export function ContextualDeviceToolbar() {
           <input
             type="number"
             min={DEVICE_SIZE_MIN_PX}
-            max={DEVICE_SIZE_MAX_PX}
+            max={deviceSizeMaxPx}
             step={1}
             className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
             value={heightText}

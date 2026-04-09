@@ -2,6 +2,7 @@ import { ChevronDown, Download, LayoutTemplate, Save } from 'lucide-react'
 import { useRef } from 'react'
 
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
+import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
 import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
 import { parseDisplayDocument } from '../../canvas/parseDisplayDocument'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
@@ -33,7 +34,9 @@ export function TopToolbar() {
 
   const handleExportZip = async () => {
     const canvas = useDesignStore.getState().fabricCanvas
-    const { screens: n, gap: g } = useDesignStore.getState().config
+    const cfg = useDesignStore.getState().config
+    const { screens: n, gap: g } = cfg
+    const { width: sw, height: sh } = getArtboardDimensionsFromConfig(cfg)
     const { showToast } = useToastStore.getState()
     if (!canvas) {
       console.warn('[TopToolbar] export: no canvas')
@@ -41,7 +44,7 @@ export function TopToolbar() {
       return
     }
     try {
-      await exportAppStoreScreensToZip(canvas, n, g)
+      await exportAppStoreScreensToZip(canvas, n, g, sw, sh)
       showToast('Screens exported — ZIP download started.', 'success')
     } catch (e) {
       console.error('[TopToolbar] export failed', e)

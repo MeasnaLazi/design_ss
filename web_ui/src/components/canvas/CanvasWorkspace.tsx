@@ -1,9 +1,5 @@
-import {
-  APP_STORE_SCREEN_HEIGHT,
-  APP_STORE_SCREEN_WIDTH,
-  screenshotLeftEdgeXs,
-  totalContinuousWidth,
-} from '../../constants/appStoreScreens'
+import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
+import { screenshotLeftEdgeXs, totalContinuousWidth } from '../../constants/appStoreScreens'
 import {
   ActiveSelection,
   Canvas,
@@ -110,13 +106,15 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const panelBackgroundImagesRef = useRef<FabricImage[]>([])
   const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
   const gutterStackCleanupRef = useRef<(() => void) | null>(null)
-  const prevScreensGapRef = useRef<{ screens: number; gap: number }>({
+  const prevLayoutRef = useRef<{ screens: number; gap: number; preset: string }>({
     screens: -1,
     gap: -1,
+    preset: '',
   })
 
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
+  const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
   const background = useDesignStore((s) => s.config.background)
   const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
   const gradientFrom = useDesignStore((s) => s.config.backgroundGradient.colorFrom)
@@ -130,9 +128,12 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
     if (!el) return
 
     let canvas = fabricRef.current
+    const cfg0 = useDesignStore.getState().config
+    const { width: panelW0, height: panelH0 } = getArtboardDimensionsFromConfig(cfg0)
+
     if (!canvas) {
-      const width = totalContinuousWidth(screens, gap)
-      const height = APP_STORE_SCREEN_HEIGHT
+      const width = totalContinuousWidth(screens, gap, panelW0)
+      const height = panelH0
       canvas = new Canvas(el, {
         width,
         height,
@@ -158,8 +159,10 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       console.log('[CanvasWorkspace] fabric.Canvas initialized', { width, height })
     }
 
-    const width = totalContinuousWidth(screens, gap)
-    const height = APP_STORE_SCREEN_HEIGHT
+    const cfg = useDesignStore.getState().config
+    const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(cfg)
+    const width = totalContinuousWidth(screens, gap, panelW)
+    const height = panelH
 
     console.log('[CanvasWorkspace] sync layout', {
       screens,
@@ -167,20 +170,21 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       width,
       height,
       background,
+      artboardPresetId: cfg.artboardPresetId,
     })
 
     canvas.setDimensions({ width, height })
     canvas.backgroundColor = CANVAS_GUTTER_COLOR
 
-    const prev = prevScreensGapRef.current
-    const screensOrGapChanged = prev.screens !== screens || prev.gap !== gap
-    prevScreensGapRef.current = { screens, gap }
+    const prev = prevLayoutRef.current
+    const layoutChanged =
+      prev.screens !== screens || prev.gap !== gap || prev.preset !== artboardPresetId
+    prevLayoutRef.current = { screens, gap, preset: artboardPresetId }
 
-    const cfg = useDesignStore.getState().config
     const panelFill = fabricPanelRectFill(cfg)
 
     if (
-      !screensOrGapChanged &&
+      !layoutChanged &&
       panelBackgroundRectsRef.current.length === screens &&
       screens > 0
     ) {
@@ -203,14 +207,14 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
     guideLinesRef.current = []
 
     for (let i = 0; i < screens; i++) {
-      const left = i * (APP_STORE_SCREEN_WIDTH + gap)
+      const left = i * (panelW + gap)
       const rect = new Rect({
         left,
         top: 0,
         originX: 'left',
         originY: 'top',
-        width: APP_STORE_SCREEN_WIDTH,
-        height: APP_STORE_SCREEN_HEIGHT,
+        width: panelW,
+        height: panelH,
         fill: panelFill,
         stroke: PANEL_SLOT_STROKE,
         strokeWidth: 1,
@@ -222,7 +226,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       panelBackgroundRectsRef.current.push(rect)
     }
 
-    const xs = screenshotLeftEdgeXs(screens, gap)
+    const xs = screenshotLeftEdgeXs(screens, gap, panelW)
     let guideInsertAt = screens
     for (const x of xs) {
       const line = new Line([x, 0, x, height], {
@@ -238,7 +242,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       guideLinesRef.current.push(line)
     }
 
-    addGutterOverlayRects(canvas, gutterOverlayRectsRef, screens, gap)
+    addGutterOverlayRects(canvas, gutterOverlayRectsRef, screens, gap, panelW, panelH)
 
     canvas.requestRenderAll()
     applyCanvasCssZoom(
@@ -250,6 +254,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   }, [
     screens,
     gap,
+    artboardPresetId,
     background,
     backgroundMode,
     gradientFrom,
@@ -260,10 +265,12 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   useEffect(() => {
     const canvas = fabricRef.current
     if (!canvas) return
-    const w = totalContinuousWidth(screens, gap)
-    const h = APP_STORE_SCREEN_HEIGHT
-    applyCanvasCssZoom(canvas, w, h, canvasZoom)
-  }, [canvasZoom, screens, gap])
+    const { width: pw, height: ph } = getArtboardDimensionsFromConfig(
+      useDesignStore.getState().config,
+    )
+    const w = totalContinuousWidth(screens, gap, pw)
+    applyCanvasCssZoom(canvas, w, ph, canvasZoom)
+  }, [canvasZoom, screens, gap, artboardPresetId])
 
   useEffect(() => {
     const canvas = fabricRef.current
@@ -273,9 +280,9 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
 
     removeAllPanelBackgroundImagesFromCanvas(canvas, panelBackgroundImagesRef)
 
-    const url = useDesignStore.getState().config.backgroundImageUrl
-    const W = APP_STORE_SCREEN_WIDTH
-    const H = APP_STORE_SCREEN_HEIGHT
+    const storeCfg = useDesignStore.getState().config
+    const url = storeCfg.backgroundImageUrl
+    const { width: W, height: H } = getArtboardDimensionsFromConfig(storeCfg)
 
     if (!url) {
       canvas.requestRenderAll()
@@ -354,7 +361,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
     return () => {
       cancelled = true
     }
-  }, [backgroundImageUrl, screens, gap])
+  }, [backgroundImageUrl, screens, gap, artboardPresetId])
 
   useEffect(() => {
     return () => {

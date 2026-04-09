@@ -11,6 +11,7 @@ import {
   screenshotVerticalNudgeY,
   type DeviceFrameMetrics,
 } from '../constants/deviceFrame'
+import { screenshotBucketForConfig } from '../constants/artboardPresets'
 import { uploadScreenshotBlob } from '../lib/datasourceScreenshotsApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
@@ -94,7 +95,8 @@ export async function applyScreenshotToDeviceGroup(
   let imageUrl = dataUrl
   try {
     const blob = await (await fetch(dataUrl)).blob()
-    imageUrl = await uploadScreenshotBlob(blob, 'device-screenshot.png')
+    const bucket = screenshotBucketForConfig(useDesignStore.getState().config)
+    imageUrl = await uploadScreenshotBlob(blob, 'device-screenshot.png', { bucket })
   } catch {
     useToastStore
       .getState()

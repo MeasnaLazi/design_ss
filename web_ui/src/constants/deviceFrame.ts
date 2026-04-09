@@ -1,4 +1,3 @@
-import { APP_STORE_SCREEN_WIDTH } from './appStoreScreens'
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from './deviceFrameStyles'
 
 /**
@@ -88,8 +87,10 @@ export function screenshotVerticalNudgeY(scaledHoleHeight: number, m: DeviceFram
   return 0
 }
 
-/** Rendered width on canvas (height follows aspect ratio). ~45% of one App Store panel. */
-export const DEVICE_FRAME_TARGET_WIDTH = Math.round(APP_STORE_SCREEN_WIDTH * 0.75)
+/** Rendered width on canvas (height follows aspect ratio). ~75% of the active panel width. */
+export function deviceFrameTargetWidth(panelWidthPx: number): number {
+  return Math.round(panelWidthPx * 0.75)
+}
 
 /**
  * After dragging, clamping allows the bezel to extend past the artboard top/bottom by this many

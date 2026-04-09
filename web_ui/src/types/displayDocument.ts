@@ -17,6 +17,7 @@ export interface DisplayDesignSnapshot {
  *   "savedAt": "2026-04-07T12:00:00.000Z",
  *   "design": {
  *     "config": {
+ *       "artboardPresetId": "appstore_iphone_67",
  *       "screens": 5,
  *       "gap": 40,
  *       "background": "#1a1a1a",
@@ -35,8 +36,9 @@ export interface DisplayDesignSnapshot {
  * }
  * ```
  *
- * `design.config.backgroundImageUrl` may be a same-origin path such as
- * `/__api/datasource/screenshots/<uuid>.png` when images were stored via the Vite dev upload API.
+ * `design.config` includes `artboardPresetId` (defaults when missing on load). Images may use
+ * `/__api/datasource/screenshots/<uuid>.png` (legacy flat) or
+ * `/__api/datasource/screenshots/<artboardPresetId>/<uuid>.png` from the dev upload API.
  */
 export interface DisplayDocumentV1 {
   version: typeof DISPLAY_DOCUMENT_VERSION
