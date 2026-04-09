@@ -26,7 +26,7 @@ import {
 } from '../../constants/assetDrag'
 import {
   DEFAULT_DEVICE_FRAME_STYLE_ID,
-  DEVICE_FRAME_STYLES,
+  DEVICE_FRAME_STYLES_FOR_SIDEBAR,
   type DeviceFrameStyleId,
 } from '../../constants/deviceFrameStyles'
 import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
@@ -54,7 +54,7 @@ export function LeftSidebar() {
   })
 
   const [deviceFrameStyleId, setDeviceFrameStyleId] = useState<DeviceFrameStyleId>(
-    DEFAULT_DEVICE_FRAME_STYLE_ID,
+    () => DEVICE_FRAME_STYLES_FOR_SIDEBAR[0]?.id ?? DEFAULT_DEVICE_FRAME_STYLE_ID,
   )
 
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
@@ -375,7 +375,7 @@ export function LeftSidebar() {
               role="radiogroup"
               aria-label="Device perspective"
             >
-              {DEVICE_FRAME_STYLES.map((s) => (
+              {DEVICE_FRAME_STYLES_FOR_SIDEBAR.map((s) => (
                 <button
                   key={s.id}
                   type="button"
