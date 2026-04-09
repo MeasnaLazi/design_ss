@@ -31,6 +31,33 @@ function isAllowedScreenshotBucket(bucket: string): boolean {
   return (ARTBOARD_PRESET_IDS as readonly string[]).includes(bucket)
 }
 
+const TEMPLATES_SUBDIR = 'templates'
+
+/** Filenames written by PUT template (UUID + .json). */
+const SAFE_TEMPLATE_FILENAME =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i
+
+interface TemplateFilePayload {
+  templateName: string
+  savedAt: string
+  document: unknown
+}
+
+function isTemplatePayload(x: unknown): x is TemplateFilePayload {
+  if (typeof x !== 'object' || x === null) return false
+  const o = x as Record<string, unknown>
+  return (
+    typeof o.templateName === 'string' &&
+    typeof o.savedAt === 'string' &&
+    o.document !== null &&
+    typeof o.document === 'object'
+  )
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null && !Array.isArray(x)
+}
+
 /** `?slug=` → `display_<slug>.json`; omit → legacy `display.json`. */
 function resolveDisplayJsonFile(
   datasourceDir: string,
@@ -107,6 +134,7 @@ export function datasourceApiPlugin(): Plugin {
     '../datasource',
   )
   const screenshotsDir = path.join(datasourceDir, 'screenshots')
+  const templatesDir = path.join(datasourceDir, TEMPLATES_SUBDIR)
 
   return {
     name: 'vite-plugin-datasource-api',
@@ -118,6 +146,7 @@ export function datasourceApiPlugin(): Plugin {
         try {
           await fs.mkdir(datasourceDir, { recursive: true })
           await fs.mkdir(screenshotsDir, { recursive: true })
+          await fs.mkdir(templatesDir, { recursive: true })
         } catch {
           /* ignore */
         }
@@ -150,6 +179,136 @@ export function datasourceApiPlugin(): Plugin {
         // POST /__api/datasource/screenshots
         if (req.method === 'POST' && pathname === '/__api/datasource/screenshots') {
           await handleScreenshotUpload(req, nodeRes, screenshotsDir, req.url)
+          return
+        }
+
+        if (pathname === '/__api/datasource/templates') {
+          try {
+            if (req.method === 'GET') {
+              const u = new URL(req.url ?? '/', 'http://vite.datasource')
+              const id = u.searchParams.get('id')
+              if (id !== null && id !== '') {
+                if (!SAFE_TEMPLATE_FILENAME.test(id)) {
+                  nodeRes.statusCode = 400
+                  nodeRes.setHeader('Content-Type', 'application/json')
+                  nodeRes.end(JSON.stringify({ error: 'invalid_template_id' }))
+                  return
+                }
+                const filePath = path.join(templatesDir, id)
+                const text = await fs.readFile(filePath, 'utf8')
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(text)
+                return
+              }
+
+              const names = await fs.readdir(templatesDir)
+              const templates: { id: string; name: string; savedAt: string }[] = []
+              for (const name of names) {
+                if (!name.endsWith('.json') || !SAFE_TEMPLATE_FILENAME.test(name)) continue
+                try {
+                  const raw = JSON.parse(
+                    await fs.readFile(path.join(templatesDir, name), 'utf8'),
+                  ) as unknown
+                  if (!isTemplatePayload(raw)) continue
+                  templates.push({
+                    id: name,
+                    name: raw.templateName,
+                    savedAt: raw.savedAt,
+                  })
+                } catch {
+                  /* skip corrupt */
+                }
+              }
+              templates.sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ templates }))
+              return
+            }
+
+            if (req.method === 'PUT') {
+              const body = await readBody(req as IncomingMessage)
+              const parsed: unknown = JSON.parse(body)
+              if (!isRecord(parsed)) {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ error: 'invalid_body' }))
+                return
+              }
+              const nameIn = parsed.name
+              const docIn = parsed.document
+              if (typeof nameIn !== 'string' || nameIn.trim() === '') {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ error: 'invalid_template_name' }))
+                return
+              }
+              if (docIn === null || typeof docIn !== 'object') {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ error: 'invalid_document' }))
+                return
+              }
+              const docObj = docIn as Record<string, unknown>
+              if (docObj.version !== 1 || !Array.isArray(docObj.fabricObjects)) {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ error: 'invalid_display_document' }))
+                return
+              }
+              const id = `${randomUUID()}.json`
+              const savedAt = new Date().toISOString()
+              const payload: TemplateFilePayload = {
+                templateName: nameIn.trim().slice(0, 120),
+                savedAt,
+                document: docIn,
+              }
+              await fs.writeFile(
+                path.join(templatesDir, id),
+                JSON.stringify(payload, null, 2),
+                'utf8',
+              )
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(
+                JSON.stringify({
+                  ok: true,
+                  id,
+                  name: payload.templateName,
+                  savedAt,
+                }),
+              )
+              return
+            }
+
+            if (req.method === 'DELETE') {
+              const u = new URL(req.url ?? '/', 'http://vite.datasource')
+              const id = u.searchParams.get('id')
+              if (id === null || id === '' || !SAFE_TEMPLATE_FILENAME.test(id)) {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ error: 'invalid_template_id' }))
+                return
+              }
+              const filePath = path.join(templatesDir, id)
+              await fs.unlink(filePath)
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ ok: true }))
+              return
+            }
+
+            nodeRes.statusCode = 405
+            nodeRes.end('Method not allowed')
+          } catch (e: unknown) {
+            const err = e as NodeJS.ErrnoException
+            if (err.code === 'ENOENT') {
+              nodeRes.statusCode = 404
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'not_found' }))
+              return
+            }
+            nodeRes.statusCode = 500
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
           return
         }
 
