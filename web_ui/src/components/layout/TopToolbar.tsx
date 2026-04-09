@@ -1,5 +1,4 @@
 import { ChevronDown, Download, LayoutTemplate, Save } from 'lucide-react'
-import { useRef } from 'react'
 
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
 import {
@@ -7,14 +6,8 @@ import {
   getArtboardDimensionsFromConfig,
   getDisplayFileSlug,
 } from '../../constants/artboardPresets'
-import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
-import { parseDisplayDocument } from '../../canvas/parseDisplayDocument'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
-import {
-  clearArtboardPresetDatasourceSyncSuppress,
-  suppressArtboardPresetDatasourceSyncOnce,
-} from '../../hooks/useArtboardPresetDisplaySync'
-import { fetchDisplayDocument, putDisplayDocument } from '../../lib/datasourceApi'
+import { putDisplayDocument } from '../../lib/datasourceApi'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
 import type { DisplayDocumentV1 } from '../../types/displayDocument'
@@ -38,7 +31,6 @@ function downloadDisplayJson(doc: DisplayDocumentV1, filename: string): void {
 export function TopToolbar() {
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
-  const importFileRef = useRef<HTMLInputElement>(null)
 
   const handleExportZip = async () => {
     const canvas = useDesignStore.getState().fabricCanvas
@@ -94,93 +86,6 @@ export function TopToolbar() {
     }
   }
 
-  const handleDownloadDisplayJson = () => {
-    const { showToast } = useToastStore.getState()
-    const doc = buildCurrentDisplayDocument()
-    if (!doc) {
-      showToast('Download failed — canvas is not ready yet.', 'error')
-      return
-    }
-    const basename = displayDocumentFilenameForPreset(
-      useDesignStore.getState().config.artboardPresetId,
-    )
-    downloadDisplayJson(doc, basename)
-    showToast(`Download started — ${basename}.`, 'success')
-  }
-
-  const handleLoadFromDatasource = async () => {
-    const { showToast } = useToastStore.getState()
-    const slug = getDisplayFileSlug(useDesignStore.getState().config.artboardPresetId)
-    const basename = displayDocumentFilenameForPreset(
-      useDesignStore.getState().config.artboardPresetId,
-    )
-    suppressArtboardPresetDatasourceSyncOnce()
-    try {
-      const raw = await fetchDisplayDocument(slug)
-      const doc = parseDisplayDocument(raw)
-      await loadDisplayDocumentIntoCanvas(doc)
-      showToast(`Design loaded from datasource/${basename}.`, 'success')
-    } catch (e) {
-      console.error('[TopToolbar] load from datasource failed', e)
-      showToast(
-        `Could not load datasource/${basename}. Save or import a design first.`,
-        'error',
-      )
-    } finally {
-      queueMicrotask(() => clearArtboardPresetDatasourceSyncSuppress())
-    }
-  }
-
-  const triggerImportFilePick = () => {
-    importFileRef.current?.click()
-  }
-
-  const handleImportFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const { showToast } = useToastStore.getState()
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    try {
-      const text = await file.text()
-      const raw: unknown = JSON.parse(text)
-      const doc = parseDisplayDocument(raw)
-      const importSlug = getDisplayFileSlug(doc.design.config.artboardPresetId)
-      const importBasename = displayDocumentFilenameForPreset(
-        doc.design.config.artboardPresetId,
-      )
-      let wroteDatasource = false
-      suppressArtboardPresetDatasourceSyncOnce()
-      try {
-        await loadDisplayDocumentIntoCanvas(doc)
-        try {
-          await putDisplayDocument(doc, importSlug)
-          wroteDatasource = true
-          console.log('[TopToolbar] copied display file into datasource/', importBasename)
-        } catch (putErr) {
-          console.error('[TopToolbar] import: could not write datasource', putErr)
-        }
-      } finally {
-        queueMicrotask(() => clearArtboardPresetDatasourceSyncSuppress())
-      }
-      if (wroteDatasource) {
-        showToast(
-          `Imported “${file.name}” — saved to datasource and applied.`,
-          'success',
-        )
-      } else {
-        showToast(
-          'Design applied from file, but datasource could not be updated (dev server only).',
-          'warning',
-        )
-      }
-    } catch (err) {
-      console.error('[TopToolbar] display file failed', err)
-      showToast('Invalid display.json or could not apply the design.', 'error')
-    }
-  }
-
   return (
     <header
       className="relative z-50 flex h-12 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-900/80 px-4 backdrop-blur-sm"
@@ -218,40 +123,8 @@ export function TopToolbar() {
             >
               Save to datasource…
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="px-3 py-1.5 text-left text-xs text-zinc-100 hover:bg-zinc-800"
-              onClick={handleDownloadDisplayJson}
-            >
-              Download preset JSON…
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="px-3 py-1.5 text-left text-xs text-zinc-100 hover:bg-zinc-800"
-              onClick={() => void handleLoadFromDatasource()}
-            >
-              Load from datasource
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="px-3 py-1.5 text-left text-xs text-zinc-100 hover:bg-zinc-800"
-              onClick={() => triggerImportFilePick()}
-            >
-              Import to datasource…
-            </button>
           </div>
         </details>
-        <input
-          ref={importFileRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          aria-hidden
-          onChange={(ev) => void handleImportFileChange(ev)}
-        />
         <button
           type="button"
           onClick={handleExportZip}
