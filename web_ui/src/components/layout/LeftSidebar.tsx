@@ -1,5 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
+  ChevronDown,
+  ChevronUp,
   GripVertical,
   ImageIcon,
   ImagePlus,
@@ -14,6 +16,10 @@ import {
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
 import { deleteLayerById, selectLayerById } from '../../canvas/deleteLayerById'
+import {
+  getUserLayerIdsBottomToTop,
+  moveLayerById,
+} from '../../canvas/moveLayerOrder'
 import {
   SCREEN_LAYOUT_COUNT_MAX,
   SCREEN_LAYOUT_COUNT_MIN,
@@ -37,6 +43,7 @@ type CanvasFillTab = 'solid' | 'gradient' | 'image'
 
 export function LeftSidebar() {
   const objects = useDesignStore((s) => s.objects)
+  const fabricCanvas = useDesignStore((s) => s.fabricCanvas)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
   const backgroundGradient = useDesignStore((s) => s.config.backgroundGradient)
@@ -440,38 +447,69 @@ export function LeftSidebar() {
           <Layers className="size-3.5" aria-hidden />
           Layers
         </h2>
+        <p className="mt-1 text-[10px] leading-snug text-zinc-600">
+          Use arrows to change stacking (top of list = drawn in front).
+        </p>
         {sortedLayers.length === 0 ? (
           <p className="mt-2 text-sm text-zinc-600">No layers yet.</p>
         ) : (
           <ul className="mt-2 space-y-1">
-            {sortedLayers.map((o) => (
-              <li key={o.id} className="flex items-stretch gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => selectLayerById(o.id)}
-                  className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors ${
-                    selectedObject === o.id
-                      ? 'bg-zinc-800 text-zinc-100'
-                      : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
-                  }`}
-                >
-                  {o.name}
-                  <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
-                </button>
-                <button
-                  type="button"
-                  title="Delete layer"
-                  aria-label={`Delete layer ${o.name}`}
-                  className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-red-950/50 hover:text-red-300"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteLayerById(o.id)
-                  }}
-                >
-                  <Trash2 className="size-3.5" aria-hidden />
-                </button>
-              </li>
-            ))}
+            {sortedLayers.map((o) => {
+              const stackIds = getUserLayerIdsBottomToTop(fabricCanvas)
+              const pos = stackIds.indexOf(o.id)
+              const canMoveUp = pos >= 0 && pos < stackIds.length - 1
+              const canMoveDown = pos > 0
+              return (
+                <li key={o.id} className="flex items-stretch gap-0.5">
+                  <div className="flex shrink-0 flex-col justify-center gap-0 border border-zinc-800/80 rounded">
+                    <button
+                      type="button"
+                      title="Move forward (in front of the layer below in this list)"
+                      aria-label={`Move layer ${o.name} up`}
+                      disabled={!canMoveUp}
+                      className="rounded-t p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                      onClick={() => moveLayerById(o.id, true)}
+                    >
+                      <ChevronUp className="size-3.5" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move behind the next layer in this list"
+                      aria-label={`Move layer ${o.name} down`}
+                      disabled={!canMoveDown}
+                      className="rounded-b p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                      onClick={() => moveLayerById(o.id, false)}
+                    >
+                      <ChevronDown className="size-3.5" aria-hidden />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => selectLayerById(o.id)}
+                    className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors ${
+                      selectedObject === o.id
+                        ? 'bg-zinc-800 text-zinc-100'
+                        : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+                    }`}
+                  >
+                    {o.name}
+                    <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete layer"
+                    aria-label={`Delete layer ${o.name}`}
+                    className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-red-950/50 hover:text-red-300"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteLayerById(o.id)
+                    }}
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
