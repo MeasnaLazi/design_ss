@@ -1,13 +1,18 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
-import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
+import { getArtboardDimensionsFromConfig, getArtboardPreset } from '../constants/artboardPresets'
 import { deviceFrameTargetWidth } from '../constants/deviceFrame'
 import {
   DEFAULT_DEVICE_FRAME_STYLE_ID,
   getDeviceFrameStyle,
   type DeviceFrameStyleId,
 } from '../constants/deviceFrameStyles'
+import {
+  fetchPlaceholderAsFile,
+  placeholderFilenameForPreset,
+} from '../lib/datasourcePlaceholderApi'
 import { registerFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
+import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 
 /**
  * Adds a phone-style frame (SVG with transparent screen) as a {@link Group} so a screenshot can be inserted behind it later.
@@ -79,6 +84,18 @@ export async function addDeviceFrameToCanvas(
   canvas.setActiveObject(group)
   canvas.requestRenderAll()
   useDesignStore.getState().setSelectedObject(id)
+
+  // Apply default placeholder based on the active artboard preset (non-blocking).
+  void (async () => {
+    try {
+      const preset = getArtboardPreset(useDesignStore.getState().config.artboardPresetId)
+      const filename = placeholderFilenameForPreset(preset)
+      const file = await fetchPlaceholderAsFile(filename)
+      await applyScreenshotToDeviceGroup(canvas, id, file)
+    } catch (e) {
+      console.log('[addDeviceFrameToCanvas] placeholder not applied', e)
+    }
+  })()
 
   console.log('[addDeviceFrameToCanvas] device group added', { id })
 }
