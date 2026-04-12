@@ -18,6 +18,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 const SCREENSHOTS_PREFIX = '/__api/datasource/screenshots/'
+const PLACEHOLDER_PREFIX = '/__api/datasource/placeholder/'
 const ALLOWED_MIME_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -135,6 +136,7 @@ export function datasourceApiPlugin(): Plugin {
   )
   const screenshotsDir = path.join(datasourceDir, 'screenshots')
   const templatesDir = path.join(datasourceDir, TEMPLATES_SUBDIR)
+  const placeholderDir = path.join(datasourceDir, 'placeholder')
 
   return {
     name: 'vite-plugin-datasource-api',
@@ -147,8 +149,16 @@ export function datasourceApiPlugin(): Plugin {
           await fs.mkdir(datasourceDir, { recursive: true })
           await fs.mkdir(screenshotsDir, { recursive: true })
           await fs.mkdir(templatesDir, { recursive: true })
+          await fs.mkdir(placeholderDir, { recursive: true })
         } catch {
           /* ignore */
+        }
+
+        // GET /__api/datasource/placeholder/<file>
+        if (req.method === 'GET' && pathname.startsWith(PLACEHOLDER_PREFIX)) {
+          const filename = pathname.slice(PLACEHOLDER_PREFIX.length)
+          await sendScreenshotFile(nodeRes, placeholderDir, filename)
+          return
         }
 
         // GET /__api/datasource/screenshots/<file> or …/screenshots/<bucket>/<file>
