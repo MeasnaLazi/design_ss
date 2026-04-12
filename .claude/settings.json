@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(**)"
+    ],
+    "deny": [
+      "Read(web_ui/**)",
+      "Write(web_ui/**)"
+    ]
+  }
+}
