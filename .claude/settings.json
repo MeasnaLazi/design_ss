@@ -6,7 +6,8 @@
     ],
     "deny": [
       "Read(web_ui/**)",
-      "Write(web_ui/**)"
+      "Write(web_ui/**)",
+      "Bash(rm -rf *)"
     ]
   }
 }
