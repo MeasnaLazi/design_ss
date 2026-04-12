@@ -282,7 +282,7 @@
               "skewX": 0,
               "skewY": 0
             },
-            "src": "http://localhost:5173/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -320,7 +320,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:5173/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -491,7 +491,7 @@
               "skewX": 0,
               "skewY": 0
             },
-            "src": "http://localhost:5173/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -529,7 +529,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:5173/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -754,7 +754,7 @@
               "skewX": 0,
               "skewY": 0
             },
-            "src": "http://localhost:5173/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -792,7 +792,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:5173/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -1017,7 +1017,7 @@
               "skewX": 0,
               "skewY": 0
             },
-            "src": "http://localhost:5173/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1055,7 +1055,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:5173/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -1388,7 +1388,7 @@
               "skewX": 0,
               "skewY": 0
             },
-            "src": "http://localhost:5173/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ebc5d2fa-e628-44aa-97cf-f415947f7c2b.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1426,7 +1426,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:5173/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }

@@ -472,7 +472,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
     "skewX":       0,
     "skewY":       0
   },
-  "src":         "http://localhost:5173/__api/datasource/placeholder/iphone.jpg",
+  "src":         "http://localhost:4713/__api/datasource/placeholder/iphone.jpg",
   "crossOrigin": "anonymous",
   "filters":     []
 }
@@ -480,7 +480,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
 
 | Field | Notes |
 |---|---|
-| `src` | If a real screenshot exists at `http://localhost:5173/__api/datasource/screenshots/<presetId>/<uuid>.png`, use it. Otherwise fall back to the placeholder for the device type (see table below). Always use the full origin — Fabric.js requires absolute URLs for cross-origin images. |
+| `src` | If a real screenshot exists at `http://localhost:4713/__api/datasource/screenshots/<presetId>/<uuid>.png`, use it. Otherwise fall back to the placeholder for the device type (see table below). Always use the full origin — Fabric.js requires absolute URLs for cross-origin images. |
 | `width` / `height` | Natural pixel size of the screenshot. `"front"` frame: **1242 × 2622**. Iso/perspective: **1416 × 2622**. |
 | `scaleX` / `scaleY` | Fit screenshot into screen hole: `screenHoleWidthInGroupPx / imageWidth`. `"front"` at 968 wide: `≈ 0.7298`. |
 | `clipPath.width` / `height` | Screen hole in image-local space. `"front"`: 1242 × 2610.16. |
@@ -526,7 +526,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
   "globalCompositeOperation": "source-over",
   "skewX":       0,
   "skewY":       0,
-  "src":         "http://localhost:5173/device-frames/front.svg",
+  "src":         "http://localhost:4713/device-frames/front.svg",
   "crossOrigin": "anonymous",
   "filters":     []
 }
@@ -534,7 +534,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
 
 | Field | Notes |
 |---|---|
-| `src` | `http://localhost:5173/device-frames/<styleId>.svg`. Available: `front.svg`, `iso-down-right.svg`, `perspective-right.svg`, `perspective-left.svg`, `iso-up-right.svg`, `iso-down-left.svg`, `iso-up-left.svg`. |
+| `src` | `http://localhost:4713/device-frames/<styleId>.svg`. Available: `front.svg`, `iso-down-right.svg`, `perspective-right.svg`, `perspective-left.svg`, `iso-up-right.svg`, `iso-down-left.svg`, `iso-up-left.svg`. |
 | `originX` / `originY` | `"left"` / `"top"` — frame SVG is top-left anchored, unlike the screenshot child which uses `"center"`. |
 | `width` / `height` | SVG logical viewBox. All frame styles = **320 × 640**. |
 | `scaleX` / `scaleY` | Scale so frame fills the group. `"front"` (968 wide): `968/320 = 3.025`. Iso/perspective (704 wide): `704/320 ≈ 2.2`. Use the same value for both `scaleX` and `scaleY`. |
@@ -546,9 +546,9 @@ A device frame is a `Group` containing exactly **two children** in this order:
 
 | `artboardPresetId` | Placeholder `src` |
 |---|---|
-| `appstore_iphone_67` | `http://localhost:5173/__api/datasource/placeholder/iphone.jpg` |
-| `appstore_ipad_129` | `http://localhost:5173/__api/datasource/placeholder/ipad.jpg` |
-| `play_phone_portrait` | `http://localhost:5173/__api/datasource/placeholder/phone.jpg` |
+| `appstore_iphone_67` | `http://localhost:4713/__api/datasource/placeholder/iphone.jpg` |
+| `appstore_ipad_129` | `http://localhost:4713/__api/datasource/placeholder/ipad.jpg` |
+| `play_phone_portrait` | `http://localhost:4713/__api/datasource/placeholder/phone.jpg` |
 
 ---
 
@@ -586,7 +586,7 @@ Before saving, verify:
 - [ ] `version` is `1` at the top level (not nested inside any wrapper)
 - [ ] Device group has `layoutManager: { "type": "layoutManager", "strategy": "fixed" }`
 - [ ] Screenshot image child has `clipPath.absolutePositioned: false`
-- [ ] All `src` URLs start with `http://localhost:5173/`
+- [ ] All `src` URLs start with `http://localhost:4713/`
 - [ ] `backgroundMode: "gradient"` and `background` hex both present
 - [ ] `templateName` reflects the app name + design concept
 - [ ] New design uses at least 2 different visual dimensions from existing templates (color, frame style, layout, typography)

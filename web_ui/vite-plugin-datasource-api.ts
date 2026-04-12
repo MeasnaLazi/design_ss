@@ -141,6 +141,14 @@ export function datasourceApiPlugin(): Plugin {
   return {
     name: 'vite-plugin-datasource-api',
     configureServer(server) {
+      server.watcher.add(datasourceDir)
+      server.watcher.on('change', (file) => {
+        const base = path.basename(file)
+        if (base.startsWith('display_') && base.endsWith('.json')) {
+          server.ws.send({ type: 'full-reload' })
+        }
+      })
+
       server.middlewares.use(async (req, res, next) => {
         const pathname = (req.url ?? '').split('?')[0]
         const nodeRes = res as ServerResponse

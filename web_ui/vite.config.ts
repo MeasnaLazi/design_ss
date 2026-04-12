@@ -6,6 +6,9 @@ import { datasourceApiPlugin } from './vite-plugin-datasource-api'
 
 // https://vite.dev/config/
 export default defineConfig({
+    server: {
+        port: 4713,
+    },
     plugins: [
         react(),
         tailwindcss(),
