@@ -1,4 +1,5 @@
 import {
+  DEVICE_FRAME_FRONT,
   getScreenshotBakeDimensions,
   type DeviceFrameMetrics,
 } from '../constants/deviceFrame'
@@ -31,9 +32,10 @@ function renderCoverToPngDataUrl(
   natH: number,
   outW: number,
   outH: number,
+  heightAdjustY: number,
 ): string {
   const canvas = document.createElement('canvas')
-  const ADJUSTMENT_Y = 20
+  const ADJUSTMENT_Y = heightAdjustY
   canvas.width = outW
   canvas.height = outH
   const ctx = canvas.getContext('2d', { alpha: true, colorSpace: 'srgb' })
@@ -54,7 +56,7 @@ function renderCoverToPngDataUrl(
 }
 
 /**
- * Resamples an uploaded screenshot to the ideal pixel size for the device style (e.g. 1242×2622 for front)
+ * Resamples an uploaded screenshot to the ideal pixel size for the device style (e.g. 2241×4745 for front)
  * so on-canvas scaling matches the frame opening with minimal extra filtering.
  */
 export async function bakeScreenshotFileForMetrics(
@@ -70,7 +72,14 @@ export async function bakeScreenshotFileForMetrics(
         if (bitmap.width === outW && bitmap.height === outH) {
           return readFileDataUrl(file)
         }
-        return renderCoverToPngDataUrl(bitmap, bitmap.width, bitmap.height, outW, outH)
+        return renderCoverToPngDataUrl(
+          bitmap,
+          bitmap.width,
+          bitmap.height,
+          outW,
+          outH,
+          heightAdjustForMetrics(metrics),
+        )
       } finally {
         bitmap.close()
       }
@@ -86,5 +95,9 @@ export async function bakeScreenshotFileForMetrics(
   if (natW === outW && natH === outH) {
     return dataUrl
   }
-  return renderCoverToPngDataUrl(img, natW, natH, outW, outH)
+  return renderCoverToPngDataUrl(img, natW, natH, outW, outH, heightAdjustForMetrics(metrics))
+}
+
+function heightAdjustForMetrics(m: DeviceFrameMetrics): number {
+  return m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH ? 36 : 20
 }

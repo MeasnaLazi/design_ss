@@ -7,6 +7,7 @@ import {
   type FabricObject,
 } from 'fabric'
 import {
+  DEVICE_FRAME_FRONT,
   getDeviceFrameMetricsForStyle,
   screenshotVerticalNudgeY,
   type DeviceFrameMetrics,
@@ -40,7 +41,8 @@ function resyncScreenshotChildInDeviceGroup(child: FabricObject, group: Group): 
  * layout offsets children to center the bbox, so we anchor to {@link FabricImage#left} / `top`.
  */
 function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
-  const ADJUSTMENT_Y = 30
+  const ADJUSTMENT_Y =
+    m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH ? 54 : 30
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
   const fx = fw / m.viewW
@@ -57,7 +59,7 @@ function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
 
 /**
  * Places the image behind the device frame inside the group, with a rounded {@link Rect} clipPath.
- * Uploads are resampled to the bake size from `deviceFrame.ts` (e.g. 1242×2622 for front) via {@link bakeScreenshotFileForMetrics}, then scaled with uniform cover to the hole.
+ * Uploads are resampled to the bake size from `deviceFrame.ts` (e.g. 2241×4745 for front) via {@link bakeScreenshotFileForMetrics}, then scaled with uniform cover to the hole.
  */
 export async function applyScreenshotToDeviceGroup(
   canvas: Canvas,
