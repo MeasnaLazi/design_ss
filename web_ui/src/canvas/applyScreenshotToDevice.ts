@@ -8,6 +8,7 @@ import {
 } from 'fabric'
 import {
   DEVICE_FRAME_FRONT,
+  DEVICE_FRAME_IOS_DOWN_LEFT,
   getDeviceFrameMetricsForStyle,
   screenshotVerticalNudgeY,
   type DeviceFrameMetrics,
@@ -19,7 +20,7 @@ import { useDesignStore } from '../store/useDesignStore'
 import { useToastStore } from '../store/useToastStore'
 import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
 
-/** Fabric’s internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
+/** Fabric's internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
 type GroupWithEnter = Group & {
   _enterGroup(object: FabricObject, removeParentTransform?: boolean): void
 }
@@ -29,7 +30,7 @@ type GroupWithEnter = Group & {
  * `child.group === group`. Otherwise it applies the inverse group matrix and the child looks
  * axis-aligned (screenshot at 0° while the bezel is rotated). Assigning `child.group = group` is not
  * enough — we must run the same path as {@link Group#_enterGroup} so `group`, `canvas`, and event
- * wiring match Fabric’s expectations after `fromURL` + layout.
+ * wiring match Fabric's expectations after `fromURL` + layout.
  */
 function resyncScreenshotChildInDeviceGroup(child: FabricObject, group: Group): void {
   ;(group as GroupWithEnter)._enterGroup(child, false)
@@ -37,12 +38,16 @@ function resyncScreenshotChildInDeviceGroup(child: FabricObject, group: Group): 
 }
 
 /**
- * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric’s group
+ * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric's group
  * layout offsets children to center the bbox, so we anchor to {@link FabricImage#left} / `top`.
  */
 function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
   const ADJUSTMENT_Y =
-    m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH ? 54 : 30
+    m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH
+      ? 54
+      : m.viewW === DEVICE_FRAME_IOS_DOWN_LEFT.viewW && m.viewH === DEVICE_FRAME_IOS_DOWN_LEFT.viewH
+        ? 0
+        : 30
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
   const fx = fw / m.viewW

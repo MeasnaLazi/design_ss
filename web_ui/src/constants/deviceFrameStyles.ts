@@ -34,6 +34,11 @@ export const DEVICE_FRAME_STYLES = [
     src: '/device-frames/iso-down-left.svg',
   },
   {
+    id: 'ios-down-left',
+    label: 'iOS down-left',
+    src: '/device-frames/ios-down-left.svg',
+  },
+  {
     id: 'iso-up-left',
     label: 'Iso up-left',
     src: '/device-frames/iso-up-left.svg',
@@ -48,7 +53,7 @@ export const DEFAULT_DEVICE_FRAME_STYLE_ID: DeviceFrameStyleId = 'front'
  * Which presets appear in the Assets sidebar grid. Front only for now — append more
  * {@link DeviceFrameStyleId} values when those angles are enabled in the UI.
  */
-export const DEVICE_FRAME_STYLE_IDS_IN_SIDEBAR: readonly DeviceFrameStyleId[] = ['front']
+export const DEVICE_FRAME_STYLE_IDS_IN_SIDEBAR: readonly DeviceFrameStyleId[] = ['front', 'ios-down-left']
 
 export function getDeviceFrameStyle(
   id: DeviceFrameStyleId | string | undefined,

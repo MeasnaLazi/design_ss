@@ -1,7 +1,7 @@
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from './deviceFrameStyles'
 
 /**
- * Must match each frame SVG’s logical size and masked “screen” opening (iso/perspective: 320×640).
+ * Must match each frame SVG's logical size and masked “screen” opening (iso/perspective: 320×640).
  * `front.svg` uses {@link DEVICE_FRAME_FRONT} (772×1571 viewBox).
  */
 export const DEVICE_FRAME = {
@@ -38,9 +38,27 @@ export const DEVICE_FRAME_FRONT: DeviceFrameMetrics = {
   cornerRadius: 97.02882,
 }
 
+/**
+ * `public/device-frames/ios-down-left.svg`: viewBox 1282×1485.
+ * Screen opening measured from the transparent face area; camera holes sit at roughly
+ * X 217–432, Y 58–131 (top bezel). The dark screen face (#0A0909 fill) spans
+ * X 66–660, Y 249–1335 giving the clip rect below.
+ */
+export const DEVICE_FRAME_IOS_DOWN_LEFT: DeviceFrameMetrics = {
+  viewW: 1282,
+  viewH: 1485,
+  screenX: 75,
+  screenY: 250,
+  screenW: 558,
+  screenH: 1075,
+  cornerRadius: 40,
+}
+
 export function getDeviceFrameMetricsForStyle(styleId: string | undefined): DeviceFrameMetrics {
   const id = styleId ?? DEFAULT_DEVICE_FRAME_STYLE_ID
-  return id === 'front' ? DEVICE_FRAME_FRONT : DEVICE_FRAME
+  if (id === 'front') return DEVICE_FRAME_FRONT
+  if (id === 'ios-down-left') return DEVICE_FRAME_IOS_DOWN_LEFT
+  return DEVICE_FRAME
 }
 
 /**
