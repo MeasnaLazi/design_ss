@@ -2,23 +2,22 @@ import {
   ActiveSelection,
   FabricImage,
   Group,
-  Rect,
+  Path,
   type Canvas,
   type FabricObject,
 } from 'fabric'
 import {
-  DEVICE_FRAME_FRONT,
-  DEVICE_FRAME_IOS_DOWN_LEFT,
-  getDeviceFrameMetricsForStyle,
-  screenshotVerticalNudgeY,
-  type DeviceFrameMetrics,
+  getScreenQuadForStyle,
+  type ScreenQuad,
 } from '../constants/deviceFrame'
+import { getDeviceFrameStyle } from '../constants/deviceFrameStyles'
 import { screenshotBucketForConfig } from '../constants/artboardPresets'
 import { uploadScreenshotBlob } from '../lib/datasourceScreenshotsApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 import { useToastStore } from '../store/useToastStore'
-import { bakeScreenshotFileForMetrics } from './bakeScreenshotToScreenSize'
+import { bakeScreenshotForRegion, bakeScreenshotToQuad } from './bakeScreenshotToScreenSize'
+import { loadScreenRegion, type ScreenRegion } from './loadScreenRegion'
 
 /** Fabric's internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
 type GroupWithEnter = Group & {
@@ -38,33 +37,96 @@ function resyncScreenshotChildInDeviceGroup(child: FabricObject, group: Group): 
 }
 
 /**
- * Screen opening in **group** coordinates. The frame is not at (0,0): Fabric's group
- * layout offsets children to center the bbox, so we anchor to {@link FabricImage#left} / `top`.
+ * Builds a Fabric clip path from the raw `d` attribute of the `#screen` SVG path.
+ *
+ * The path is in SVG viewBox coordinates. We anchor it so that SVG point (viewW/2, viewH/2)
+ * maps to the shot image's local origin (0, 0) — i.e. the image centre — by compensating for
+ * Fabric's automatic `pathOffset` normalisation:
+ *
+ *   clip.left = pathOffset.x − viewW/2
+ *   clip.top  = pathOffset.y − viewH/2
+ *
+ * This works because after Fabric normalises the path (subtracts pathOffset from every coord),
+ * setting `left/top` to `pathOffset − viewCentre` shifts the visual clip so that SVG coords
+ * (px, py) land at local (px − viewW/2, py − viewH/2), matching the baked image's coordinate
+ * system exactly.
  */
-function screenRectForFrame(frame: FabricImage, m: DeviceFrameMetrics) {
-  const ADJUSTMENT_Y =
-    m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH
-      ? 54
-      : m.viewW === DEVICE_FRAME_IOS_DOWN_LEFT.viewW && m.viewH === DEVICE_FRAME_IOS_DOWN_LEFT.viewH
-        ? 0
-        : 30
-  const fw = frame.getScaledWidth()
-  const fh = frame.getScaledHeight()
-  const fx = fw / m.viewW
-  const fy = (fh / m.viewH)
-  return {
-    sx: frame.left + m.screenX * fx,
-    sy: frame.top + m.screenY * fy,
-    sw: m.screenW * fx,
-    sh: (m.screenH * fy) - ADJUSTMENT_Y,
-    rx: m.cornerRadius * fx,
-    ry: (m.cornerRadius * fy) - ADJUSTMENT_Y,
+function makeClipPath(pathD: string, viewW: number, viewH: number): Path {
+  const clip = new Path(pathD, {
+    originX: 'center',
+    originY: 'center',
+    absolutePositioned: false,
+    objectCaching: false,
+  })
+  clip.set({
+    left: clip.pathOffset.x - viewW / 2,
+    top: clip.pathOffset.y - viewH / 2,
+  })
+  return clip
+}
+
+/**
+ * Builds a parallelogram clip path for isometric frames from a {@link ScreenQuad}.
+ *
+ * The quad corners are already in SVG viewBox space. We translate them to the shot image's
+ * local coordinate system (subtract the viewBox centre) and then correct for Fabric's
+ * `pathOffset` normalisation so the clip lands precisely over the warped content.
+ */
+function makeQuadClipPath(quad: ScreenQuad): Path {
+  const cx = quad.viewW / 2
+  const cy = quad.viewH / 2
+
+  const [tlx, tly] = quad.tl
+  const [trx, try_] = quad.tr
+  const [blx, bly] = quad.bl
+  const brx = trx + blx - tlx
+  const bry = try_ + bly - tly
+
+  const clip = new Path(
+    `M ${tlx - cx} ${tly - cy} L ${trx - cx} ${try_ - cy} L ${brx - cx} ${bry - cy} L ${blx - cx} ${bly - cy} Z`,
+    {
+      originX: 'center',
+      originY: 'center',
+      absolutePositioned: false,
+      objectCaching: false,
+    },
+  )
+  // Place the clip at the parallelogram's geometric centre in local space
+  // (not at 0,0 which is the image centre — the screen face is offset in the viewBox).
+  clip.set({
+    left: clip.pathOffset.x,
+    top: clip.pathOffset.y,
+  })
+  return clip
+}
+
+async function uploadOrEmbed(dataUrl: string): Promise<string> {
+  try {
+    const blob = await (await fetch(dataUrl)).blob()
+    const bucket = screenshotBucketForConfig(useDesignStore.getState().config)
+    return await uploadScreenshotBlob(blob, 'device-screenshot.png', { bucket })
+  } catch {
+    useToastStore
+      .getState()
+      .showToast(
+        'Saved as embedded image; dev server required to store under datasource.',
+        'warning',
+      )
+    return dataUrl
   }
 }
 
 /**
- * Places the image behind the device frame inside the group, with a rounded {@link Rect} clipPath.
- * Uploads are resampled to the bake size from `deviceFrame.ts` (e.g. 2241×4745 for front) via {@link bakeScreenshotFileForMetrics}, then scaled with uniform cover to the hole.
+ * Places the screenshot behind the device frame inside the group.
+ *
+ * - **Rectangular frames** (front, perspective-*): screenshot is cover-scaled into the screen
+ *   opening using {@link bakeScreenshotForRegion}. The clip comes from the `#screen` SVG path.
+ * - **Isometric frames** (iso-*): screenshot is affine-warped into the parallelogram screen face
+ *   via {@link bakeScreenshotToQuad}. The clip is a polygon derived from the quad corners.
+ *
+ * In both cases the shot image is full-viewBox-size so a single uniform scale factor aligns it
+ * with the device frame. The `left/top` in group space is set **after** `_enterGroup` because
+ * Fabric converts canvas-space coords to group-local during that hook.
  */
 export async function applyScreenshotToDeviceGroup(
   canvas: Canvas,
@@ -94,58 +156,54 @@ export async function applyScreenshotToDeviceGroup(
   }
 
   const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
-  const metrics = getDeviceFrameMetricsForStyle(existing?.deviceFrameStyleId)
+  const styleId = existing?.deviceFrameStyleId
+  const style = getDeviceFrameStyle(styleId)
+  const quad = getScreenQuadForStyle(styleId)
 
-  const { sx, sy, sw, sh, rx, ry } = screenRectForFrame(frame, metrics)
+  const fw = frame.getScaledWidth()
+  const fh = frame.getScaledHeight()
 
-  const dataUrl = await bakeScreenshotFileForMetrics(file, metrics)
-  let imageUrl = dataUrl
-  try {
-    const blob = await (await fetch(dataUrl)).blob()
-    const bucket = screenshotBucketForConfig(useDesignStore.getState().config)
-    imageUrl = await uploadScreenshotBlob(blob, 'device-screenshot.png', { bucket })
-  } catch {
-    useToastStore
-      .getState()
-      .showToast(
-        'Saved as embedded image; dev server required to store under datasource.',
-        'warning',
-      )
+  // ── Bake, upload, build clip ───────────────────────────────────────────────
+  let imageUrl: string
+  let scaleX: number
+  let scaleY: number
+  let clipPath: Path
+  let viewW: number
+  let viewH: number
+
+  if (quad) {
+    // Isometric: affine-warp into the parallelogram
+    const dataUrl = await bakeScreenshotToQuad(file, quad)
+    imageUrl = await uploadOrEmbed(dataUrl)
+    viewW = quad.viewW
+    viewH = quad.viewH
+    scaleX = fw / viewW
+    scaleY = fh / viewH
+    clipPath = makeQuadClipPath(quad)
+  } else {
+    // Rectangular: cover-scale into the screen opening bounding box
+    let region: ScreenRegion
+    try {
+      region = await loadScreenRegion(style.src)
+    } catch (err) {
+      console.error('[applyScreenshotToDeviceGroup] could not load screen region', err)
+      return
+    }
+    const dataUrl = await bakeScreenshotForRegion(file, region)
+    imageUrl = await uploadOrEmbed(dataUrl)
+    viewW = region.viewW
+    viewH = region.viewH
+    scaleX = fw / viewW
+    scaleY = fh / viewH
+    clipPath = makeClipPath(region.pathD, viewW, viewH)
   }
+
   const shot = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' })
 
-  const natW = Math.max(shot.width || 1, 1)
-  const natH = Math.max(shot.height || 1, 1)
-  const scale = Math.max(sw / natW, sh / natH)
-
-  /** Clip and radii are in image local space (Fabric applies scaleX/Y after). */
-  function clipForScreenRect(r: { sw: number; sh: number; rx: number; ry: number }, s: number) {
-    return new Rect({
-      originX: 'center',
-      originY: 'center',
-      left: 0,
-      top: 0,
-      width: r.sw / s,
-      height: r.sh / s,
-      rx: r.rx / s,
-      ry: r.ry / s,
-      absolutePositioned: false,
-      /** With a rotated parent {@link Group}, cached clip + image can draw as if angle were 0. */
-      objectCaching: false,
-    })
-  }
-
-  const cx = sx + sw / 2
-  const nudgeY = screenshotVerticalNudgeY(sh, metrics)
-  const cy = sy + sh / 2 + nudgeY
-
+  // Set everything except left/top — those are set after _enterGroup (see below)
   shot.set({
     originX: 'center',
     originY: 'center',
-    left: 0,
-    top: 0,
-    scaleX: scale,
-    scaleY: scale,
     angle: 0,
     skewX: 0,
     skewY: 0,
@@ -155,54 +213,54 @@ export async function applyScreenshotToDeviceGroup(
     lockMovementY: true,
     lockRotation: true,
     dirty: true,
-    /** Required so the screenshot + clipPath rotate correctly with the device {@link Group}. */
     objectCaching: false,
-    clipPath: clipForScreenRect({ sw, sh, rx, ry }, scale),
+    scaleX,
+    scaleY,
+    clipPath,
   })
 
+  // ── Insert into group ─────────────────────────────────────────────────────
   const overlays = objects.slice(0, -1)
   for (const o of overlays) {
     target.remove(o)
   }
   target.insertAt(0, shot)
-  // `enterGroup(..., true)` maps from canvas plane; set group-local center after the child is in the group.
-  shot.set({ left: cx, top: cy })
   shot.setCoords()
   target.set('dirty', true)
-  target.triggerLayout({})
   resyncScreenshotChildInDeviceGroup(shot, target)
 
-  // Re-read the frame after layout so the screenshot + clip stay locked to the opening.
-  const afterObjects = target.getObjects()
-  const frameAfter = afterObjects[afterObjects.length - 1]
-  if (frameAfter instanceof FabricImage) {
-    const r = screenRectForFrame(frameAfter, metrics)
-    const cx2 = r.sx + r.sw / 2
-    const cy2 = r.sy + r.sh / 2 + screenshotVerticalNudgeY(r.sh, metrics)
-    const s2 = Math.max(r.sw / natW, r.sh / natH)
-    shot.set({
-      left: cx2,
-      top: cy2,
-      scaleX: s2,
-      scaleY: s2,
-      angle: 0,
-      skewX: 0,
-      skewY: 0,
-      lockMovementX: true,
-      lockMovementY: true,
-      lockRotation: true,
-      objectCaching: false,
-      clipPath: clipForScreenRect(r, s2),
-      dirty: true,
-    })
-    shot.setCoords()
-    console.log('[applyScreenshotToDeviceGroup] aligned after layout', {
-      framePos: { left: frameAfter.left, top: frameAfter.top },
-      screen: r,
-    })
+  // ── Fix left/top after _enterGroup ────────────────────────────────────────
+  // _enterGroup(child, false) converts left/top from canvas-space to group-local,
+  // displacing the shot. We read the frame's current group-local position and
+  // place the shot's centre at the frame's centre.
+  if (quad) {
+    // Iso frames: skip triggerLayout (it shifts frame.left unpredictably).
+    const allObjects = target.getObjects()
+    const frameNow = allObjects[allObjects.length - 1]
+    if (frameNow instanceof FabricImage) {
+      shot.set({
+        left: frameNow.left + frameNow.getScaledWidth() / 2,
+        top: frameNow.top + frameNow.getScaledHeight() / 2,
+        dirty: true,
+      })
+      shot.setCoords()
+    }
+  } else {
+    // Rect frames: triggerLayout stabilises the FixedLayout group after the child
+    // swap, then re-read the frame position to place the shot correctly.
+    target.triggerLayout({})
+    const afterObjects = target.getObjects()
+    const frameAfter = afterObjects[afterObjects.length - 1]
+    if (frameAfter instanceof FabricImage) {
+      shot.set({
+        left: frameAfter.left + frameAfter.getScaledWidth() / 2,
+        top: frameAfter.top + frameAfter.getScaledHeight() / 2,
+        dirty: true,
+      })
+      shot.setCoords()
+      resyncScreenshotChildInDeviceGroup(shot, target)
+    }
   }
-
-  resyncScreenshotChildInDeviceGroup(shot, target)
 
   const baseName = file.name.replace(/\.[^/.]+$/, '') || 'Screenshot'
   if (existing) {
@@ -214,8 +272,5 @@ export async function applyScreenshotToDeviceGroup(
 
   canvas.setActiveObject(target)
   canvas.requestRenderAll()
-  console.log('[applyScreenshotToDeviceGroup] screenshot applied', {
-    groupAppId,
-    file: file.name,
-  })
+  console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, styleId, quad: !!quad })
 }

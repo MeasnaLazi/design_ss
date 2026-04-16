@@ -39,26 +39,42 @@ export const DEVICE_FRAME_FRONT: DeviceFrameMetrics = {
 }
 
 /**
- * `public/device-frames/ios-down-left.svg`: viewBox 1282×1485.
- * Screen opening measured from the transparent face area; camera holes sit at roughly
- * X 217–432, Y 58–131 (top bezel). The dark screen face (#0A0909 fill) spans
- * X 66–660, Y 249–1335 giving the clip rect below.
+ * 3-point definition of a non-rectangular screen face (parallelogram).
+ * All coordinates are in SVG viewBox units. BR is implied: TL + (TR-TL) + (BL-TL).
  */
-export const DEVICE_FRAME_IOS_DOWN_LEFT: DeviceFrameMetrics = {
+export type ScreenQuad = {
+  tl: readonly [number, number]
+  tr: readonly [number, number]
+  bl: readonly [number, number]
+  /** viewBox width of the SVG that owns this quad */
+  viewW: number
+  /** viewBox height of the SVG that owns this quad */
+  viewH: number
+}
+
+/**
+ * `public/device-frames/iso-down-left.svg`: viewBox 1282×1485.
+ * Corners extracted from the `fill="none"` path (the transparent screen face).
+ */
+export const ISO_DOWN_LEFT_SCREEN_QUAD: ScreenQuad = {
+  tl: [43.0, 128.2],
+  tr: [606.4, 34.8],
+  bl: [722.5, 1408.8],
   viewW: 1282,
   viewH: 1485,
-  screenX: 75,
-  screenY: 250,
-  screenW: 558,
-  screenH: 1075,
-  cornerRadius: 40,
 }
 
 export function getDeviceFrameMetricsForStyle(styleId: string | undefined): DeviceFrameMetrics {
   const id = styleId ?? DEFAULT_DEVICE_FRAME_STYLE_ID
   if (id === 'front') return DEVICE_FRAME_FRONT
-  if (id === 'ios-down-left') return DEVICE_FRAME_IOS_DOWN_LEFT
   return DEVICE_FRAME
+}
+
+/** Returns a {@link ScreenQuad} for frames whose screen is a parallelogram, or null for rectangular frames. */
+export function getScreenQuadForStyle(styleId: string | undefined): ScreenQuad | null {
+  const id = styleId ?? DEFAULT_DEVICE_FRAME_STYLE_ID
+  if (id === 'iso-down-left') return ISO_DOWN_LEFT_SCREEN_QUAD
+  return null
 }
 
 /**
