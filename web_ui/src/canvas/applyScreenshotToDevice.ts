@@ -6,10 +6,6 @@ import {
   type Canvas,
   type FabricObject,
 } from 'fabric'
-import {
-  getScreenQuadForStyle,
-  type ScreenQuad,
-} from '../constants/deviceFrame'
 import { getDeviceFrameStyle } from '../constants/deviceFrameStyles'
 import { screenshotBucketForConfig } from '../constants/artboardPresets'
 import { uploadScreenshotBlob } from '../lib/datasourceScreenshotsApi'
@@ -17,7 +13,8 @@ import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 import { useToastStore } from '../store/useToastStore'
 import { bakeScreenshotForRegion, bakeScreenshotToQuad } from './bakeScreenshotToScreenSize'
-import { loadScreenRegion, type ScreenRegion } from './loadScreenRegion'
+import { loadScreenRegion, loadScreenQuad, type ScreenRegion } from './loadScreenRegion'
+import type { ScreenQuad } from '../constants/deviceFrame'
 
 /** Fabric's internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
 type GroupWithEnter = Group & {
@@ -65,40 +62,6 @@ function makeClipPath(pathD: string, viewW: number, viewH: number): Path {
   return clip
 }
 
-/**
- * Builds a parallelogram clip path for isometric frames from a {@link ScreenQuad}.
- *
- * The quad corners are already in SVG viewBox space. We translate them to the shot image's
- * local coordinate system (subtract the viewBox centre) and then correct for Fabric's
- * `pathOffset` normalisation so the clip lands precisely over the warped content.
- */
-function makeQuadClipPath(quad: ScreenQuad): Path {
-  const cx = quad.viewW / 2
-  const cy = quad.viewH / 2
-
-  const [tlx, tly] = quad.tl
-  const [trx, try_] = quad.tr
-  const [blx, bly] = quad.bl
-  const brx = trx + blx - tlx
-  const bry = try_ + bly - tly
-
-  const clip = new Path(
-    `M ${tlx - cx} ${tly - cy} L ${trx - cx} ${try_ - cy} L ${brx - cx} ${bry - cy} L ${blx - cx} ${bly - cy} Z`,
-    {
-      originX: 'center',
-      originY: 'center',
-      absolutePositioned: false,
-      objectCaching: false,
-    },
-  )
-  // Place the clip at the parallelogram's geometric centre in local space
-  // (not at 0,0 which is the image centre — the screen face is offset in the viewBox).
-  clip.set({
-    left: clip.pathOffset.x,
-    top: clip.pathOffset.y,
-  })
-  return clip
-}
 
 async function uploadOrEmbed(dataUrl: string): Promise<string> {
   try {
@@ -158,28 +121,38 @@ export async function applyScreenshotToDeviceGroup(
   const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
   const styleId = existing?.deviceFrameStyleId
   const style = getDeviceFrameStyle(styleId)
-  const quad = getScreenQuadForStyle(styleId)
 
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
+
+  // ── Detect frame type from SVG: simple polygon → iso, curves → rect ───────
+  let quad: ScreenQuad | null = null
+  try {
+    quad = await loadScreenQuad(style.src)
+  } catch {
+    // Not a simple polygon — treat as rectangular frame
+  }
 
   // ── Bake, upload, build clip ───────────────────────────────────────────────
   let imageUrl: string
   let scaleX: number
   let scaleY: number
-  let clipPath: Path
+  // ISO frames: no Fabric clip needed — the WebGL output PNG is already transparent
+  // outside the quad, and the device frame SVG (rendered on top) naturally masks
+  // the bezel area through its own transparent glass cutout.
+  let clipPath: Path | undefined
   let viewW: number
   let viewH: number
 
   if (quad) {
-    // Isometric: affine-warp into the parallelogram
+    // Isometric: perspective-warp into the quad via WebGL homography
     const dataUrl = await bakeScreenshotToQuad(file, quad)
     imageUrl = await uploadOrEmbed(dataUrl)
     viewW = quad.viewW
     viewH = quad.viewH
     scaleX = fw / viewW
     scaleY = fh / viewH
-    clipPath = makeQuadClipPath(quad)
+    // clipPath intentionally omitted — transparency handles the boundary
   } else {
     // Rectangular: cover-scale into the screen opening bounding box
     let region: ScreenRegion
@@ -216,7 +189,7 @@ export async function applyScreenshotToDeviceGroup(
     objectCaching: false,
     scaleX,
     scaleY,
-    clipPath,
+    ...(clipPath ? { clipPath } : {}),
   })
 
   // ── Insert into group ─────────────────────────────────────────────────────
@@ -272,5 +245,5 @@ export async function applyScreenshotToDeviceGroup(
 
   canvas.setActiveObject(target)
   canvas.requestRenderAll()
-  console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, styleId, quad: !!quad })
+  console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, styleId, iso: !!quad })
 }

@@ -39,17 +39,21 @@ export const DEVICE_FRAME_FRONT: DeviceFrameMetrics = {
 }
 
 /**
- * 3-point definition of a non-rectangular screen face (parallelogram).
- * All coordinates are in SVG viewBox units. BR is implied: TL + (TR-TL) + (BL-TL).
+ * 4-corner definition of a non-rectangular screen face (parallelogram or trapezoid).
+ * All coordinates are in SVG viewBox units.
  */
 export type ScreenQuad = {
   tl: readonly [number, number]
   tr: readonly [number, number]
+  /** Explicit bottom-right corner from the `#screen` path (may differ from TR+BL−TL for non-parallelogram glass). */
+  br: readonly [number, number]
   bl: readonly [number, number]
   /** viewBox width of the SVG that owns this quad */
   viewW: number
   /** viewBox height of the SVG that owns this quad */
   viewH: number
+  /** Raw `d` attribute of the `#screen` path — used as the exact Fabric clip boundary */
+  pathD: string
 }
 
 /**
@@ -57,11 +61,13 @@ export type ScreenQuad = {
  * Corners extracted from the `fill="none"` path (the transparent screen face).
  */
 export const ISO_DOWN_LEFT_SCREEN_QUAD: ScreenQuad = {
-  tl: [43.0, 128.2],
-  tr: [606.4, 34.8],
-  bl: [722.5, 1408.8],
+  tl: [53, 121],
+  tr: [538, 3],
+  br: [1261, 1274],
+  bl: [779, 1430],
   viewW: 1282,
   viewH: 1485,
+  pathD: 'M 53 121 L 538 3 L 1261 1274 L 779 1430 Z',
 }
 
 export function getDeviceFrameMetricsForStyle(styleId: string | undefined): DeviceFrameMetrics {

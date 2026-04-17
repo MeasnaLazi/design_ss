@@ -7,6 +7,8 @@
  * (curves, compound paths, etc.) without a full SVG path parser.
  */
 
+import type { ScreenQuad } from '../constants/deviceFrame'
+
 export type ScreenRegion = {
   /** Top-left corner in SVG viewBox coordinates */
   tl: readonly [number, number]
@@ -25,6 +27,7 @@ export type ScreenRegion = {
 }
 
 const cache = new Map<string, ScreenRegion>()
+const quadCache = new Map<string, ScreenQuad>()
 
 export async function loadScreenRegion(svgUrl: string): Promise<ScreenRegion> {
   const cached = cache.get(svgUrl)
@@ -80,4 +83,70 @@ export async function loadScreenRegion(svgUrl: string): Promise<ScreenRegion> {
 
   cache.set(svgUrl, region)
   return region
+}
+
+/**
+ * Parses the `#screen` path from an isometric device-frame SVG and returns a
+ * {@link ScreenQuad} with the 4 corner points of the parallelogram screen face.
+ *
+ * The `#screen` path **must** be a simple 4-point polygon (`M x y L x y L x y L x y Z`)
+ * with no curves. Points are interpreted in SVG viewBox coordinates as:
+ * TL → TR → BR → BL (the natural clockwise order of the `d` attribute).
+ *
+ * Throws if the path is missing or is not a simple polygon.
+ */
+export async function loadScreenQuad(svgUrl: string): Promise<ScreenQuad> {
+  const cached = quadCache.get(svgUrl)
+  if (cached) return cached
+
+  const text = await fetch(svgUrl).then((r) => {
+    if (!r.ok) throw new Error(`[loadScreenQuad] fetch failed: ${svgUrl} (${r.status})`)
+    return r.text()
+  })
+
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
+  const svgEl = doc.documentElement
+
+  const vbParts = svgEl.getAttribute('viewBox')?.split(/[\s,]+/).map(Number)
+  const viewW = vbParts?.[2] ?? parseFloat(svgEl.getAttribute('width') ?? '0')
+  const viewH = vbParts?.[3] ?? parseFloat(svgEl.getAttribute('height') ?? '0')
+  if (!viewW || !viewH) throw new Error(`[loadScreenQuad] could not read viewBox from ${svgUrl}`)
+
+  const screenEl = doc.getElementById('screen')
+  if (!screenEl) throw new Error(`[loadScreenQuad] no element with id="screen" in ${svgUrl}`)
+
+  const pathD = screenEl.getAttribute('d')
+  if (!pathD) throw new Error(`[loadScreenQuad] #screen has no "d" attribute in ${svgUrl}`)
+
+  // Only accept simple M/L/Z polygons — no curves allowed
+  if (/[CcSsQqTtAa]/.test(pathD)) {
+    throw new Error(`[loadScreenQuad] #screen in ${svgUrl} has curves; use loadScreenRegion instead`)
+  }
+
+  // Extract all numeric coordinate pairs
+  const pts: [number, number][] = []
+  const coordRe = /[-+]?[0-9]*\.?[0-9]+/g
+  let m: RegExpExecArray | null
+  const allNums: number[] = []
+  while ((m = coordRe.exec(pathD)) !== null) allNums.push(parseFloat(m[0]))
+
+  for (let i = 0; i + 1 < allNums.length; i += 2) pts.push([allNums[i], allNums[i + 1]])
+
+  if (pts.length < 4) {
+    throw new Error(`[loadScreenQuad] #screen in ${svgUrl} has only ${pts.length} points; need 4`)
+  }
+
+  // Points are in clockwise order: TL → TR → BR → BL
+  const quad: ScreenQuad = {
+    tl: pts[0],
+    tr: pts[1],
+    br: pts[2],
+    bl: pts[3],
+    viewW,
+    viewH,
+    pathD,
+  }
+
+  quadCache.set(svgUrl, quad)
+  return quad
 }
