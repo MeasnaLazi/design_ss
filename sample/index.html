@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perspective Warp Pipeline — SVG Device Mockup Renderer</title>
+  <meta name="description" content="Perspective-warp a screenshot into an SVG device mockup using WebGL homography." />
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <div class="badge">⬡ WebGL · DLT Homography · Stencil Clipping</div>
+      <h1>Perspective Warp Pipeline</h1>
+      <p>Drop an SVG device mockup and a screenshot — the pipeline warps your image into the screen region using projective transform.</p>
+    </header>
+
+    <!-- Upload -->
+    <section class="card">
+      <h2>01 — Inputs</h2>
+      <div class="upload-grid">
+
+        <!-- SVG Dropzone -->
+        <div class="dropzone" id="svgDropzone" role="button" tabindex="0"
+             aria-label="Upload SVG device mockup">
+          <input type="file" id="svgInput" accept=".svg,image/svg+xml" aria-hidden="true" />
+          <span class="dropzone-icon">🖼</span>
+          <span class="dropzone-label">SVG Mockup</span>
+          <span class="dropzone-hint">Drop or click · Needs <code>id="screen"</code></span>
+          <span class="file-name" id="svgFileName"></span>
+        </div>
+
+        <!-- Image Dropzone -->
+        <div class="dropzone" id="imgDropzone" role="button" tabindex="0"
+             aria-label="Upload screenshot image">
+          <input type="file" id="imgInput" accept="image/*" aria-hidden="true" />
+          <span class="dropzone-icon">📸</span>
+          <span class="dropzone-label">Screenshot</span>
+          <span class="dropzone-hint">Drop or click · PNG / JPG / WebP</span>
+          <span class="file-name" id="imgFileName"></span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Pipeline progress -->
+    <section class="card">
+      <h2>02 — Pipeline</h2>
+      <div class="steps" role="list">
+        <div class="step" data-step="0" role="listitem">
+          <div class="step-dot">1</div>
+          <div class="step-label">Parse SVG</div>
+        </div>
+        <div class="step" data-step="1" role="listitem">
+          <div class="step-dot">2</div>
+          <div class="step-label">Extract Quad</div>
+        </div>
+        <div class="step" data-step="2" role="listitem">
+          <div class="step-dot">3</div>
+          <div class="step-label">Crop</div>
+        </div>
+        <div class="step" data-step="3" role="listitem">
+          <div class="step-dot">4</div>
+          <div class="step-label">Homography</div>
+        </div>
+        <div class="step" data-step="4" role="listitem">
+          <div class="step-dot">5</div>
+          <div class="step-label">WebGL Warp</div>
+        </div>
+        <div class="step" data-step="5" role="listitem">
+          <div class="step-dot">6</div>
+          <div class="step-label">Composite</div>
+        </div>
+      </div>
+
+      <div id="error" class="hidden" role="alert" aria-live="assertive"></div>
+      <div id="status" aria-live="polite">Upload both files to begin.</div>
+
+      <div class="btn-row">
+        <button id="renderBtn" disabled aria-label="Run render pipeline">
+          ◆ Render
+        </button>
+        <button id="exportBtn" disabled aria-label="Export as PNG">
+          ↓ Export PNG
+        </button>
+      </div>
+    </section>
+
+    <!-- Output (hidden until first render) -->
+    <section id="outputSection" class="hidden">
+      <h2>03 — Output</h2>
+      <!-- Hidden WebGL canvas used for off-screen warp rendering -->
+      <canvas id="glCanvas" aria-hidden="true"></canvas>
+      <!-- Final composited output -->
+      <canvas id="outputCanvas" role="img" aria-label="Composited mockup output"></canvas>
+    </section>
+
+    <!-- Info cards -->
+    <section>
+      <div class="info-grid">
+        <div class="info-card">
+          <span class="tag">Warp Method</span>
+          <span class="value">Projective Homography (DLT)</span>
+        </div>
+        <div class="info-card">
+          <span class="tag">Rendering</span>
+          <span class="value">WebGL2 + Stencil Buffer</span>
+        </div>
+        <div class="info-card">
+          <span class="tag">Crop Mode</span>
+          <span class="value">Cover (no letterbox)</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
