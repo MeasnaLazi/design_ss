@@ -28,6 +28,46 @@ export type ScreenRegion = {
 
 const cache = new Map<string, ScreenRegion>()
 const quadCache = new Map<string, ScreenQuad>()
+const quadConfigUrl = '/device-frames/screen-quad-config.json'
+
+type ScreenQuadConfigEntry = {
+  framePath: string
+  clipCornerRadiusPx?: number
+  clipCornerRadiiPx?: {
+    tl?: number
+    tr?: number
+    br?: number
+    bl?: number
+  }
+  corners: {
+    TL: [number, number]
+    TR: [number, number]
+    BR: [number, number]
+    BL: [number, number]
+  }
+}
+
+let screenQuadConfigCache: ScreenQuadConfigEntry[] | null = null
+
+function normalizeFramePath(svgUrl: string): string {
+  try {
+    const asUrl = new URL(svgUrl, window.location.origin)
+    return asUrl.pathname
+  } catch {
+    return svgUrl
+  }
+}
+
+async function loadScreenQuadConfig(): Promise<ScreenQuadConfigEntry[]> {
+  if (screenQuadConfigCache) return screenQuadConfigCache
+  const rows = await fetch(quadConfigUrl).then(async (r) => {
+    if (!r.ok) throw new Error(`[loadScreenQuadConfig] fetch failed: ${quadConfigUrl} (${r.status})`)
+    const json = (await r.json()) as { frames?: ScreenQuadConfigEntry[] }
+    return json.frames ?? []
+  })
+  screenQuadConfigCache = rows
+  return rows
+}
 
 export async function loadScreenRegion(svgUrl: string): Promise<ScreenRegion> {
   const cached = cache.get(svgUrl)
@@ -99,6 +139,10 @@ export async function loadScreenQuad(svgUrl: string): Promise<ScreenQuad> {
   const cached = quadCache.get(svgUrl)
   if (cached) return cached
 
+  const normalizedPath = normalizeFramePath(svgUrl)
+  const configRows = await loadScreenQuadConfig()
+  const configMatch = configRows.find((row) => normalizeFramePath(row.framePath) === normalizedPath)
+
   const text = await fetch(svgUrl).then((r) => {
     if (!r.ok) throw new Error(`[loadScreenQuad] fetch failed: ${svgUrl} (${r.status})`)
     return r.text()
@@ -118,35 +162,21 @@ export async function loadScreenQuad(svgUrl: string): Promise<ScreenQuad> {
   const pathD = screenEl.getAttribute('d')
   if (!pathD) throw new Error(`[loadScreenQuad] #screen has no "d" attribute in ${svgUrl}`)
 
-  // Only accept simple M/L/Z polygons — no curves allowed
-  if (/[CcSsQqTtAa]/.test(pathD)) {
-    throw new Error(`[loadScreenQuad] #screen in ${svgUrl} has curves; use loadScreenRegion instead`)
+  if (configMatch) {
+    const quad: ScreenQuad = {
+      tl: configMatch.corners.TL,
+      tr: configMatch.corners.TR,
+      br: configMatch.corners.BR,
+      bl: configMatch.corners.BL,
+      viewW,
+      viewH,
+      pathD,
+      clipCornerRadiusPx: configMatch.clipCornerRadiusPx,
+      clipCornerRadiiPx: configMatch.clipCornerRadiiPx,
+    }
+    quadCache.set(svgUrl, quad)
+    return quad
   }
 
-  // Extract all numeric coordinate pairs
-  const pts: [number, number][] = []
-  const coordRe = /[-+]?[0-9]*\.?[0-9]+/g
-  let m: RegExpExecArray | null
-  const allNums: number[] = []
-  while ((m = coordRe.exec(pathD)) !== null) allNums.push(parseFloat(m[0]))
-
-  for (let i = 0; i + 1 < allNums.length; i += 2) pts.push([allNums[i], allNums[i + 1]])
-
-  if (pts.length < 4) {
-    throw new Error(`[loadScreenQuad] #screen in ${svgUrl} has only ${pts.length} points; need 4`)
-  }
-
-  // Points are in clockwise order: TL → TR → BR → BL
-  const quad: ScreenQuad = {
-    tl: pts[0],
-    tr: pts[1],
-    br: pts[2],
-    bl: pts[3],
-    viewW,
-    viewH,
-    pathD,
-  }
-
-  quadCache.set(svgUrl, quad)
-  return quad
+  throw new Error(`[loadScreenQuad] no manual quad config found for ${normalizedPath}`)
 }

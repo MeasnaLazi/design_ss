@@ -54,6 +54,18 @@ export type ScreenQuad = {
   viewH: number
   /** Raw `d` attribute of the `#screen` path — used as the exact Fabric clip boundary */
   pathD: string
+  /** Uniform rounded-corner clip radius (SVG/viewBox units). Used when {@link clipCornerRadiiPx} omits a corner. */
+  clipCornerRadiusPx?: number
+  /** Per-corner clip radii (tl → tr → br → bl). Omitted keys fall back to {@link clipCornerRadiusPx} then app default. */
+  clipCornerRadiiPx?: ScreenQuadClipCornerRadiiPx
+}
+
+/** Per-corner rounded clip radii in SVG/viewBox units (same order as quad: TL, TR, BR, BL). */
+export type ScreenQuadClipCornerRadiiPx = {
+  tl?: number
+  tr?: number
+  br?: number
+  bl?: number
 }
 
 /**

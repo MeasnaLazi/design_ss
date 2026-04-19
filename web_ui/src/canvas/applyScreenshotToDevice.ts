@@ -16,6 +16,9 @@ import { bakeScreenshotForRegion, bakeScreenshotToQuad } from './bakeScreenshotT
 import { loadScreenRegion, loadScreenQuad, type ScreenRegion } from './loadScreenRegion'
 import type { ScreenQuad } from '../constants/deviceFrame'
 
+/** Fallback rounded corner radius for iso quad clipping (in SVG/viewBox units). */
+const DEFAULT_ISO_CLIP_CORNER_RADIUS_PX = 30
+
 /** Fabric's internal hook to attach a child that is already in `_objects` (do not use `enterGroup` — it calls `remove` first). */
 type GroupWithEnter = Group & {
   _enterGroup(object: FabricObject, removeParentTransform?: boolean): void
@@ -60,6 +63,56 @@ function makeClipPath(pathD: string, viewW: number, viewH: number): Path {
     top: clip.pathOffset.y - viewH / 2,
   })
   return clip
+}
+
+function normalize(x: number, y: number): [number, number] {
+  const len = Math.hypot(x, y)
+  if (len < 1e-6) return [0, 0]
+  return [x / len, y / len]
+}
+
+function isoClipCornerRadii(quad: ScreenQuad): readonly [number, number, number, number] {
+  const uniform = quad.clipCornerRadiusPx ?? DEFAULT_ISO_CLIP_CORNER_RADIUS_PX
+  const r = quad.clipCornerRadiiPx
+  if (!r) return [uniform, uniform, uniform, uniform]
+  return [
+    r.tl ?? uniform,
+    r.tr ?? uniform,
+    r.br ?? uniform,
+    r.bl ?? uniform,
+  ]
+}
+
+function roundedQuadPathD(quad: ScreenQuad, radiiPx: readonly [number, number, number, number]): string {
+  const points: Array<readonly [number, number]> = [quad.tl, quad.tr, quad.br, quad.bl]
+  if (radiiPx.every((r) => r <= 0)) {
+    return `M ${quad.tl[0]} ${quad.tl[1]} L ${quad.tr[0]} ${quad.tr[1]} L ${quad.br[0]} ${quad.br[1]} L ${quad.bl[0]} ${quad.bl[1]} Z`
+  }
+
+  const cornerData = points.map((corner, i) => {
+    const radiusPx = radiiPx[i]
+    const prev = points[(i + 3) % 4]
+    const next = points[(i + 1) % 4]
+    const toPrev = normalize(prev[0] - corner[0], prev[1] - corner[1])
+    const toNext = normalize(next[0] - corner[0], next[1] - corner[1])
+    const lenPrev = Math.hypot(prev[0] - corner[0], prev[1] - corner[1])
+    const lenNext = Math.hypot(next[0] - corner[0], next[1] - corner[1])
+    const localRadius = Math.min(radiusPx, lenPrev * 0.45, lenNext * 0.45)
+    const start: [number, number] = [corner[0] + toPrev[0] * localRadius, corner[1] + toPrev[1] * localRadius]
+    const end: [number, number] = [corner[0] + toNext[0] * localRadius, corner[1] + toNext[1] * localRadius]
+    return { corner, start, end }
+  })
+
+  const [first, ...rest] = cornerData
+  const segments = [`M ${first.end[0]} ${first.end[1]}`]
+  for (const c of rest) {
+    segments.push(`L ${c.start[0]} ${c.start[1]}`)
+    segments.push(`Q ${c.corner[0]} ${c.corner[1]} ${c.end[0]} ${c.end[1]}`)
+  }
+  segments.push(`L ${first.start[0]} ${first.start[1]}`)
+  segments.push(`Q ${first.corner[0]} ${first.corner[1]} ${first.end[0]} ${first.end[1]}`)
+  segments.push('Z')
+  return segments.join(' ')
 }
 
 
@@ -137,9 +190,6 @@ export async function applyScreenshotToDeviceGroup(
   let imageUrl: string
   let scaleX: number
   let scaleY: number
-  // ISO frames: no Fabric clip needed — the WebGL output PNG is already transparent
-  // outside the quad, and the device frame SVG (rendered on top) naturally masks
-  // the bezel area through its own transparent glass cutout.
   let clipPath: Path | undefined
   let viewW: number
   let viewH: number
@@ -152,7 +202,9 @@ export async function applyScreenshotToDeviceGroup(
     viewH = quad.viewH
     scaleX = fw / viewW
     scaleY = fh / viewH
-    // clipPath intentionally omitted — transparency handles the boundary
+    // Clip keeps full quad coverage (same width/height) and only rounds the corners.
+    const quadPathD = roundedQuadPathD(quad, isoClipCornerRadii(quad))
+    clipPath = makeClipPath(quadPathD, viewW, viewH)
   } else {
     // Rectangular: cover-scale into the screen opening bounding box
     let region: ScreenRegion

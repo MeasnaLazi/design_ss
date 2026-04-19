@@ -1,0 +1,19 @@
+{
+  "frames": [
+    {
+      "framePath": "/device-frames/iso-down-left.svg",
+      "clipCornerRadiiPx": {
+        "tl": 95,
+        "tr": 95,
+        "br": 105,
+        "bl": 95
+      },
+      "corners": {
+        "TL": [10.4, 121.29],
+        "TR": [586.79, -13.89],
+        "BR": [1316.21, 1271.52],
+        "BL": [739.82, 1450.05]
+      }
+    }
+  ]
+}

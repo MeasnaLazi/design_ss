@@ -104,6 +104,110 @@ function heightAdjustForMetrics(m: DeviceFrameMetrics): number {
   return m.viewW === DEVICE_FRAME_FRONT.viewW && m.viewH === DEVICE_FRAME_FRONT.viewH ? 36 : 20
 }
 
+type OpenCvJsModule = {
+  matFromImageData(imageData: ImageData): CvMat
+  matFromArray(rows: number, cols: number, type: number, array: number[]): CvMat
+  getPerspectiveTransform(src: CvMat, dst: CvMat): CvMat
+  warpPerspective(
+    src: CvMat,
+    dst: CvMat,
+    M: CvMat,
+    dsize: { width: number; height: number },
+    flags?: number,
+    borderMode?: number,
+    borderValue?: unknown,
+  ): void
+  Size: new (width: number, height: number) => { width: number; height: number }
+  INTER_LINEAR: number
+  BORDER_CONSTANT: number
+  CV_32FC2: number
+  imshow(canvas: HTMLCanvasElement, mat: CvMat): void
+}
+
+type CvMat = {
+  delete(): void
+}
+
+let openCvModulePromise: Promise<OpenCvJsModule | null> | null = null
+
+async function getOpenCvModule(): Promise<OpenCvJsModule | null> {
+  if (!openCvModulePromise) {
+    openCvModulePromise = import('@techstark/opencv-js')
+      .then((mod) => ((mod.default ?? mod) as OpenCvJsModule))
+      .catch((err) => {
+        console.warn('[opencv] failed to load module', err)
+        return null
+      })
+  }
+  return openCvModulePromise
+}
+
+function drawSourceToCanvas(source: CanvasImageSource, natW: number, natH: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = natW
+  canvas.height = natH
+  const ctx = canvas.getContext('2d', { alpha: true, colorSpace: 'srgb' })
+  if (!ctx) throw new Error('2D canvas context unavailable')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(source, 0, 0, natW, natH)
+  return canvas
+}
+
+async function opencvPerspectiveWarp(
+  source: CanvasImageSource,
+  natW: number,
+  natH: number,
+  outW: number,
+  outH: number,
+  quad: ScreenQuad,
+): Promise<string | null> {
+  const cv = await getOpenCvModule()
+  if (!cv) return null
+
+  const srcCanvas = drawSourceToCanvas(source, natW, natH)
+  const srcCtx = srcCanvas.getContext('2d', { alpha: true, colorSpace: 'srgb' })
+  if (!srcCtx) return null
+
+  const srcImageData = srcCtx.getImageData(0, 0, natW, natH)
+  const srcMat = cv.matFromImageData(srcImageData)
+  const dstMat = cv.matFromImageData(new ImageData(outW, outH))
+  const srcPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, natW, 0, natW, natH, 0, natH])
+  const dstPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    quad.tl[0], quad.tl[1],
+    quad.tr[0], quad.tr[1],
+    quad.br[0], quad.br[1],
+    quad.bl[0], quad.bl[1],
+  ])
+
+  let transform: CvMat | null = null
+  try {
+    transform = cv.getPerspectiveTransform(srcPoints, dstPoints)
+    cv.warpPerspective(
+      srcMat,
+      dstMat,
+      transform,
+      new cv.Size(outW, outH),
+      cv.INTER_LINEAR,
+      cv.BORDER_CONSTANT,
+    )
+    const outCanvas = document.createElement('canvas')
+    outCanvas.width = outW
+    outCanvas.height = outH
+    cv.imshow(outCanvas, dstMat)
+    return outCanvas.toDataURL('image/png')
+  } catch (err) {
+    console.warn('[opencv] warpPerspective failed', err)
+    return null
+  } finally {
+    transform?.delete()
+    srcPoints.delete()
+    dstPoints.delete()
+    srcMat.delete()
+    dstMat.delete()
+  }
+}
+
 // ── Perspective warp helpers ───────────────────────────────────────────────
 
 /**
@@ -180,6 +284,7 @@ function webglPerspectiveWarp(
     canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl')
   ) as WebGLRenderingContext | null
   if (!gl) return null
+  const glCtx: WebGLRenderingContext = gl
 
   // Vertex shader — full-screen quad, passes fragment position via gl_FragCoord
   const vsSource = `
@@ -208,13 +313,13 @@ function webglPerspectiveWarp(
   `
 
   function compileShader(type: number, src: string): WebGLShader | null {
-    const s = gl.createShader(type)
+    const s = glCtx.createShader(type)
     if (!s) return null
-    gl.shaderSource(s, src)
-    gl.compileShader(s)
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error('[webglPerspectiveWarp] shader error:', gl.getShaderInfoLog(s))
-      gl.deleteShader(s)
+    glCtx.shaderSource(s, src)
+    glCtx.compileShader(s)
+    if (!glCtx.getShaderParameter(s, glCtx.COMPILE_STATUS)) {
+      console.error('[webglPerspectiveWarp] shader error:', glCtx.getShaderInfoLog(s))
+      glCtx.deleteShader(s)
       return null
     }
     return s
@@ -337,6 +442,8 @@ export async function bakeScreenshotToQuad(file: File, quad: ScreenQuad): Promis
     try {
       const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
       try {
+        const cvResult = await opencvPerspectiveWarp(bitmap, bitmap.width, bitmap.height, outW, outH, quad)
+        if (cvResult) return cvResult
         const result = await warpWebGL(bitmap)
         if (result) return result
         return await warpAffine(bitmap, bitmap.width, bitmap.height)
@@ -350,6 +457,8 @@ export async function bakeScreenshotToQuad(file: File, quad: ScreenQuad): Promis
 
   const dataUrl = await readFileDataUrl(file)
   const img = await loadImageFromDataUrl(dataUrl)
+  const cvResult = await opencvPerspectiveWarp(img, img.naturalWidth || 1, img.naturalHeight || 1, outW, outH, quad)
+  if (cvResult) return cvResult
   const result = await warpWebGL(img)
   if (result) return result
   return warpAffine(img, img.naturalWidth || 1, img.naturalHeight || 1)
