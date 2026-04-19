@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SVG Clip Renderer — Native Screen Clipping</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0c0c14;
+      --card: #14141e;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --text2: #8888a0;
+      --text3: #555570;
+      --blue: #4488ff;
+      --cyan: #22ccaa;
+      --green: #44dd88;
+      --orange: #ff8844;
+      --red: #ff4466;
+      --magenta: #cc44ff;
+      --glass: rgba(255,255,255,0.04);
+      --r: 16px;
+      --rs: 8px;
+    }
+
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    #app { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    header { text-align: center; margin-bottom: 2rem; }
+    header .badge {
+      display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+      color: var(--cyan); background: rgba(34,204,170,0.1); border: 1px solid rgba(34,204,170,0.2);
+      border-radius: 100px; padding: 4px 14px; letter-spacing: 0.05em; margin-bottom: 0.75rem;
+    }
+    header h1 {
+      font-size: 1.75rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--cyan), var(--blue));
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+    header p { color: var(--text2); font-size: 0.95rem; max-width: 600px; margin: 0 auto; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 0.85rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; }
+
+    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: var(--rs); padding: 1.5rem;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--blue); background: rgba(68,136,255,0.05); }
+    .dropzone.has-file { border-color: var(--green); background: rgba(68,221,136,0.05); }
+    .dropzone input { display: none; }
+    .dropzone-icon { font-size: 1.8rem; display: block; margin-bottom: 0.4rem; }
+    .dropzone-label { font-weight: 600; display: block; margin-bottom: 0.2rem; font-size: 0.9rem; }
+    .dropzone-hint { font-size: 0.75rem; color: var(--text3); }
+    .file-name { display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--green); margin-top: 0.4rem; }
+
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    button {
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.85rem;
+      padding: 0.6rem 1.5rem; border: none; border-radius: var(--rs);
+      cursor: pointer; transition: all 0.15s;
+    }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+    #renderBtn { background: var(--cyan); color: #000; }
+    #renderBtn:not(:disabled):hover { background: #33e0bb; transform: translateY(-1px); }
+    #exportBtn { background: var(--blue); color: #fff; }
+    #exportBtn:not(:disabled):hover { background: #5599ff; transform: translateY(-1px); }
+
+    #status { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text3); margin-top: 0.75rem; }
+    #status.ok { color: var(--green); }
+    #status.err { color: var(--red); }
+
+    .output-section { display: none; }
+    .output-section.visible { display: block; }
+
+    .output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .output-grid { grid-template-columns: 1fr; } }
+
+    .output-panel {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--rs); overflow: hidden;
+    }
+    .output-panel-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: var(--glass);
+    }
+    .output-panel-title { font-weight: 600; font-size: 0.8rem; }
+    .output-panel-tag {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+      padding: 2px 8px; border-radius: 100px;
+    }
+    .tag-cyan { color: var(--cyan); background: rgba(34,204,170,0.15); }
+    .tag-blue { color: var(--blue); background: rgba(68,136,255,0.15); }
+    .output-panel-body {
+      display: flex; justify-content: center; align-items: center; padding: 1rem;
+      background: repeating-conic-gradient(#1a1a24 0% 25%, #16161e 0% 50%) 50% / 20px 20px;
+    }
+    .output-panel-body canvas, .output-panel-body img {
+      max-width: 100%; height: auto; border-radius: 4px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    .info-bar {
+      display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .info-item {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text2);
+    }
+    .info-item span { color: var(--cyan); }
+  </style>
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <div class="badge">SVG Native Clipping · Zero Math</div>
+      <h1>SVG Clip Renderer</h1>
+      <p>Drop an SVG mockup and a screenshot — the image is clipped directly into the <code>#screen</code> path using native SVG clipping. No homography, no WebGL.</p>
+    </header>
+
+    <!-- Inputs -->
+    <div class="card">
+      <h2>01 — Inputs</h2>
+      <div class="upload-grid">
+        <div class="dropzone" id="svgDrop" role="button" tabindex="0">
+          <input type="file" id="svgInput" accept=".svg,image/svg+xml" />
+          <span class="dropzone-icon">📐</span>
+          <span class="dropzone-label">SVG Mockup</span>
+          <span class="dropzone-hint">Needs <code>id="screen"</code> path</span>
+          <span class="file-name" id="svgName"></span>
+        </div>
+        <div class="dropzone" id="imgDrop" role="button" tabindex="0">
+          <input type="file" id="imgInput" accept="image/*" />
+          <span class="dropzone-icon">📸</span>
+          <span class="dropzone-label">Screenshot</span>
+          <span class="dropzone-hint">PNG / JPG / WebP</span>
+          <span class="file-name" id="imgName"></span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button id="renderBtn" disabled>◆ Render</button>
+        <button id="exportBtn" disabled>↓ Export PNG</button>
+      </div>
+      <div id="status">Upload both files to begin</div>
+    </div>
+
+    <!-- Output -->
+    <div class="card output-section" id="outputSection">
+      <h2>02 — Output</h2>
+      <div class="output-grid">
+        <div class="output-panel">
+          <div class="output-panel-header">
+            <span class="output-panel-title">Modified SVG (live)</span>
+            <span class="output-panel-tag tag-cyan">clipPath</span>
+          </div>
+          <div class="output-panel-body" id="svgPreview"></div>
+        </div>
+        <div class="output-panel">
+          <div class="output-panel-header">
+            <span class="output-panel-title">Rasterized Output</span>
+            <span class="output-panel-tag tag-blue">Canvas</span>
+          </div>
+          <div class="output-panel-body">
+            <canvas id="outputCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="info-bar" id="infoBar"></div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { parseSVG } from './pipeline/svg-parser.js';
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    let _svgText = null;
+    let _image   = null;
+
+    // -----------------------------------------------------------------------
+    // DOM
+    // -----------------------------------------------------------------------
+    const svgInput    = document.getElementById('svgInput');
+    const imgInput    = document.getElementById('imgInput');
+    const svgDrop     = document.getElementById('svgDrop');
+    const imgDrop     = document.getElementById('imgDrop');
+    const svgName     = document.getElementById('svgName');
+    const imgName     = document.getElementById('imgName');
+    const renderBtn   = document.getElementById('renderBtn');
+    const exportBtn   = document.getElementById('exportBtn');
+    const statusEl    = document.getElementById('status');
+    const outputSection = document.getElementById('outputSection');
+    const svgPreview  = document.getElementById('svgPreview');
+    const outputCanvas = document.getElementById('outputCanvas');
+
+    // -----------------------------------------------------------------------
+    // File handling
+    // -----------------------------------------------------------------------
+    setupDrop(svgDrop, svgInput);
+    setupDrop(imgDrop, imgInput);
+
+    function setupDrop(zone, input) {
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault(); zone.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (!f) return;
+        const dt = new DataTransfer(); dt.items.add(f);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      });
+    }
+
+    svgInput.addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      svgName.textContent = f.name;
+      svgDrop.classList.add('has-file');
+      _svgText = await f.text();
+      checkReady();
+    });
+
+    imgInput.addEventListener('change', e => {
+      const f = e.target.files[0]; if (!f) return;
+      imgName.textContent = f.name;
+      imgDrop.classList.add('has-file');
+      const url = URL.createObjectURL(f);
+      _image = new Image();
+      _image.onload = () => checkReady();
+      _image.onerror = () => setStatus('Failed to load image', true);
+      _image.src = url;
+    });
+
+    function checkReady() {
+      const ok = !!_svgText && !!_image;
+      renderBtn.disabled = !ok;
+      if (ok) setStatus('Ready — click Render');
+    }
+
+    // -----------------------------------------------------------------------
+    // Render
+    // -----------------------------------------------------------------------
+    renderBtn.addEventListener('click', async () => {
+      renderBtn.disabled = true;
+      exportBtn.disabled = true;
+      try {
+        await render();
+      } catch (err) {
+        setStatus('Error: ' + err.message, true);
+        console.error(err);
+      } finally {
+        renderBtn.disabled = false;
+      }
+    });
+
+    async function render() {
+      setStatus('Parsing SVG…');
+
+      // 1. Parse SVG to find #screen and get viewBox
+      const { svgElement, screenPath, worldMatrix, viewBox } = parseSVG(_svgText);
+
+      // 2. Compute bounding box of #screen path in world space
+      const bbox = computeScreenBBox(screenPath, worldMatrix);
+      console.log('[clip-renderer] Screen bbox:', bbox);
+
+      // 3. Convert user image to data URL
+      setStatus('Encoding image…');
+      const dataURL = await imageToDataURL(_image);
+
+      // 4. Modify SVG DOM: inject clipPath + image
+      setStatus('Injecting image into SVG…');
+      injectImageIntoSVG(svgElement, screenPath, worldMatrix, bbox, dataURL);
+
+      // 5. Serialize modified SVG
+      const serializer = new XMLSerializer();
+      const modifiedSVG = serializer.serializeToString(svgElement);
+
+      // 6. Show live SVG preview (inline)
+      setStatus('Rendering preview…');
+      svgPreview.innerHTML = '';
+      const previewContainer = document.createElement('div');
+      previewContainer.innerHTML = modifiedSVG;
+      const inlineSVG = previewContainer.firstElementChild;
+      inlineSVG.style.maxWidth = '100%';
+      inlineSVG.style.height = 'auto';
+      svgPreview.appendChild(inlineSVG);
+
+      // 7. Rasterize to canvas
+      setStatus('Rasterizing…');
+      await rasterizeToCanvas(modifiedSVG, viewBox);
+
+      // 8. Show output
+      outputSection.classList.add('visible');
+      exportBtn.disabled = false;
+
+      // Info bar
+      document.getElementById('infoBar').innerHTML = `
+        <div class="info-item">viewBox: <span>${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}</span></div>
+        <div class="info-item">Screen bbox: <span>${bbox.x.toFixed(0)},${bbox.y.toFixed(0)} ${bbox.width.toFixed(0)}×${bbox.height.toFixed(0)}</span></div>
+        <div class="info-item">Image: <span>${_image.naturalWidth}×${_image.naturalHeight}</span></div>
+        <div class="info-item">Method: <span>SVG clipPath (native)</span></div>
+      `;
+
+      setStatus('✓ Render complete', false);
+    }
+
+    // -----------------------------------------------------------------------
+    // Compute bounding box of #screen path
+    // -----------------------------------------------------------------------
+    function computeScreenBBox(screenPath, worldMatrix) {
+      const d = screenPath.getAttribute('d') || '';
+      const points = sampleAllPathPoints(d);
+
+      // Apply worldMatrix
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [lx, ly] of points) {
+        const pt = worldMatrix.transformPoint(new DOMPoint(lx, ly));
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+      }
+
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+
+    /**
+     * Sample all points from all sub-paths (we need the full bounding box).
+     */
+    function sampleAllPathPoints(d) {
+      const SAMPLES = 10;
+      const re = /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/g;
+      const tokens = [];
+      let m;
+      while ((m = re.exec(d)) !== null) tokens.push(m[0]);
+
+      const pts = [];
+      let x = 0, y = 0, sx = 0, sy = 0, pcx = 0, pcy = 0, prev = '', i = 0;
+
+      while (i < tokens.length) {
+        let cmd = tokens[i];
+        if (!isNaN(parseFloat(cmd))) {
+          if (prev === 'M') cmd = 'L';
+          else if (prev === 'm') cmd = 'l';
+          else cmd = prev;
+        } else { i++; }
+
+        switch (cmd) {
+          case 'M': x = +tokens[i]; y = +tokens[i+1]; i += 2; sx = x; sy = y; pts.push([x,y]); break;
+          case 'm': x += +tokens[i]; y += +tokens[i+1]; i += 2; sx = x; sy = y; pts.push([x,y]); break;
+          case 'L': x = +tokens[i]; y = +tokens[i+1]; i += 2; pts.push([x,y]); break;
+          case 'l': x += +tokens[i]; y += +tokens[i+1]; i += 2; pts.push([x,y]); break;
+          case 'H': x = +tokens[i]; i++; pts.push([x,y]); break;
+          case 'h': x += +tokens[i]; i++; pts.push([x,y]); break;
+          case 'V': y = +tokens[i]; i++; pts.push([x,y]); break;
+          case 'v': y += +tokens[i]; i++; pts.push([x,y]); break;
+          case 'C': {
+            const x1=+tokens[i],y1=+tokens[i+1],x2=+tokens[i+2],y2=+tokens[i+3],ex=+tokens[i+4],ey=+tokens[i+5]; i+=6;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*mt*x+3*mt*mt*t*x1+3*mt*t*t*x2+t*t*t*ex,mt*mt*mt*y+3*mt*mt*t*y1+3*mt*t*t*y2+t*t*t*ey]);}
+            pcx=x2;pcy=y2;x=ex;y=ey; break;
+          }
+          case 'c': {
+            const x1=x+ +tokens[i],y1=y+ +tokens[i+1],x2=x+ +tokens[i+2],y2=y+ +tokens[i+3],ex=x+ +tokens[i+4],ey=y+ +tokens[i+5]; i+=6;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*mt*x+3*mt*mt*t*x1+3*mt*t*t*x2+t*t*t*ex,mt*mt*mt*y+3*mt*mt*t*y1+3*mt*t*t*y2+t*t*t*ey]);}
+            pcx=x2;pcy=y2;x=ex;y=ey; break;
+          }
+          case 'S': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=+tokens[i],y2=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*mt*x+3*mt*mt*t*cx1+3*mt*t*t*x2+t*t*t*ex,mt*mt*mt*y+3*mt*mt*t*cy1+3*mt*t*t*y2+t*t*t*ey]);}
+            pcx=x2;pcy=y2;x=ex;y=ey; break;
+          }
+          case 's': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=x+ +tokens[i],y2=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*mt*x+3*mt*mt*t*cx1+3*mt*t*t*x2+t*t*t*ex,mt*mt*mt*y+3*mt*mt*t*cy1+3*mt*t*t*y2+t*t*t*ey]);}
+            pcx=x2;pcy=y2;x=ex;y=ey; break;
+          }
+          case 'Q': { const qx=+tokens[i],qy=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*x+2*mt*t*qx+t*t*ex,mt*mt*y+2*mt*t*qy+t*t*ey]);}
+            pcx=qx;pcy=qy;x=ex;y=ey; break;
+          }
+          case 'q': { const qx=x+ +tokens[i],qy=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*x+2*mt*t*qx+t*t*ex,mt*mt*y+2*mt*t*qy+t*t*ey]);}
+            pcx=qx;pcy=qy;x=ex;y=ey; break;
+          }
+          case 'T': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=+tokens[i],ey=+tokens[i+1]; i+=2;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*x+2*mt*t*tcx+t*t*ex,mt*mt*y+2*mt*t*tcy+t*t*ey]);}
+            pcx=tcx;pcy=tcy;x=ex;y=ey; break;
+          }
+          case 't': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=x+ +tokens[i],ey=y+ +tokens[i+1]; i+=2;
+            for(let j=1;j<=SAMPLES;j++){const t=j/SAMPLES,mt=1-t;pts.push([mt*mt*x+2*mt*t*tcx+t*t*ex,mt*mt*y+2*mt*t*tcy+t*t*ey]);}
+            pcx=tcx;pcy=tcy;x=ex;y=ey; break;
+          }
+          case 'A': case 'a': {
+            const isRel = cmd === 'a';
+            const ax = (isRel ? x : 0) + +tokens[i+5], ay = (isRel ? y : 0) + +tokens[i+6];
+            i += 7; pts.push([ax,ay]); x=ax;y=ay; break;
+          }
+          case 'Z': case 'z': x=sx;y=sy; break;
+          default: i++;
+        }
+        if (!'CcSsQqTt'.includes(cmd)) { pcx=x; pcy=y; }
+        prev = cmd;
+      }
+      return pts;
+    }
+
+    // -----------------------------------------------------------------------
+    // Inject image into SVG using clipPath
+    // -----------------------------------------------------------------------
+    function injectImageIntoSVG(svgElement, screenPath, worldMatrix, bbox, dataURL) {
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+      // Ensure <defs> exists
+      let defs = svgElement.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS(SVG_NS, 'defs');
+        svgElement.prepend(defs);
+      }
+
+      // Create <clipPath> with a copy of the #screen path
+      const clipPathEl = document.createElementNS(SVG_NS, 'clipPath');
+      clipPathEl.setAttribute('id', '__screenClip');
+
+      // Build the clip path content:
+      // We need to account for any ancestor transforms.
+      // The simplest way: clone the #screen path and apply its worldMatrix as a transform.
+      const clipPath = document.createElementNS(SVG_NS, 'path');
+      clipPath.setAttribute('d', screenPath.getAttribute('d'));
+
+      // If worldMatrix is not identity, apply it
+      if (!worldMatrix.isIdentity) {
+        clipPath.setAttribute('transform',
+          `matrix(${worldMatrix.a},${worldMatrix.b},${worldMatrix.c},${worldMatrix.d},${worldMatrix.e},${worldMatrix.f})`
+        );
+      }
+      clipPathEl.appendChild(clipPath);
+      defs.appendChild(clipPathEl);
+
+      // Create <image> element
+      const imgEl = document.createElementNS(SVG_NS, 'image');
+      imgEl.setAttribute('x', bbox.x.toString());
+      imgEl.setAttribute('y', bbox.y.toString());
+      imgEl.setAttribute('width', bbox.width.toString());
+      imgEl.setAttribute('height', bbox.height.toString());
+      imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+      imgEl.setAttribute('clip-path', 'url(#__screenClip)');
+
+      // Set href (try both namespaced and non-namespaced for compatibility)
+      imgEl.setAttributeNS(XLINK_NS, 'xlink:href', dataURL);
+      imgEl.setAttribute('href', dataURL);
+
+      // Insert the image BEFORE the #screen path so it renders underneath
+      // other elements but is visible in the screen area
+      screenPath.parentElement.insertBefore(imgEl, screenPath);
+
+      // Make #screen transparent so it doesn't cover the image
+      screenPath.setAttribute('fill', 'none');
+      screenPath.setAttribute('stroke', 'none');
+      screenPath.style.fill = 'none';
+      screenPath.style.stroke = 'none';
+    }
+
+    // -----------------------------------------------------------------------
+    // Convert Image to data URL
+    // -----------------------------------------------------------------------
+    function imageToDataURL(img) {
+      return new Promise(resolve => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Rasterize modified SVG to canvas
+    // -----------------------------------------------------------------------
+    async function rasterizeToCanvas(svgString, viewBox) {
+      const dpr = window.devicePixelRatio || 1;
+      outputCanvas.width  = Math.round(viewBox.width * dpr);
+      outputCanvas.height = Math.round(viewBox.height * dpr);
+      outputCanvas.style.width  = viewBox.width + 'px';
+      outputCanvas.style.height = viewBox.height + 'px';
+
+      const ctx = outputCanvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      try {
+        const img = await loadImage(url);
+        ctx.drawImage(img, 0, 0, viewBox.width, viewBox.height);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = src;
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Export
+    // -----------------------------------------------------------------------
+    exportBtn.addEventListener('click', () => {
+      try {
+        outputCanvas.toBlob(blob => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mockup-render.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+      } catch (err) {
+        setStatus('Export failed: ' + err.message, true);
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // Status
+    // -----------------------------------------------------------------------
+    function setStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.className = isError ? 'err' : (msg.startsWith('✓') ? 'ok' : '');
+    }
+  </script>
+</body>
+</html>

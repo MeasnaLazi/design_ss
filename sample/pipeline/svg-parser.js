@@ -37,6 +37,8 @@ export function parseSVG(svgText) {
   // Resolve accumulated transform from root → screenPath
   const worldMatrix = resolveWorldTransform(screenPath, svgElement);
 
+  console.log("worldMatrix", worldMatrix);
+
   // Parse viewBox
   const viewBox = parseViewBox(svgElement);
 

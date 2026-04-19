@@ -1,5 +1,9 @@
 /**
  * quad-extractor.js — Step 2: Extract 4 ordered corners from the #screen path.
+ *
+ * Supports complex SVG paths including cubic/quadratic Bézier curves,
+ * arcs, and multi-sub-path elements. When multiple sub-paths exist,
+ * the largest (by bounding area) is used for quad extraction.
  */
 
 const EPSILON = 1e-6;
@@ -59,46 +63,404 @@ export function extractQuad(pathElement, worldMatrix) {
 }
 
 // ---------------------------------------------------------------------------
-// Path sampling
+// Path sampling — full SVG path command support
 // ---------------------------------------------------------------------------
 
 /**
- * Sample points along an SVGPathElement using getPointAtLength.
- * For straight-segment paths (M L L L Z) this returns the exact segment endpoints.
+ * Sample points along an SVG path element.
+ * For straight-segment paths this returns exact segment endpoints.
+ * For complex paths (curves), it samples points along each curve segment
+ * using Bézier math. If multiple sub-paths exist, only the largest
+ * (by bounding-box area) is used.
  *
  * @param {SVGPathElement} pathElement
  * @returns {Array<[number,number]>}
  */
 function samplePath(pathElement) {
-  // First, try to extract segment endpoints directly for simple polygons
   const d = pathElement.getAttribute('d') || '';
-  const segmentEndpoints = extractSegmentEndpoints(d);
-  if (segmentEndpoints && segmentEndpoints.length >= 3) {
-    return segmentEndpoints;
+  if (!d.trim()) {
+    throw new Error('[quad-extractor] Path has empty "d" attribute.');
   }
 
-  // Fallback: uniform sampling along path length
-  const totalLength = pathElement.getTotalLength ? pathElement.getTotalLength() : 0;
-  if (totalLength === 0) {
-    throw new Error('[quad-extractor] Path has zero length.');
+  // Parse all sub-paths from the d attribute
+  const subPaths = parsePathData(d);
+
+  if (subPaths.length === 0) {
+    throw new Error('[quad-extractor] Could not parse any sub-paths from "d" attribute.');
   }
 
-  const SAMPLES = 200;
-  const points = [];
-  for (let i = 0; i < SAMPLES; i++) {
-    const t = (i / SAMPLES) * totalLength;
-    const pt = pathElement.getPointAtLength(t);
-    points.push([pt.x, pt.y]);
+  // If multiple sub-paths, pick the one with the largest bounding-box area
+  let bestSubPath = subPaths[0];
+  if (subPaths.length > 1) {
+    let bestArea = -Infinity;
+    for (const sp of subPaths) {
+      const area = boundingBoxArea(sp);
+      if (area > bestArea) {
+        bestArea = area;
+        bestSubPath = sp;
+      }
+    }
+    console.log(`[quad-extractor] ${subPaths.length} sub-paths found; using largest (area=${bestArea.toFixed(0)}).`);
   }
-  return deduplicate(points);
+
+  return deduplicate(bestSubPath);
 }
+
+/**
+ * Parse an SVG path `d` attribute into arrays of sampled [x,y] points,
+ * one array per sub-path (each starting with an M/m command).
+ *
+ * Supports: M, m, L, l, H, h, V, v, C, c, S, s, Q, q, T, t, A, a, Z, z
+ *
+ * @param {string} d - SVG path d attribute
+ * @returns {Array<Array<[number,number]>>} array of sub-paths
+ */
+function parsePathData(d) {
+  const CURVE_SAMPLES = 16; // segments per curve for sampling
+
+  // Tokenize: split into commands and numbers
+  const tokens = tokenizePath(d);
+
+  const subPaths = [];
+  let currentSubPath = [];
+  let x = 0, y = 0;           // current point
+  let startX = 0, startY = 0; // start of current sub-path (for Z)
+  let prevCx = 0, prevCy = 0; // last control point (for S/T shorthand)
+  let prevCmd = '';
+  let i = 0;
+
+  while (i < tokens.length) {
+    let cmd = tokens[i];
+
+    // If token is a number, it's an implicit repeat of the previous command
+    // (M becomes L after first point, m becomes l)
+    if (!isNaN(parseFloat(cmd))) {
+      if (prevCmd === 'M') cmd = 'L';
+      else if (prevCmd === 'm') cmd = 'l';
+      else cmd = prevCmd;
+    } else {
+      i++;
+    }
+
+    switch (cmd) {
+      case 'M': {
+        // Start a new sub-path
+        if (currentSubPath.length > 0) {
+          subPaths.push(currentSubPath);
+        }
+        x = +tokens[i]; y = +tokens[i + 1]; i += 2;
+        startX = x; startY = y;
+        currentSubPath = [[x, y]];
+        break;
+      }
+      case 'm': {
+        if (currentSubPath.length > 0) {
+          subPaths.push(currentSubPath);
+        }
+        x += +tokens[i]; y += +tokens[i + 1]; i += 2;
+        startX = x; startY = y;
+        currentSubPath = [[x, y]];
+        break;
+      }
+      case 'L': {
+        x = +tokens[i]; y = +tokens[i + 1]; i += 2;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'l': {
+        x += +tokens[i]; y += +tokens[i + 1]; i += 2;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'H': {
+        x = +tokens[i]; i++;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'h': {
+        x += +tokens[i]; i++;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'V': {
+        y = +tokens[i]; i++;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'v': {
+        y += +tokens[i]; i++;
+        currentSubPath.push([x, y]);
+        break;
+      }
+      case 'C': {
+        // Cubic Bézier: C x1 y1 x2 y2 x y
+        const x1 = +tokens[i], y1 = +tokens[i + 1];
+        const x2 = +tokens[i + 2], y2 = +tokens[i + 3];
+        const ex = +tokens[i + 4], ey = +tokens[i + 5];
+        i += 6;
+        sampleCubicBezier(currentSubPath, x, y, x1, y1, x2, y2, ex, ey, CURVE_SAMPLES);
+        prevCx = x2; prevCy = y2;
+        x = ex; y = ey;
+        break;
+      }
+      case 'c': {
+        const x1 = x + +tokens[i], y1 = y + +tokens[i + 1];
+        const x2 = x + +tokens[i + 2], y2 = y + +tokens[i + 3];
+        const ex = x + +tokens[i + 4], ey = y + +tokens[i + 5];
+        i += 6;
+        sampleCubicBezier(currentSubPath, x, y, x1, y1, x2, y2, ex, ey, CURVE_SAMPLES);
+        prevCx = x2; prevCy = y2;
+        x = ex; y = ey;
+        break;
+      }
+      case 'S': {
+        // Smooth cubic: S x2 y2 x y — reflects previous control point
+        const cx1 = 2 * x - prevCx, cy1 = 2 * y - prevCy;
+        const x2 = +tokens[i], y2 = +tokens[i + 1];
+        const ex = +tokens[i + 2], ey = +tokens[i + 3];
+        i += 4;
+        sampleCubicBezier(currentSubPath, x, y, cx1, cy1, x2, y2, ex, ey, CURVE_SAMPLES);
+        prevCx = x2; prevCy = y2;
+        x = ex; y = ey;
+        break;
+      }
+      case 's': {
+        const cx1 = 2 * x - prevCx, cy1 = 2 * y - prevCy;
+        const x2 = x + +tokens[i], y2 = y + +tokens[i + 1];
+        const ex = x + +tokens[i + 2], ey = y + +tokens[i + 3];
+        i += 4;
+        sampleCubicBezier(currentSubPath, x, y, cx1, cy1, x2, y2, ex, ey, CURVE_SAMPLES);
+        prevCx = x2; prevCy = y2;
+        x = ex; y = ey;
+        break;
+      }
+      case 'Q': {
+        // Quadratic Bézier: Q x1 y1 x y
+        const qx1 = +tokens[i], qy1 = +tokens[i + 1];
+        const qex = +tokens[i + 2], qey = +tokens[i + 3];
+        i += 4;
+        sampleQuadBezier(currentSubPath, x, y, qx1, qy1, qex, qey, CURVE_SAMPLES);
+        prevCx = qx1; prevCy = qy1;
+        x = qex; y = qey;
+        break;
+      }
+      case 'q': {
+        const qx1 = x + +tokens[i], qy1 = y + +tokens[i + 1];
+        const qex = x + +tokens[i + 2], qey = y + +tokens[i + 3];
+        i += 4;
+        sampleQuadBezier(currentSubPath, x, y, qx1, qy1, qex, qey, CURVE_SAMPLES);
+        prevCx = qx1; prevCy = qy1;
+        x = qex; y = qey;
+        break;
+      }
+      case 'T': {
+        // Smooth quadratic: T x y
+        const tcx = 2 * x - prevCx, tcy = 2 * y - prevCy;
+        const tex = +tokens[i], tey = +tokens[i + 1];
+        i += 2;
+        sampleQuadBezier(currentSubPath, x, y, tcx, tcy, tex, tey, CURVE_SAMPLES);
+        prevCx = tcx; prevCy = tcy;
+        x = tex; y = tey;
+        break;
+      }
+      case 't': {
+        const tcx = 2 * x - prevCx, tcy = 2 * y - prevCy;
+        const tex = x + +tokens[i], tey = y + +tokens[i + 1];
+        i += 2;
+        sampleQuadBezier(currentSubPath, x, y, tcx, tcy, tex, tey, CURVE_SAMPLES);
+        prevCx = tcx; prevCy = tcy;
+        x = tex; y = tey;
+        break;
+      }
+      case 'A': {
+        // Arc: A rx ry rotation largeArc sweep x y
+        const rx = +tokens[i], ry = +tokens[i + 1];
+        const rotation = +tokens[i + 2];
+        const largeArc = +tokens[i + 3];
+        const sweep = +tokens[i + 4];
+        const ax = +tokens[i + 5], ay = +tokens[i + 6];
+        i += 7;
+        sampleArc(currentSubPath, x, y, rx, ry, rotation, largeArc, sweep, ax, ay, CURVE_SAMPLES);
+        x = ax; y = ay;
+        break;
+      }
+      case 'a': {
+        const rx = +tokens[i], ry = +tokens[i + 1];
+        const rotation = +tokens[i + 2];
+        const largeArc = +tokens[i + 3];
+        const sweep = +tokens[i + 4];
+        const ax = x + +tokens[i + 5], ay = y + +tokens[i + 6];
+        i += 7;
+        sampleArc(currentSubPath, x, y, rx, ry, rotation, largeArc, sweep, ax, ay, CURVE_SAMPLES);
+        x = ax; y = ay;
+        break;
+      }
+      case 'Z':
+      case 'z': {
+        x = startX; y = startY;
+        // Don't push start point again (deduplicate handles this)
+        break;
+      }
+      default: {
+        console.warn(`[quad-extractor] Unknown path command: ${cmd}`);
+        i++;
+      }
+    }
+
+    // Track previous command for S/T reflection
+    if (cmd !== 'C' && cmd !== 'c' && cmd !== 'S' && cmd !== 's' &&
+        cmd !== 'Q' && cmd !== 'q' && cmd !== 'T' && cmd !== 't') {
+      prevCx = x;
+      prevCy = y;
+    }
+    prevCmd = cmd;
+  }
+
+  // Push last sub-path
+  if (currentSubPath.length > 0) {
+    subPaths.push(currentSubPath);
+  }
+
+  return subPaths;
+}
+
+/**
+ * Tokenize an SVG path `d` string into an array of command letters and numbers.
+ * Handles negative numbers, decimals, and comma/space separation correctly.
+ *
+ * @param {string} d
+ * @returns {string[]}
+ */
+function tokenizePath(d) {
+  const tokens = [];
+  // This regex matches: command letters OR signed/unsigned decimal numbers
+  const re = /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/g;
+  let match;
+  while ((match = re.exec(d)) !== null) {
+    tokens.push(match[0]);
+  }
+  return tokens;
+}
+
+// ---------------------------------------------------------------------------
+// Bézier curve sampling
+// ---------------------------------------------------------------------------
+
+/**
+ * Sample points along a cubic Bézier curve and push to the points array.
+ * Does NOT include the start point (it's already the current point).
+ */
+function sampleCubicBezier(points, x0, y0, x1, y1, x2, y2, x3, y3, segments) {
+  for (let j = 1; j <= segments; j++) {
+    const t = j / segments;
+    const mt = 1 - t;
+    const mt2 = mt * mt;
+    const mt3 = mt2 * mt;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const px = mt3 * x0 + 3 * mt2 * t * x1 + 3 * mt * t2 * x2 + t3 * x3;
+    const py = mt3 * y0 + 3 * mt2 * t * y1 + 3 * mt * t2 * y2 + t3 * y3;
+    points.push([px, py]);
+  }
+}
+
+/**
+ * Sample points along a quadratic Bézier curve and push to the points array.
+ */
+function sampleQuadBezier(points, x0, y0, x1, y1, x2, y2, segments) {
+  for (let j = 1; j <= segments; j++) {
+    const t = j / segments;
+    const mt = 1 - t;
+    const px = mt * mt * x0 + 2 * mt * t * x1 + t * t * x2;
+    const py = mt * mt * y0 + 2 * mt * t * y1 + t * t * y2;
+    points.push([px, py]);
+  }
+}
+
+/**
+ * Approximate an SVG arc as a series of line segments.
+ * Uses the endpoint-to-center parameterization.
+ */
+function sampleArc(points, x1, y1, rx, ry, rotation, largeArcFlag, sweepFlag, x2, y2, segments) {
+  // Degenerate: zero radius = straight line
+  if (rx === 0 || ry === 0) {
+    points.push([x2, y2]);
+    return;
+  }
+
+  rx = Math.abs(rx);
+  ry = Math.abs(ry);
+  const phi = (rotation * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  // Step 1: midpoint on rotated coords
+  const dx = (x1 - x2) / 2;
+  const dy = (y1 - y2) / 2;
+  const x1p = cosPhi * dx + sinPhi * dy;
+  const y1p = -sinPhi * dx + cosPhi * dy;
+
+  // Step 2: scale radii if necessary
+  let lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lambda > 1) {
+    const sqrtLambda = Math.sqrt(lambda);
+    rx *= sqrtLambda;
+    ry *= sqrtLambda;
+  }
+
+  // Step 3: center in rotated coords
+  const num = Math.max(0,
+    rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+  );
+  const den = rx * rx * y1p * y1p + ry * ry * x1p * x1p;
+  let sq = den > 0 ? Math.sqrt(num / den) : 0;
+  if (largeArcFlag === sweepFlag) sq = -sq;
+
+  const cxp = sq * (rx * y1p) / ry;
+  const cyp = sq * -(ry * x1p) / rx;
+
+  // Step 4: center in original coords
+  const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+
+  // Step 5: angles
+  const theta1 = angleBetween(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+  let dTheta = angleBetween(
+    (x1p - cxp) / rx, (y1p - cyp) / ry,
+    (-x1p - cxp) / rx, (-y1p - cyp) / ry
+  );
+
+  if (!sweepFlag && dTheta > 0) dTheta -= 2 * Math.PI;
+  if (sweepFlag && dTheta < 0) dTheta += 2 * Math.PI;
+
+  // Sample along the arc
+  for (let j = 1; j <= segments; j++) {
+    const t = j / segments;
+    const angle = theta1 + dTheta * t;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const px = cosPhi * rx * cosA - sinPhi * ry * sinA + cx;
+    const py = sinPhi * rx * cosA + cosPhi * ry * sinA + cy;
+    points.push([px, py]);
+  }
+}
+
+/** Angle between two vectors in radians. */
+function angleBetween(ux, uy, vx, vy) {
+  const dot = ux * vx + uy * vy;
+  const len = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+  let angle = Math.acos(Math.max(-1, Math.min(1, dot / (len || 1))));
+  if (ux * vy - uy * vx < 0) angle = -angle;
+  return angle;
+}
+
+// ---------------------------------------------------------------------------
+// Simple quad detection (fast path for M L L L Z)
+// ---------------------------------------------------------------------------
 
 /**
  * Parse simple path commands (M, L, Z, m, l, H, h, V, v) and return endpoints.
  * Returns null if path uses curves (C, S, Q, T, A).
- *
- * @param {string} d
- * @returns {Array<[number,number]>|null}
  */
 function extractSegmentEndpoints(d) {
   if (/[CcSsQqTtAa]/.test(d)) return null; // curves present
@@ -107,28 +469,28 @@ function extractSegmentEndpoints(d) {
   const points = [];
   let cmd = 'M';
   let x = 0, y = 0;
-  let i = 0;
+  let k = 0;
 
-  while (i < tokens.length) {
-    const t = tokens[i];
+  while (k < tokens.length) {
+    const t = tokens[k];
     if (/^[MmLlHhVvZz]$/.test(t)) {
       cmd = t;
-      i++;
+      k++;
       continue;
     }
 
     switch (cmd) {
-      case 'M': x = +tokens[i]; y = +tokens[i + 1]; i += 2; points.push([x, y]); break;
-      case 'm': x += +tokens[i]; y += +tokens[i + 1]; i += 2; points.push([x, y]); break;
-      case 'L': x = +tokens[i]; y = +tokens[i + 1]; i += 2; points.push([x, y]); break;
-      case 'l': x += +tokens[i]; y += +tokens[i + 1]; i += 2; points.push([x, y]); break;
-      case 'H': x = +tokens[i]; i++; points.push([x, y]); break;
-      case 'h': x += +tokens[i]; i++; points.push([x, y]); break;
-      case 'V': y = +tokens[i]; i++; points.push([x, y]); break;
-      case 'v': y += +tokens[i]; i++; points.push([x, y]); break;
+      case 'M': x = +tokens[k]; y = +tokens[k + 1]; k += 2; points.push([x, y]); break;
+      case 'm': x += +tokens[k]; y += +tokens[k + 1]; k += 2; points.push([x, y]); break;
+      case 'L': x = +tokens[k]; y = +tokens[k + 1]; k += 2; points.push([x, y]); break;
+      case 'l': x += +tokens[k]; y += +tokens[k + 1]; k += 2; points.push([x, y]); break;
+      case 'H': x = +tokens[k]; k++; points.push([x, y]); break;
+      case 'h': x += +tokens[k]; k++; points.push([x, y]); break;
+      case 'V': y = +tokens[k]; k++; points.push([x, y]); break;
+      case 'v': y += +tokens[k]; k++; points.push([x, y]); break;
       case 'Z':
-      case 'z': i++; break;
-      default: i++;
+      case 'z': k++; break;
+      default: k++;
     }
   }
 
@@ -140,10 +502,6 @@ function extractSegmentEndpoints(d) {
 
   return points.length >= 3 ? points : null;
 }
-
-// ---------------------------------------------------------------------------
-// Simple quad detection
-// ---------------------------------------------------------------------------
 
 /**
  * If the path is already a 4-point polygon, return its 4 transformed corners.
@@ -160,6 +518,23 @@ function tryExtractAsSimpleQuad(pathElement, worldMatrix) {
     const p = worldMatrix.transformPoint(new DOMPoint(x, y));
     return [p.x, p.y];
   });
+}
+
+// ---------------------------------------------------------------------------
+// Bounding box for sub-path selection
+// ---------------------------------------------------------------------------
+
+/** Compute bounding-box area of a point array to rank sub-paths by size. */
+function boundingBoxArea(points) {
+  if (points.length === 0) return 0;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of points) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return (maxX - minX) * (maxY - minY);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenCV.js Screen Renderer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0c0c14; --card: #14141e; --border: #2a2a3a;
+      --text: #e8e8f0; --text2: #8888a0; --text3: #555570;
+      --blue: #4488ff; --cyan: #22ccaa; --green: #44dd88;
+      --orange: #ff8844; --red: #ff4466; --magenta: #cc44ff;
+      --r: 16px; --rs: 8px;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    #app { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    header { text-align: center; margin-bottom: 2rem; }
+    header .badge {
+      display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+      color: var(--orange); background: rgba(255,136,68,0.1); border: 1px solid rgba(255,136,68,0.2);
+      border-radius: 100px; padding: 4px 14px; letter-spacing: 0.05em; margin-bottom: 0.75rem;
+    }
+    header h1 {
+      font-size: 1.75rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--orange), var(--magenta));
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { color: var(--text2); font-size: 0.95rem; max-width: 620px; margin: 0.5rem auto 0; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 0.85rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; }
+
+    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: var(--rs); padding: 1.5rem;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--blue); background: rgba(68,136,255,0.05); }
+    .dropzone.has-file { border-color: var(--green); background: rgba(68,221,136,0.05); }
+    .dropzone input { display: none; }
+    .dropzone-icon { font-size: 1.8rem; display: block; margin-bottom: 0.4rem; }
+    .dropzone-label { font-weight: 600; display: block; margin-bottom: 0.2rem; font-size: 0.9rem; }
+    .dropzone-hint { font-size: 0.75rem; color: var(--text3); }
+    .file-name { display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--green); margin-top: 0.4rem; }
+
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+    button {
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.85rem;
+      padding: 0.6rem 1.5rem; border: none; border-radius: var(--rs); cursor: pointer; transition: all 0.15s;
+    }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+    #renderBtn { background: var(--orange); color: #000; }
+    #renderBtn:not(:disabled):hover { background: #ff9955; transform: translateY(-1px); }
+    #exportBtn { background: var(--blue); color: #fff; }
+    #exportBtn:not(:disabled):hover { background: #5599ff; transform: translateY(-1px); }
+
+    #status { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text3); margin-top: 0.75rem; }
+    #status.ok { color: var(--green); }
+    #status.err { color: var(--red); }
+
+    .output-section { display: none; }
+    .output-section.visible { display: block; }
+
+    .output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .output-grid { grid-template-columns: 1fr; } }
+
+    .panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--rs); overflow: hidden; }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03);
+    }
+    .panel-title { font-weight: 600; font-size: 0.8rem; }
+    .panel-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 100px; }
+    .tag-o { color: var(--orange); background: rgba(255,136,68,0.15); }
+    .tag-b { color: var(--blue); background: rgba(68,136,255,0.15); }
+    .tag-c { color: var(--cyan); background: rgba(34,204,170,0.15); }
+    .panel-body {
+      display: flex; justify-content: center; align-items: center; padding: 1rem;
+      background: repeating-conic-gradient(#1a1a24 0% 25%, #16161e 0% 50%) 50% / 20px 20px;
+      min-height: 200px;
+    }
+    .panel-body canvas { max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+
+    .info-bar { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+    .info-item { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text2); }
+    .info-item span { color: var(--cyan); }
+
+    #cvLoading {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--orange);
+      text-align: center; padding: 0.5rem; margin-bottom: 1rem;
+    }
+    #cvLoading.loaded { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <div class="badge">OpenCV.js · Full Path Mask</div>
+      <h1>OpenCV.js Screen Renderer</h1>
+      <p>Uses OpenCV.js <code>fillPoly</code> to create a pixel-perfect mask from the full <code>#screen</code> path — supports all curves, no corner approximation.</p>
+    </header>
+
+    <div id="cvLoading">⏳ Loading OpenCV.js…</div>
+
+    <div class="card">
+      <h2>01 — Inputs</h2>
+      <div class="upload-grid">
+        <div class="dropzone" id="svgDrop">
+          <input type="file" id="svgInput" accept=".svg,image/svg+xml" />
+          <span class="dropzone-icon">📐</span>
+          <span class="dropzone-label">SVG Mockup</span>
+          <span class="dropzone-hint">Needs <code>id="screen"</code></span>
+          <span class="file-name" id="svgName"></span>
+        </div>
+        <div class="dropzone" id="imgDrop">
+          <input type="file" id="imgInput" accept="image/*" />
+          <span class="dropzone-icon">📸</span>
+          <span class="dropzone-label">Screenshot</span>
+          <span class="dropzone-hint">PNG / JPG / WebP</span>
+          <span class="file-name" id="imgName"></span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button id="renderBtn" disabled>◆ Render with OpenCV</button>
+        <button id="exportBtn" disabled>↓ Export PNG</button>
+      </div>
+      <div id="status">Upload both files to begin</div>
+    </div>
+
+    <div class="card output-section" id="outputSection">
+      <h2>02 — Output</h2>
+      <div class="output-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Screen Mask</span>
+            <span class="panel-tag tag-o">cv.fillPoly</span>
+          </div>
+          <div class="panel-body"><canvas id="maskCanvas"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Final Composite</span>
+            <span class="panel-tag tag-c">Output</span>
+          </div>
+          <div class="panel-body"><canvas id="outputCanvas"></canvas></div>
+        </div>
+      </div>
+      <div class="info-bar" id="infoBar"></div>
+    </div>
+
+  </div>
+
+  <!-- Load OpenCV.js from CDN -->
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady()" id="opencvScript"></script>
+
+  <script type="module">
+    import { parseSVG } from './pipeline/svg-parser.js';
+
+    // -----------------------------------------------------------------------
+    // OpenCV.js loading
+    // -----------------------------------------------------------------------
+    let cvReady = false;
+
+    window.onOpenCVReady = function() {
+      // OpenCV.js calls cv['onRuntimeInitialized'] when ready
+      if (typeof cv !== 'undefined') {
+        if (cv.Mat) {
+          cvReady = true;
+          document.getElementById('cvLoading').textContent = '✓ OpenCV.js loaded';
+          document.getElementById('cvLoading').classList.add('loaded');
+          checkReady();
+        } else {
+          cv['onRuntimeInitialized'] = () => {
+            cvReady = true;
+            document.getElementById('cvLoading').textContent = '✓ OpenCV.js loaded';
+            document.getElementById('cvLoading').classList.add('loaded');
+            checkReady();
+          };
+        }
+      }
+    };
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    let _svgText = null;
+    let _image = null;
+
+    // -----------------------------------------------------------------------
+    // DOM
+    // -----------------------------------------------------------------------
+    const svgInput = document.getElementById('svgInput');
+    const imgInput = document.getElementById('imgInput');
+    const svgDrop  = document.getElementById('svgDrop');
+    const imgDrop  = document.getElementById('imgDrop');
+    const svgName  = document.getElementById('svgName');
+    const imgName  = document.getElementById('imgName');
+    const renderBtn = document.getElementById('renderBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const statusEl = document.getElementById('status');
+    const outputSection = document.getElementById('outputSection');
+    const maskCanvas = document.getElementById('maskCanvas');
+    const outputCanvas = document.getElementById('outputCanvas');
+
+    // -----------------------------------------------------------------------
+    // File handling
+    // -----------------------------------------------------------------------
+    wire(svgDrop, svgInput);
+    wire(imgDrop, imgInput);
+
+    function wire(zone, input) {
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault(); zone.classList.remove('dragover');
+        const f = e.dataTransfer.files[0]; if (!f) return;
+        const dt = new DataTransfer(); dt.items.add(f); input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      });
+    }
+
+    svgInput.addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      svgName.textContent = f.name;
+      svgDrop.classList.add('has-file');
+      _svgText = await f.text();
+      checkReady();
+    });
+
+    imgInput.addEventListener('change', e => {
+      const f = e.target.files[0]; if (!f) return;
+      imgName.textContent = f.name;
+      imgDrop.classList.add('has-file');
+      const url = URL.createObjectURL(f);
+      _image = new Image();
+      _image.onload = () => checkReady();
+      _image.src = url;
+    });
+
+    function checkReady() {
+      const ok = !!_svgText && !!_image && cvReady;
+      renderBtn.disabled = !ok;
+      if (_svgText && _image && !cvReady) setStatus('Waiting for OpenCV.js to load…');
+      else if (ok) setStatus('Ready — click Render');
+    }
+
+    // -----------------------------------------------------------------------
+    // Render pipeline
+    // -----------------------------------------------------------------------
+    renderBtn.addEventListener('click', async () => {
+      renderBtn.disabled = true;
+      exportBtn.disabled = true;
+      try { await render(); } catch (err) { setStatus('Error: ' + err.message, true); console.error(err); }
+      finally { renderBtn.disabled = false; }
+    });
+
+    async function render() {
+      setStatus('Parsing SVG…');
+      const { svgElement, screenPath, worldMatrix, viewBox } = parseSVG(_svgText);
+
+      const W = Math.round(viewBox.width);
+      const H = Math.round(viewBox.height);
+
+      // Step 1: Sample the full #screen path with Bézier math
+      setStatus('Sampling #screen path…');
+      const d = screenPath.getAttribute('d') || '';
+      const localPts = sampleScreenPath(d);
+
+      // Apply worldMatrix to get viewport-space points
+      const worldPts = localPts.map(([x, y]) => {
+        const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
+        return [Math.round(pt.x), Math.round(pt.y)];
+      });
+
+      console.log(`[opencv-renderer] Sampled ${worldPts.length} path points`);
+
+      // Step 2: Render the SVG frame (with #screen hidden) to a canvas
+      setStatus('Rendering SVG frame…');
+      const frameCanvas = await renderSVGFrame(_svgText, W, H);
+
+      // Step 3: Create the screen mask using OpenCV fillPoly
+      setStatus('Creating screen mask with OpenCV…');
+      const { maskMat, bbox } = createScreenMask(worldPts, W, H);
+
+      // Show the mask
+      maskCanvas.width = W;
+      maskCanvas.height = H;
+      cv.imshow(maskCanvas, maskMat);
+
+      // Step 4: Resize/position the screenshot into the bounding box
+      setStatus('Compositing…');
+
+      // Load screenshot into OpenCV
+      const screenshotCanvas = document.createElement('canvas');
+      screenshotCanvas.width = _image.naturalWidth;
+      screenshotCanvas.height = _image.naturalHeight;
+      const sctx = screenshotCanvas.getContext('2d');
+      sctx.drawImage(_image, 0, 0);
+      const screenshotMat = cv.imread(screenshotCanvas);
+
+      // Create the output canvas
+      outputCanvas.width = W;
+      outputCanvas.height = H;
+
+      // Create the composited result
+      const result = compositeWithMask(frameCanvas, screenshotMat, maskMat, bbox, W, H);
+
+      // Show result
+      cv.imshow(outputCanvas, result);
+
+      // Cleanup
+      maskMat.delete();
+      screenshotMat.delete();
+      result.delete();
+
+      // Show info
+      outputSection.classList.add('visible');
+      exportBtn.disabled = false;
+      document.getElementById('infoBar').innerHTML = `
+        <div class="info-item">Canvas: <span>${W}×${H}</span></div>
+        <div class="info-item">Path points: <span>${worldPts.length}</span></div>
+        <div class="info-item">Screen bbox: <span>${bbox.x},${bbox.y} ${bbox.w}×${bbox.h}</span></div>
+        <div class="info-item">Screenshot: <span>${_image.naturalWidth}×${_image.naturalHeight}</span></div>
+        <div class="info-item">Method: <span>cv.fillPoly + mask</span></div>
+      `;
+
+      setStatus('✓ Render complete', false);
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 2: Render the SVG frame with #screen hidden
+    // -----------------------------------------------------------------------
+    function renderSVGFrame(svgText, w, h) {
+      return new Promise((resolve, reject) => {
+        // Parse and hide the screen
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgText, 'image/svg+xml');
+        const screen = doc.querySelector('#screen');
+        if (screen) {
+          screen.setAttribute('fill', 'none');
+          screen.setAttribute('stroke', 'none');
+          screen.style.fill = 'none';
+          screen.style.stroke = 'none';
+          screen.style.opacity = '0';
+        }
+
+        const serializer = new XMLSerializer();
+        const cleanSVG = serializer.serializeToString(doc.documentElement);
+        const blob = new Blob([cleanSVG], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG frame render failed')); };
+        img.src = url;
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 3: Create mask from path points using OpenCV fillPoly
+    // -----------------------------------------------------------------------
+    function createScreenMask(worldPts, W, H) {
+      // Create a black mask
+      const mask = new cv.Mat.zeros(H, W, cv.CV_8UC1);
+
+      // Convert points to OpenCV MatVector format
+      const pts = cv.matFromArray(worldPts.length, 1, cv.CV_32SC2,
+        worldPts.flatMap(([x, y]) => [x, y])
+      );
+
+      const contours = new cv.MatVector();
+      contours.push_back(pts);
+
+      // Fill the polygon (white on black mask)
+      const color = new cv.Scalar(255);
+      cv.fillPoly(mask, contours, color);
+
+      // Compute bounding box
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of worldPts) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+      const bbox = {
+        x: Math.max(0, Math.floor(minX)),
+        y: Math.max(0, Math.floor(minY)),
+        w: Math.min(W, Math.ceil(maxX)) - Math.max(0, Math.floor(minX)),
+        h: Math.min(H, Math.ceil(maxY)) - Math.max(0, Math.floor(minY))
+      };
+
+      pts.delete();
+      contours.delete();
+
+      return { maskMat: mask, bbox };
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 4: Composite — screenshot masked by screen path, overlaid by frame
+    // -----------------------------------------------------------------------
+    function compositeWithMask(frameCanvas, screenshotMat, maskMat, bbox, W, H) {
+      // Resize screenshot to fit the screen bounding box
+      const resized = new cv.Mat();
+      const dsize = new cv.Size(bbox.w, bbox.h);
+      cv.resize(screenshotMat, resized, dsize, 0, 0, cv.INTER_AREA);
+
+      // Ensure resized is RGBA (4 channels)
+      const resizedRGBA = new cv.Mat();
+      if (resized.channels() === 3) {
+        cv.cvtColor(resized, resizedRGBA, cv.COLOR_RGB2RGBA);
+      } else {
+        resized.copyTo(resizedRGBA);
+      }
+      resized.delete();
+
+      // Create full-size screenshot layer (black background + screenshot at bbox position)
+      const screenshotLayer = new cv.Mat.zeros(H, W, cv.CV_8UC4);
+      const roi = screenshotLayer.roi(new cv.Rect(bbox.x, bbox.y, bbox.w, bbox.h));
+      resizedRGBA.copyTo(roi);
+      roi.delete();
+      resizedRGBA.delete();
+
+      // Create 4-channel mask for bitwise operations
+      const mask4 = new cv.Mat();
+      const channels = new cv.MatVector();
+      channels.push_back(maskMat);
+      channels.push_back(maskMat);
+      channels.push_back(maskMat);
+      channels.push_back(maskMat);
+      cv.merge(channels, mask4);
+      channels.delete();
+
+      // Apply mask to screenshot: screenshotLayer AND mask
+      const maskedScreenshot = new cv.Mat();
+      cv.bitwise_and(screenshotLayer, mask4, maskedScreenshot);
+      screenshotLayer.delete();
+
+      // Invert mask for the frame
+      const invMask4 = new cv.Mat();
+      cv.bitwise_not(mask4, invMask4);
+      mask4.delete();
+
+      // Load frame into OpenCV mat
+      const frameMat = cv.imread(frameCanvas);
+
+      // Ensure frame is RGBA
+      const frameRGBA = new cv.Mat();
+      if (frameMat.channels() === 3) {
+        cv.cvtColor(frameMat, frameRGBA, cv.COLOR_RGB2RGBA);
+      } else {
+        frameMat.copyTo(frameRGBA);
+      }
+      frameMat.delete();
+
+      // Frame with screen area cut out: frame AND invMask
+      const maskedFrame = new cv.Mat();
+      cv.bitwise_and(frameRGBA, invMask4, maskedFrame);
+      frameRGBA.delete();
+      invMask4.delete();
+
+      // Composite: maskedFrame + maskedScreenshot
+      const result = new cv.Mat();
+      cv.add(maskedFrame, maskedScreenshot, result);
+      maskedFrame.delete();
+      maskedScreenshot.delete();
+
+      return result;
+    }
+
+    // -----------------------------------------------------------------------
+    // Path sampler — full Bézier support, picks largest sub-path
+    // -----------------------------------------------------------------------
+    function sampleScreenPath(d) {
+      const SAMPLES = 16;
+      const re = /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/g;
+      const tokens = []; let m;
+      while ((m = re.exec(d)) !== null) tokens.push(m[0]);
+
+      const subs = []; let pts = [];
+      let x = 0, y = 0, sx = 0, sy = 0, pcx = 0, pcy = 0, prev = '', i = 0;
+
+      while (i < tokens.length) {
+        let cmd = tokens[i];
+        if (!isNaN(parseFloat(cmd))) {
+          cmd = prev === 'M' ? 'L' : prev === 'm' ? 'l' : prev;
+        } else { i++; }
+
+        switch (cmd) {
+          case 'M': if (pts.length) subs.push(pts); x=+tokens[i];y=+tokens[i+1];i+=2;sx=x;sy=y;pts=[[x,y]]; break;
+          case 'm': if (pts.length) subs.push(pts); x+=+tokens[i];y+=+tokens[i+1];i+=2;sx=x;sy=y;pts=[[x,y]]; break;
+          case 'L': x=+tokens[i];y=+tokens[i+1];i+=2;pts.push([x,y]); break;
+          case 'l': x+=+tokens[i];y+=+tokens[i+1];i+=2;pts.push([x,y]); break;
+          case 'H': x=+tokens[i];i++;pts.push([x,y]); break;
+          case 'h': x+=+tokens[i];i++;pts.push([x,y]); break;
+          case 'V': y=+tokens[i];i++;pts.push([x,y]); break;
+          case 'v': y+=+tokens[i];i++;pts.push([x,y]); break;
+          case 'C': { const x1=+tokens[i],y1=+tokens[i+1],x2=+tokens[i+2],y2=+tokens[i+3],ex=+tokens[i+4],ey=+tokens[i+5]; i+=6;
+            cubicSample(pts,x,y,x1,y1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
+          case 'c': { const x1=x+ +tokens[i],y1=y+ +tokens[i+1],x2=x+ +tokens[i+2],y2=y+ +tokens[i+3],ex=x+ +tokens[i+4],ey=y+ +tokens[i+5]; i+=6;
+            cubicSample(pts,x,y,x1,y1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
+          case 'S': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=+tokens[i],y2=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
+            cubicSample(pts,x,y,cx1,cy1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
+          case 's': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=x+ +tokens[i],y2=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
+            cubicSample(pts,x,y,cx1,cy1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
+          case 'Q': { const qx=+tokens[i],qy=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
+            quadSample(pts,x,y,qx,qy,ex,ey,SAMPLES); pcx=qx;pcy=qy;x=ex;y=ey; break; }
+          case 'q': { const qx=x+ +tokens[i],qy=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
+            quadSample(pts,x,y,qx,qy,ex,ey,SAMPLES); pcx=qx;pcy=qy;x=ex;y=ey; break; }
+          case 'T': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=+tokens[i],ey=+tokens[i+1]; i+=2;
+            quadSample(pts,x,y,tcx,tcy,ex,ey,SAMPLES); pcx=tcx;pcy=tcy;x=ex;y=ey; break; }
+          case 't': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=x+ +tokens[i],ey=y+ +tokens[i+1]; i+=2;
+            quadSample(pts,x,y,tcx,tcy,ex,ey,SAMPLES); pcx=tcx;pcy=tcy;x=ex;y=ey; break; }
+          case 'A': case 'a': {
+            const isRel = cmd==='a';
+            const ax=(isRel?x:0)+ +tokens[i+5], ay=(isRel?y:0)+ +tokens[i+6]; i+=7;
+            pts.push([ax,ay]); x=ax;y=ay; break;
+          }
+          case 'Z': case 'z': x=sx;y=sy; break;
+          default: i++;
+        }
+        if (!'CcSsQqTt'.includes(cmd)) { pcx=x;pcy=y; }
+        prev = cmd;
+      }
+      if (pts.length) subs.push(pts);
+
+      // Pick largest sub-path
+      if (subs.length <= 1) return subs[0] || [];
+      let best = subs[0], bestA = -Infinity;
+      for (const sp of subs) {
+        let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+        for (const [px,py] of sp) { mnx=Math.min(mnx,px);mny=Math.min(mny,py);mxx=Math.max(mxx,px);mxy=Math.max(mxy,py); }
+        const a=(mxx-mnx)*(mxy-mny);
+        if (a>bestA) { bestA=a; best=sp; }
+      }
+      return best;
+    }
+
+    function cubicSample(pts,x0,y0,x1,y1,x2,y2,x3,y3,n) {
+      for(let j=1;j<=n;j++){const t=j/n,mt=1-t;
+        pts.push([mt*mt*mt*x0+3*mt*mt*t*x1+3*mt*t*t*x2+t*t*t*x3,
+                   mt*mt*mt*y0+3*mt*mt*t*y1+3*mt*t*t*y2+t*t*t*y3]);}
+    }
+    function quadSample(pts,x0,y0,x1,y1,x2,y2,n) {
+      for(let j=1;j<=n;j++){const t=j/n,mt=1-t;
+        pts.push([mt*mt*x0+2*mt*t*x1+t*t*x2,
+                   mt*mt*y0+2*mt*t*y1+t*t*y2]);}
+    }
+
+    // -----------------------------------------------------------------------
+    // Export
+    // -----------------------------------------------------------------------
+    exportBtn.addEventListener('click', () => {
+      outputCanvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'mockup-opencv.png'; a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    });
+
+    // -----------------------------------------------------------------------
+    // Status
+    // -----------------------------------------------------------------------
+    function setStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.className = isError ? 'err' : (msg.startsWith('✓') ? 'ok' : '');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head><title>Screen Analysis</title>
+<style>
+  body { font-family: monospace; background: #111; color: #eee; padding: 2rem; }
+  pre { background: #222; padding: 1rem; border-radius: 8px; line-height: 1.6; white-space: pre-wrap; }
+  .highlight { color: #4f8; }
+  .warn { color: #f84; }
+  .cyan { color: #4df; }
+  canvas { border: 1px solid #444; margin: 1rem 0; display: block; }
+</style>
+</head>
+<body>
+  <h2>Screen Mask Analysis</h2>
+  <pre id="out">Loading iso-down-left.svg...</pre>
+  <canvas id="vis" width="700" height="600"></canvas>
+
+  <script type="module">
+    import { parseSVG } from './pipeline/svg-parser.js';
+    import { sampleScreenPath } from './pipeline/opencv-compositor.js';
+
+    (async () => {
+      const resp = await fetch('./assets/iso-down-left.svg');
+      const svgText = await resp.text();
+      const { svgElement, screenPath, worldMatrix, viewBox } = parseSVG(svgText);
+
+      const d = screenPath.getAttribute('d') || '';
+      const localPts = sampleScreenPath(d);
+
+      const worldPts = localPts.map(([x, y]) => {
+        const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
+        return [pt.x, pt.y];
+      });
+
+      // === Bounding box ===
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      for (const [x,y] of worldPts) {
+        minX=Math.min(minX,x); minY=Math.min(minY,y);
+        maxX=Math.max(maxX,x); maxY=Math.max(maxY,y);
+      }
+      const bboxW = maxX - minX, bboxH = maxY - minY;
+
+      // === Find 4 extreme diagonal corners (TL, TR, BR, BL) ===
+      let tl, tr, br, bl;
+      let tlS=Infinity, trS=-Infinity, brS=-Infinity, blS=Infinity;
+      for (const [x,y] of worldPts) {
+        const sum = x+y, diff = x-y;
+        if (sum < tlS)  { tlS = sum;  tl = [x,y]; }
+        if (sum > brS)  { brS = sum;  br = [x,y]; }
+        if (diff > trS) { trS = diff; tr = [x,y]; }
+        if (diff < blS) { blS = diff; bl = [x,y]; }
+      }
+
+      // === Compute TRUE screen dimensions (along the screen's own edges) ===
+      const topEdge = Math.sqrt((tr[0]-tl[0])**2 + (tr[1]-tl[1])**2);
+      const bottomEdge = Math.sqrt((br[0]-bl[0])**2 + (br[1]-bl[1])**2);
+      const leftEdge = Math.sqrt((bl[0]-tl[0])**2 + (bl[1]-tl[1])**2);
+      const rightEdge = Math.sqrt((br[0]-tr[0])**2 + (br[1]-tr[1])**2);
+
+      const avgWidth = (topEdge + bottomEdge) / 2;
+      const avgHeight = (leftEdge + rightEdge) / 2;
+      const trueAspect = avgWidth / avgHeight;
+
+      // Compute tilt angle of the screen
+      const tiltAngle = Math.atan2(tr[1]-tl[1], tr[0]-tl[0]) * 180 / Math.PI;
+
+      const out = document.getElementById('out');
+      out.innerHTML = `
+<span class="highlight">═══ SVG ViewBox ═══</span>
+  ${viewBox.width} × ${viewBox.height}
+
+<span class="warn">═══ Bounding Box (MISLEADING for isometric!) ═══</span>
+  width: ${bboxW.toFixed(1)}  height: ${bboxH.toFixed(1)}
+  Aspect: ${(bboxW/bboxH).toFixed(3)}  ← this is wrong for tilted screens
+
+<span class="cyan">═══ 4 Diagonal Corners (the actual screen quad) ═══</span>
+  TL: (${tl[0].toFixed(1)}, ${tl[1].toFixed(1)})
+  TR: (${tr[0].toFixed(1)}, ${tr[1].toFixed(1)})
+  BR: (${br[0].toFixed(1)}, ${br[1].toFixed(1)})
+  BL: (${bl[0].toFixed(1)}, ${bl[1].toFixed(1)})
+
+<span class="highlight">═══ TRUE Screen Dimensions (along screen edges) ═══</span>
+  Top edge    (TL→TR): ${topEdge.toFixed(1)}px
+  Bottom edge (BL→BR): ${bottomEdge.toFixed(1)}px
+  Left edge   (TL→BL): ${leftEdge.toFixed(1)}px
+  Right edge  (TR→BR): ${rightEdge.toFixed(1)}px
+
+  <span class="highlight">Average width:  ${avgWidth.toFixed(1)}px</span>
+  <span class="highlight">Average height: ${avgHeight.toFixed(1)}px</span>
+  <span class="highlight">TRUE aspect ratio: ${trueAspect.toFixed(3)}</span>
+  Screen tilt angle: ${tiltAngle.toFixed(1)}°
+
+<span class="highlight">═══ Recommended Screenshot Size ═══</span>
+  Aspect ratio should be ≈ <span class="highlight">${trueAspect.toFixed(2)}</span>
+  Suggested: <span class="highlight">${Math.round(avgWidth)} × ${Math.round(avgHeight)}</span>
+  Or scaled: <span class="highlight">${Math.round(avgWidth*2)} × ${Math.round(avgHeight*2)}</span>
+
+<span class="warn">═══ Your current book.PNG ═══</span>
+  1284 × 2778 (aspect ${(1284/2778).toFixed(3)})
+  ${Math.abs(1284/2778 - trueAspect) < 0.1 ? '✓ Good match!' : '⚠ Aspect ratio mismatch: ' + (1284/2778).toFixed(3) + ' vs screen ' + trueAspect.toFixed(3)}
+
+<span class="highlight">═══ Common Device Screenshots ═══</span>
+  iPhone 14 Pro Max:  1290 × 2796  (${(1290/2796).toFixed(3)})
+  iPhone 14 Pro:      1179 × 2556  (${(1179/2556).toFixed(3)})
+  iPhone 14:          1170 × 2532  (${(1170/2532).toFixed(3)})
+  iPad Pro 11":       1668 × 2388  (${(1668/2388).toFixed(3)})
+  Pixel 7:            1080 × 2400  (${(1080/2400).toFixed(3)})
+`;
+
+      // === Draw visualization ===
+      const canvas = document.getElementById('vis');
+      canvas.width = 700; canvas.height = 600;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.min(660/bboxW, 560/bboxH);
+      const ox = 20 - minX*scale, oy = 20 - minY*scale;
+
+      ctx.fillStyle = '#181818';
+      ctx.fillRect(0, 0, 700, 600);
+
+      // Draw mask outline (green filled)
+      ctx.beginPath();
+      for (let i=0; i<worldPts.length; i++) {
+        const px = worldPts[i][0]*scale + ox;
+        const py = worldPts[i][1]*scale + oy;
+        if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(68,255,136,0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#4f8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw bbox (red dashed)
+      ctx.strokeStyle = '#f44';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5,5]);
+      ctx.strokeRect(minX*scale+ox, minY*scale+oy, bboxW*scale, bboxH*scale);
+      ctx.setLineDash([]);
+
+      // Draw the 4 diagonal corners and quad edges (cyan)
+      const pts = [tl, tr, br, bl];
+      ctx.beginPath();
+      for (let i=0; i<4; i++) {
+        const px = pts[i][0]*scale+ox, py = pts[i][1]*scale+oy;
+        if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = '#4df';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw corner dots and labels
+      const labels = ['TL','TR','BR','BL'];
+      ctx.font = 'bold 14px monospace';
+      for (let i=0; i<4; i++) {
+        const px = pts[i][0]*scale+ox, py = pts[i][1]*scale+oy;
+        ctx.fillStyle = '#4df';
+        ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(labels[i], px+10, py+5);
+      }
+
+      // Legend
+      ctx.font = '12px monospace';
+      ctx.fillStyle = '#f44'; ctx.fillText('▬ BBox (misleading)', 10, canvas.height-40);
+      ctx.fillStyle = '#4f8'; ctx.fillText('▬ Mask shape (actual screen)', 10, canvas.height-25);
+      ctx.fillStyle = '#4df'; ctx.fillText('▬ Screen quad (TL→TR→BR→BL)', 10, canvas.height-10);
+
+      // Edge length labels
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#ff8';
+      const midTop = [(tl[0]+tr[0])/2*scale+ox, (tl[1]+tr[1])/2*scale+oy];
+      ctx.fillText(`W: ${topEdge.toFixed(0)}px`, midTop[0]-30, midTop[1]-8);
+      const midLeft = [(tl[0]+bl[0])/2*scale+ox, (tl[1]+bl[1])/2*scale+oy];
+      ctx.fillText(`H: ${leftEdge.toFixed(0)}px`, midLeft[0]-60, midLeft[1]);
+    })();
+  </script>
+</body>
+</html>
