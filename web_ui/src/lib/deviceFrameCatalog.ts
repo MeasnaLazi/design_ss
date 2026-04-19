@@ -96,7 +96,6 @@ function packIdFromManifestUrl(manifestUrl: string): string {
 
 function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQuadConfigEntry[] {
   return frames.map((f) => ({
-    name: f.name,
     framePath: normalizeAssetPath(f.framePath),
     homography: f.homography,
     clipCornerRadiusPx: f.clipCornerRadiusPx,

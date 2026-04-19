@@ -29,10 +29,14 @@ type Actions = {
   setSelectedFrameName: (name: string) => void
 }
 
-const TYPE_ORDER: readonly DeviceFrameType[] = DEVICE_FRAME_TYPES
+const DEFAULT_FRAME_PRESET = 'front' as const
 
 function devicesOfType(devices: CatalogDevice[], t: DeviceFrameType): CatalogDevice[] {
   return devices.filter((d) => d.manifest.type === t)
+}
+
+function firstFrameName(frames: readonly { name: string }[]): string {
+  return frames[0]?.name ?? DEFAULT_FRAME_PRESET
 }
 
 function pickDefaultForCatalog(devices: CatalogDevice[]): Pick<
@@ -43,22 +47,25 @@ function pickDefaultForCatalog(devices: CatalogDevice[]): Pick<
     return {
       selectedDeviceType: 'iphone',
       selectedPackId: null,
-      selectedFrameName: 'front',
+      selectedFrameName: DEFAULT_FRAME_PRESET,
     }
   }
-  for (const t of TYPE_ORDER) {
+  for (const t of DEVICE_FRAME_TYPES) {
     const list = devicesOfType(devices, t)
     if (list.length > 0) {
       const first = list[0]
-      const frameName = first.manifest.frames[0]?.name ?? 'front'
-      return { selectedDeviceType: t, selectedPackId: first.id, selectedFrameName: frameName }
+      return {
+        selectedDeviceType: t,
+        selectedPackId: first.id,
+        selectedFrameName: firstFrameName(first.manifest.frames),
+      }
     }
   }
   const any = devices[0]
   return {
     selectedDeviceType: any.manifest.type,
     selectedPackId: any.id,
-    selectedFrameName: any.manifest.frames[0]?.name ?? 'front',
+    selectedFrameName: firstFrameName(any.manifest.frames),
   }
 }
 
@@ -71,7 +78,7 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
   devices: [],
   selectedDeviceType: 'iphone',
   selectedPackId: null,
-  selectedFrameName: 'front',
+  selectedFrameName: DEFAULT_FRAME_PRESET,
 
   loadRegistry: async () => {
     const { status, devices } = get()
@@ -112,7 +119,7 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
     set({
       selectedDeviceType: t,
       selectedPackId: first?.id ?? null,
-      selectedFrameName: first?.manifest.frames[0]?.name ?? 'front',
+      selectedFrameName: first ? firstFrameName(first.manifest.frames) : DEFAULT_FRAME_PRESET,
     })
   },
 
@@ -123,7 +130,7 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
     const names = new Set(dev.manifest.frames.map((f) => f.name))
     const nextFrame = names.has(selectedFrameName)
       ? selectedFrameName
-      : (dev.manifest.frames[0]?.name ?? 'front')
+      : firstFrameName(dev.manifest.frames)
     set({
       selectedPackId: packId,
       selectedDeviceType: dev.manifest.type,

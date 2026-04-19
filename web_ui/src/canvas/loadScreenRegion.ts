@@ -31,8 +31,6 @@ const quadCache = new Map<string, ScreenQuad>()
 
 /** One frame angle entry merged from device manifest JSON under public/device-frames. */
 export type ScreenQuadConfigEntry = {
-  /** Optional id from manifest (per-frame name field), for tooling only. */
-  name?: string
   framePath: string
   /**
    * When `false`, this frame uses the rectangular pipeline (`loadScreenRegion` + exact `#screen` path clip),
