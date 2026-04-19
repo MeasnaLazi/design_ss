@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { setScreenQuadConfigCache } from '../canvas/loadScreenRegion'
 import {
   type CatalogDevice,
+  DEFAULT_DEVICE_FRAME_ANGLE_ID,
   type DeviceFrameType,
   DEVICE_FRAME_TYPES,
   loadDeviceFrameRegistry,
@@ -29,14 +30,12 @@ type Actions = {
   setSelectedFrameName: (name: string) => void
 }
 
-const DEFAULT_FRAME_PRESET = 'front' as const
-
 function devicesOfType(devices: CatalogDevice[], t: DeviceFrameType): CatalogDevice[] {
   return devices.filter((d) => d.manifest.type === t)
 }
 
 function firstFrameName(frames: readonly { name: string }[]): string {
-  return frames[0]?.name ?? DEFAULT_FRAME_PRESET
+  return frames[0]?.name ?? DEFAULT_DEVICE_FRAME_ANGLE_ID
 }
 
 function pickDefaultForCatalog(devices: CatalogDevice[]): Pick<
@@ -47,7 +46,7 @@ function pickDefaultForCatalog(devices: CatalogDevice[]): Pick<
     return {
       selectedDeviceType: 'iphone',
       selectedPackId: null,
-      selectedFrameName: DEFAULT_FRAME_PRESET,
+      selectedFrameName: DEFAULT_DEVICE_FRAME_ANGLE_ID,
     }
   }
   for (const t of DEVICE_FRAME_TYPES) {
@@ -78,7 +77,7 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
   devices: [],
   selectedDeviceType: 'iphone',
   selectedPackId: null,
-  selectedFrameName: DEFAULT_FRAME_PRESET,
+  selectedFrameName: DEFAULT_DEVICE_FRAME_ANGLE_ID,
 
   loadRegistry: async () => {
     const { status, devices } = get()
@@ -119,7 +118,7 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
     set({
       selectedDeviceType: t,
       selectedPackId: first?.id ?? null,
-      selectedFrameName: first ? firstFrameName(first.manifest.frames) : DEFAULT_FRAME_PRESET,
+      selectedFrameName: first ? firstFrameName(first.manifest.frames) : DEFAULT_DEVICE_FRAME_ANGLE_ID,
     })
   },
 

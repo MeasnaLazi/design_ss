@@ -3,27 +3,14 @@ import type { ScreenQuadConfigEntry } from '../canvas/loadScreenRegion'
 /** Used when the registry is empty or a style cannot be resolved (matches default pack `front.svg`). */
 export const DEVICE_FRAME_FALLBACK_SRC = '/device-frames/iphone_12_pro/frame/front.svg' as const
 
+/** Default `frames[].name` (re-exported as `DEFAULT_DEVICE_FRAME_STYLE_ID` from deviceFrameStyles). */
+export const DEFAULT_DEVICE_FRAME_ANGLE_ID = 'front' as const
+
 export const DEVICE_FRAME_TYPES = ['iphone', 'ipad', 'phone', 'tablet'] as const
 export type DeviceFrameType = (typeof DEVICE_FRAME_TYPES)[number]
 
-type DeviceFrameManifestFrame = {
-  name: string
-  framePath: string
-  homography?: boolean
-  clipCornerRadiusPx?: number
-  clipCornerRadiiPx?: {
-    tl?: number
-    tr?: number
-    br?: number
-    bl?: number
-  }
-  corners: {
-    TL: [number, number]
-    TR: [number, number]
-    BR: [number, number]
-    BL: [number, number]
-  }
-}
+/** One entry in a device manifest `frames` array — same shape as a quad row plus `name`. */
+type DeviceFrameManifestFrame = { name: string } & ScreenQuadConfigEntry
 
 type DeviceFrameManifest = {
   type: DeviceFrameType
@@ -52,6 +39,12 @@ function frameNameToLabel(name: string): string {
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
+}
+
+export const FALLBACK_DEVICE_FRAME_STYLE: DeviceFrameStyle = {
+  id: DEFAULT_DEVICE_FRAME_ANGLE_ID,
+  label: frameNameToLabel(DEFAULT_DEVICE_FRAME_ANGLE_ID),
+  src: DEVICE_FRAME_FALLBACK_SRC,
 }
 
 function normalizeAssetPath(p: string): string {
@@ -95,12 +88,9 @@ function packIdFromManifestUrl(manifestUrl: string): string {
 }
 
 function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQuadConfigEntry[] {
-  return frames.map((f) => ({
-    framePath: normalizeAssetPath(f.framePath),
-    homography: f.homography,
-    clipCornerRadiusPx: f.clipCornerRadiusPx,
-    clipCornerRadiiPx: f.clipCornerRadiiPx,
-    corners: f.corners,
+  return frames.map(({ name: _omitName, ...row }) => ({
+    ...row,
+    framePath: normalizeAssetPath(row.framePath),
   }))
 }
 
@@ -155,19 +145,13 @@ export async function loadDeviceFrameRegistry(): Promise<{
   return { devices, quadConfigRows }
 }
 
-const FALLBACK_STYLE: DeviceFrameStyle = {
-  id: 'front',
-  label: 'Front',
-  src: DEVICE_FRAME_FALLBACK_SRC,
-}
-
 export function resolveDeviceFrameStyle(
   packId: string | undefined,
   styleId: string | undefined,
   catalog: CatalogDevice[],
   fallbackPackId: string | undefined,
 ): DeviceFrameStyle {
-  if (catalog.length === 0) return FALLBACK_STYLE
+  if (catalog.length === 0) return FALLBACK_DEVICE_FRAME_STYLE
 
   const preferPack =
     (packId && catalog.some((d) => d.id === packId) ? packId : null) ??
@@ -176,8 +160,8 @@ export function resolveDeviceFrameStyle(
 
   const device = catalog.find((d) => d.id === preferPack) ?? catalog[0]
   const styles = stylesFromManifest(device.manifest)
-  const sid = styleId ?? 'front'
+  const sid = styleId ?? DEFAULT_DEVICE_FRAME_ANGLE_ID
   const found = styles.find((s) => s.id === sid)
   if (found) return found
-  return styles[0] ?? FALLBACK_STYLE
+  return styles[0] ?? FALLBACK_DEVICE_FRAME_STYLE
 }

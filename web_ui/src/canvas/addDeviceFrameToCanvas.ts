@@ -29,7 +29,7 @@ export async function addDeviceFrameToCanvas(
     console.warn('[addDeviceFrameToCanvas] device registry not ready or no pack selected')
     return
   }
-  const styles = activePackStyles(packState.devices, packState.selectedPackId)
+  const styles = activePackStyles(packState.devices, packId)
   const style = getDeviceFrameStyle(styleId, styles)
   const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
   const frame = await FabricImage.fromURL(
