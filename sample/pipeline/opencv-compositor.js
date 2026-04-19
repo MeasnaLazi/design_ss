@@ -70,6 +70,51 @@ export async function compositeWithOpenCV(svgText, screenPath, worldMatrix, view
 }
 
 /**
+ * Same as {@link compositeWithOpenCV}, but uses caller-supplied quad corners (TL→TR→BR→BL)
+ * in viewBox space for the perspective warp instead of {@link findEnclosingQuad}.
+ *
+ * @param {string} svgText
+ * @param {SVGPathElement} screenPath
+ * @param {DOMMatrix} worldMatrix
+ * @param {{ width: number, height: number }} viewBox
+ * @param {HTMLImageElement} image
+ * @param {Array<[number,number]>} userQuad - [tl, tr, br, bl]
+ * @param {HTMLCanvasElement} outputCanvas
+ */
+export async function compositeWithUserQuad(svgText, screenPath, worldMatrix, viewBox, image, userQuad, outputCanvas) {
+  const W = Math.round(viewBox.width);
+  const H = Math.round(viewBox.height);
+
+  const d = screenPath.getAttribute('d') || '';
+  const localPts = sampleScreenPath(d);
+
+  const worldPts = localPts.map(([x, y]) => {
+    const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
+    return [Math.round(pt.x), Math.round(pt.y)];
+  });
+
+  const frameCanvas = await renderSVGFrame(svgText, W, H);
+  const { maskMat, bbox } = createScreenMask(worldPts, W, H);
+
+  const screenshotCanvas = imageToCanvas(image);
+  const screenshotMat = cv.imread(screenshotCanvas);
+
+  const quad = userQuad.map(([x, y]) => [Number(x), Number(y)]);
+
+  const result = composite(frameCanvas, screenshotMat, maskMat, quad, W, H);
+
+  outputCanvas.width = W;
+  outputCanvas.height = H;
+  cv.imshow(outputCanvas, result);
+
+  maskMat.delete();
+  screenshotMat.delete();
+  result.delete();
+
+  return { bbox, pointCount: worldPts.length };
+}
+
+/**
  * Create just the mask canvas for preview/debug purposes.
  *
  * @param {SVGPathElement} screenPath

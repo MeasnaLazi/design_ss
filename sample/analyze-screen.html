@@ -1,23 +1,134 @@
 <!DOCTYPE html>
-<html>
-<head><title>Screen Analysis</title>
-<style>
-  body { font-family: monospace; background: #111; color: #eee; padding: 2rem; }
-  pre { background: #222; padding: 1rem; border-radius: 8px; line-height: 1.6; white-space: pre-wrap; }
-  .highlight { color: #4f8; }
-  .warn { color: #f84; }
-  .cyan { color: #4df; }
-  canvas { border: 1px solid #444; margin: 1rem 0; display: block; }
-</style>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screen mask analysis &amp; render</title>
+  <link rel="stylesheet" href="index.css" />
+  <style>
+    .analyze-preview-card {
+      width: 100%;
+    }
+    .analyze-preview-card .preview-canvas-wrap {
+      width: 100%;
+      max-width: 100%;
+    }
+    .analyze-pre {
+      font-family: ui-monospace, 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      max-height: 560px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .highlight { color: #4ade80; }
+    .warn { color: #fb923c; }
+    .cyan { color: #38bdf8; }
+    #vis {
+      display: block;
+      width: 100%;
+      max-width: none;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #111;
+      touch-action: none;
+      cursor: grab;
+    }
+    #vis.dragging { cursor: grabbing; }
+    #outputCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .toolbar label.btn-like {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .toolbar input[type="file"] { display: none; }
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-  <h2>Screen Mask Analysis</h2>
-  <pre id="out">Loading iso-down-left.svg...</pre>
-  <canvas id="vis" width="700" height="600"></canvas>
+  <div id="app">
+    <header>
+      <div class="badge">Sample · analyze-screen</div>
+      <h1>Screen mask analysis</h1>
+      <p>
+        Upload an SVG with <code>id="screen"</code>, drag the blue corners in the preview, then use <strong>Screenshot &amp; render</strong>
+        at the bottom to pick an image and composite (same pipeline as <a href="index.html">Screen Renderer</a>). Replacing the screenshot or
+        rendering does <strong>not</strong> reset corners.
+      </p>
+    </header>
 
+    <section class="card">
+      <h2>SVG</h2>
+      <div class="toolbar">
+        <label class="btn-like">
+          <input type="file" id="svgInput" accept=".svg,image/svg+xml" />
+          <span class="dropzone" style="padding:10px 16px;margin:0;">Upload SVG</span>
+        </label>
+      </div>
+      <p id="fileLine" style="margin-top:0.75rem;font-size:13px;color:var(--text-muted);"></p>
+      <div id="cvStatus" style="font-size:12px;color:#fb923c;font-family:monospace;">⏳ Loading OpenCV.js…</div>
+      <div id="errLine" style="margin-top:0.5rem;color:var(--error);font-size:13px;"></div>
+    </section>
+
+    <section class="card analyze-preview-card">
+      <h2>Preview (drag blue handles)</h2>
+      <div class="preview-canvas-wrap">
+        <canvas id="vis" width="700" height="600"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Metrics</h2>
+      <pre id="out" class="analyze-pre">Upload an SVG to analyze the #screen path.</pre>
+    </section>
+
+    <section class="card" id="renderSection">
+      <h2>Screenshot &amp; render</h2>
+      <p style="margin:0 0 0.75rem;font-size:13px;color:var(--text-muted);">
+        Upload or change the screenshot here. Corner positions stay as you set them in the preview unless you load a new SVG.
+      </p>
+      <div class="toolbar">
+        <label class="btn-like">
+          <input type="file" id="imgInput" accept="image/*" />
+          <span class="dropzone" style="padding:10px 16px;margin:0;">Upload screenshot</span>
+        </label>
+        <button type="button" id="renderBtn" disabled>Render</button>
+        <a id="downloadLink" class="hidden" href="#" download="mockup.png">↓ Download PNG</a>
+      </div>
+      <p id="renderFileLine" style="margin-top:0.75rem;font-size:13px;color:var(--text-muted);"></p>
+    </section>
+
+    <section class="card hidden" id="outSection">
+      <h2>Rendered output</h2>
+      <canvas id="outputCanvas" width="400" height="400" role="img" aria-label="Composited mockup"></canvas>
+    </section>
+  </div>
+
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencvScript"></script>
   <script type="module">
     import { parseSVG } from './pipeline/svg-parser.js';
-    import { sampleScreenPath } from './pipeline/opencv-compositor.js';
+    import { sampleScreenPath, compositeWithUserQuad } from './pipeline/opencv-compositor.js';
+
+    const DEFAULT_ASPECT = 1290 / 2796;
 
     function cross(o, a, b) {
       return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -28,17 +139,13 @@
       const pts = points.slice().sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
       const lower = [];
       for (const p of pts) {
-        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
-          lower.pop();
-        }
+        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
         lower.push(p);
       }
       const upper = [];
       for (let i = pts.length - 1; i >= 0; i -= 1) {
         const p = pts[i];
-        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
-          upper.pop();
-        }
+        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
         upper.push(p);
       }
       lower.pop();
@@ -48,9 +155,7 @@
 
     function orientedMinAreaRect(points) {
       const hull = convexHull(points);
-      if (hull.length < 3) {
-        throw new Error('Not enough points to compute oriented rectangle.');
-      }
+      if (hull.length < 3) throw new Error('Not enough points to compute oriented rectangle.');
       let best = null;
       const n = hull.length;
       for (let i = 0; i < n; i += 1) {
@@ -78,36 +183,22 @@
       }
       if (!best) throw new Error('Failed to compute oriented rectangle.');
       const corner = (u, v) => [best.ux * u + best.vx * v, best.uy * u + best.vy * v];
-      const tl = corner(best.minU, best.minV);
-      const tr = corner(best.maxU, best.minV);
-      const br = corner(best.maxU, best.maxV);
-      const bl = corner(best.minU, best.maxV);
-      return [tl, tr, br, bl];
+      return [corner(best.minU, best.minV), corner(best.maxU, best.minV), corner(best.maxU, best.maxV), corner(best.minU, best.maxV)];
     }
 
     function directionalQuad(points) {
       const hull = convexHull(points);
-      if (hull.length < 4) {
-        throw new Error('Not enough hull points to compute directional quad.');
-      }
+      if (hull.length < 4) throw new Error('Not enough hull points for directional quad.');
       const pick = (dx, dy) => {
         let best = hull[0];
         let bestScore = -Infinity;
         for (const p of hull) {
           const score = p[0] * dx + p[1] * dy;
-          if (score > bestScore) {
-            bestScore = score;
-            best = p;
-          }
+          if (score > bestScore) { bestScore = score; best = p; }
         }
         return best;
       };
-      return [
-        pick(-1, -1), // TL
-        pick(1, -1),  // TR
-        pick(1, 1),   // BR
-        pick(-1, 1),  // BL
-      ];
+      return [pick(-1, -1), pick(1, -1), pick(1, 1), pick(-1, 1)];
     }
 
     function diagonalExtremeQuad(points) {
@@ -124,21 +215,14 @@
       return [tl, tr, br, bl];
     }
 
-    function dot(a, b) {
-      return a[0] * b[0] + a[1] * b[1];
-    }
-
+    function dot(a, b) { return a[0] * b[0] + a[1] * b[1]; }
     function normalize(v) {
       const len = Math.hypot(v[0], v[1]) || 1;
       return [v[0] / len, v[1] / len];
     }
-
     function centerOf(points) {
       let sx = 0, sy = 0;
-      for (const [x, y] of points) {
-        sx += x;
-        sy += y;
-      }
+      for (const [x, y] of points) { sx += x; sy += y; }
       return [sx / points.length, sy / points.length];
     }
 
@@ -154,10 +238,7 @@
           const parallel = dot(rel, dir);
           const perp = Math.abs(rel[0] * dir[1] - rel[1] * dir[0]);
           const score = parallel - perp * 0.08;
-          if (score > bestScore) {
-            bestScore = score;
-            best = p;
-          }
+          if (score > bestScore) { bestScore = score; best = p; }
         }
         return best;
       });
@@ -180,8 +261,7 @@
         const bb = Math.atan2(b[1] - c[1], b[0] - c[0]);
         return aa - bb;
       });
-      // Enforce clockwise in SVG (+Y down) coordinates.
-      return polygonArea(sorted) > 0 ? sorted : sorted.reverse();
+      return polygonArea(sorted) > 0 ? sorted : sorted.slice().reverse();
     }
 
     function rotate4(arr, n) {
@@ -190,17 +270,15 @@
 
     function avgAspectForQuad(pts) {
       const [tl, tr, br, bl] = pts;
-      const topEdge = Math.hypot(tr[0]-tl[0], tr[1]-tl[1]);
-      const bottomEdge = Math.hypot(br[0]-bl[0], br[1]-bl[1]);
-      const leftEdge = Math.hypot(bl[0]-tl[0], bl[1]-tl[1]);
-      const rightEdge = Math.hypot(br[0]-tr[0], br[1]-tr[1]);
-      const avgWidth = (topEdge + bottomEdge) / 2;
-      const avgHeight = (leftEdge + rightEdge) / 2;
-      return avgWidth / avgHeight;
+      const topEdge = Math.hypot(tr[0] - tl[0], tr[1] - tl[1]);
+      const bottomEdge = Math.hypot(br[0] - bl[0], br[1] - bl[1]);
+      const leftEdge = Math.hypot(bl[0] - tl[0], bl[1] - tl[1]);
+      const rightEdge = Math.hypot(br[0] - tr[0], br[1] - tr[1]);
+      return ((topEdge + bottomEdge) / 2) / ((leftEdge + rightEdge) / 2);
     }
 
     function normalizeQuadLabels(rawQuad, targetAspect) {
-      const cw = orderClockwise(rawQuad);
+      const cw = orderClockwise(rawQuad.slice());
       const ccw = cw.slice().reverse();
       const preferPortrait = targetAspect < 1;
       let best = cw;
@@ -210,255 +288,380 @@
           const candidate = rotate4(base, i);
           const aspect = avgAspectForQuad(candidate);
           const shapeScore = Math.abs(Math.log(Math.max(1e-6, aspect)) - Math.log(Math.max(1e-6, targetAspect)));
-
-          // Penalize orientation mismatches so portrait screenshots don't get landscape-labeled quads.
           const orientationMismatch = (preferPortrait && aspect >= 1) || (!preferPortrait && aspect < 1) ? 1 : 0;
-          // Prefer top edge above bottom edge in image space for stable TL/TR selection.
           const [tl, tr, br, bl] = candidate;
           const topY = (tl[1] + tr[1]) / 2;
           const bottomY = (bl[1] + br[1]) / 2;
           const verticalPenalty = topY > bottomY ? 0.5 : 0;
-
           const score = shapeScore + orientationMismatch * 2 + verticalPenalty;
-          if (score < bestScore) {
-            bestScore = score;
-            best = candidate;
-          }
+          if (score < bestScore) { bestScore = score; best = candidate; }
         }
       }
       return best;
     }
 
-    function expandQuadByAxes(pts, expandU, expandV) {
-      const [tl, tr, br, bl] = pts;
-      const u = normalize([tr[0] - tl[0], tr[1] - tl[1]]); // width axis
-      const v = normalize([bl[0] - tl[0], bl[1] - tl[1]]); // height axis
-      return [
-        [tl[0] - u[0] * expandU - v[0] * expandV, tl[1] - u[1] * expandU - v[1] * expandV],
-        [tr[0] + u[0] * expandU - v[0] * expandV, tr[1] + u[1] * expandU - v[1] * expandV],
-        [br[0] + u[0] * expandU + v[0] * expandV, br[1] + u[1] * expandU + v[1] * expandV],
-        [bl[0] - u[0] * expandU + v[0] * expandV, bl[1] - u[1] * expandU + v[1] * expandV],
-      ];
+    function computeRawQuad(worldPts) {
+      try {
+        return diagonalExtremeQuad(worldPts);
+      } catch {
+        try { return directionalQuad(worldPts); }
+        catch { return snapRectCornersToContour(worldPts); }
+      }
     }
 
-    (async () => {
-      const screenshotFile = 'iphone16s_setting.png';
-      const resp = await fetch('./assets/iso-down-left.svg');
-      const svgText = await resp.text();
-      const { svgElement, screenPath, worldMatrix, viewBox } = parseSVG(svgText);
+    // —— DOM & OpenCV —— //
+    const out = document.getElementById('out');
+    const canvas = document.getElementById('vis');
+    const ctx = canvas.getContext('2d');
+    const svgInput = document.getElementById('svgInput');
+    const imgInput = document.getElementById('imgInput');
+    const renderBtn = document.getElementById('renderBtn');
+    const outputCanvas = document.getElementById('outputCanvas');
+    const outSection = document.getElementById('outSection');
+    const cvStatus = document.getElementById('cvStatus');
+    const errLine = document.getElementById('errLine');
+    const fileLine = document.getElementById('fileLine');
+    const renderFileLine = document.getElementById('renderFileLine');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let _cvReady = false;
+    let svgText = null;
+    let svgName = '';
+    let screenPath = null;
+    let worldMatrix = null;
+    let viewBox = null;
+    let worldPts = [];
+    let rawQuad = null;
+    let quadPts = null;
+    let minX = 0, minY = 0, maxX = 0, maxY = 0, bboxW = 0, bboxH = 0;
+    let scale = 1, ox = 0, oy = 0;
+    let screenshot = null;
+    let screenshotName = '';
+    let screenshotW = 1290;
+    let screenshotH = 2796;
+    let dragIdx = -1;
+
+    function setErr(msg) {
+      errLine.textContent = msg || '';
+    }
+
+    function initOpenCV() {
+      function onReady() {
+        _cvReady = true;
+        cvStatus.textContent = '✓ OpenCV.js ready';
+        cvStatus.style.color = '#4ade80';
+        updateButtons();
+      }
+      if (typeof cv !== 'undefined' && cv.Mat) {
+        onReady();
+        return;
+      }
+      const check = () => {
+        if (typeof cv !== 'undefined') {
+          if (cv.Mat) {
+            onReady();
+          } else {
+            cv['onRuntimeInitialized'] = () => onReady();
+          }
+        } else {
+          setTimeout(check, 200);
+        }
+      };
+      check();
+    }
+    initOpenCV();
+
+    function updateButtons() {
+      const canRender = _cvReady && svgText && screenPath && screenshot && quadPts;
+      renderBtn.disabled = !canRender;
+    }
+
+    function targetAspect() {
+      return screenshot ? screenshotW / screenshotH : DEFAULT_ASPECT;
+    }
+
+    function applyQuadFromRaw() {
+      if (!rawQuad) return;
+      quadPts = normalizeQuadLabels(rawQuad, targetAspect()).map((p) => [p[0], p[1]]);
+    }
+
+    function loadSvgFromText(text, name) {
+      setErr('');
+      svgText = text;
+      svgName = name || 'mockup.svg';
+      const parsed = parseSVG(text);
+      screenPath = parsed.screenPath;
+      worldMatrix = parsed.worldMatrix;
+      viewBox = parsed.viewBox;
 
       const d = screenPath.getAttribute('d') || '';
       const localPts = sampleScreenPath(d);
-
-      const worldPts = localPts.map(([x, y]) => {
+      worldPts = localPts.map(([x, y]) => {
         const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
         return [pt.x, pt.y];
       });
 
-      // === Bounding box ===
-      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-      for (const [x,y] of worldPts) {
-        minX=Math.min(minX,x); minY=Math.min(minY,y);
-        maxX=Math.max(maxX,x); maxY=Math.max(maxY,y);
-      }
-      const bboxW = maxX - minX, bboxH = maxY - minY;
-
-      // === Find screen quad from diagonal extremes (best match for this isometric shape) ===
-      let tl, tr, br, bl;
-      try {
-        [tl, tr, br, bl] = diagonalExtremeQuad(worldPts);
-      } catch (quadErr) {
-        console.warn('[analyze-screen] diagonal quad failed, using fallback:', quadErr);
-        try {
-          [tl, tr, br, bl] = directionalQuad(worldPts);
-        } catch {
-          [tl, tr, br, bl] = snapRectCornersToContour(worldPts);
-        }
+      if (worldPts.length < 3) {
+        setErr('Not enough samples from #screen path.');
+        return;
       }
 
-      // Load screenshot to report real dimensions/aspect for current asset.
-      const screenshot = new Image();
-      screenshot.src = `./assets/${screenshotFile}`;
-      await screenshot.decode();
-      const screenshotW = screenshot.naturalWidth;
-      const screenshotH = screenshot.naturalHeight;
-      const screenshotAspect = screenshotW / screenshotH;
-      // Rounded screen masks need a slightly larger quad than the tight contour fit.
-      // This avoids clipping near corners when represented by a 4-point plane.
-      const AUTO_EXPAND_U_PX = 0;
-      const AUTO_EXPAND_V_PX = 0;
-      const HARDCODED_QUAD = {
-        TL: [10.4, 121.29],
-        TR: [586.79, -13.89],
-        BR: [1316.21, 1271.52],
-        BL: [739.82, 1450.05],
+      minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+      for (const [x, y] of worldPts) {
+        minX = Math.min(minX, x); minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+      bboxW = maxX - minX;
+      bboxH = maxY - minY;
+
+      rawQuad = computeRawQuad(worldPts);
+      applyQuadFromRaw();
+
+      scale = Math.min(660 / bboxW, 560 / bboxH);
+      ox = 20 - minX * scale;
+      oy = 20 - minY * scale;
+
+      fileLine.textContent = `SVG: ${svgName} · ViewBox ${viewBox.width}×${viewBox.height}`;
+      draw();
+      updateButtons();
+    }
+
+    svgInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      file.text().then((t) => loadSvgFromText(t, file.name)).catch((err) => setErr(String(err)));
+    });
+
+    imgInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      screenshotName = file.name;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        screenshot = img;
+        screenshotW = img.naturalWidth;
+        screenshotH = img.naturalHeight;
+        renderFileLine.textContent = `Screenshot: ${screenshotName} · ${screenshotW}×${screenshotH}px`;
+        draw();
+        updateButtons();
       };
-      let quadPts = [
-        HARDCODED_QUAD.TL,
-        HARDCODED_QUAD.TR,
-        HARDCODED_QUAD.BR,
-        HARDCODED_QUAD.BL,
-      ];
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        setErr('Failed to decode image.');
+        screenshot = null;
+        renderFileLine.textContent = '';
+        updateButtons();
+      };
+      img.src = url;
+    });
 
-      function calcMetrics(pts) {
-        const [qtl, qtr, qbr, qbl] = pts;
-        const topEdge = Math.hypot(qtr[0]-qtl[0], qtr[1]-qtl[1]);
-        const bottomEdge = Math.hypot(qbr[0]-qbl[0], qbr[1]-qbl[1]);
-        const leftEdge = Math.hypot(qbl[0]-qtl[0], qbl[1]-qtl[1]);
-        const rightEdge = Math.hypot(qbr[0]-qtr[0], qbr[1]-qtr[1]);
-        const avgWidth = (topEdge + bottomEdge) / 2;
-        const avgHeight = (leftEdge + rightEdge) / 2;
-        const trueAspect = avgWidth / avgHeight;
-        const tiltAngle = Math.atan2(qtr[1]-qtl[1], qtr[0]-qtl[0]) * 180 / Math.PI;
-        const aspectDelta = Math.abs(screenshotAspect - trueAspect);
-        return { topEdge, bottomEdge, leftEdge, rightEdge, avgWidth, avgHeight, trueAspect, tiltAngle, aspectDelta };
-      }
+    function calcMetrics(pts) {
+      const [qtl, qtr, qbr, qbl] = pts;
+      const topEdge = Math.hypot(qtr[0] - qtl[0], qtr[1] - qtl[1]);
+      const bottomEdge = Math.hypot(qbr[0] - qbl[0], qbr[1] - qbl[1]);
+      const leftEdge = Math.hypot(qbl[0] - qtl[0], qbl[1] - qtl[1]);
+      const rightEdge = Math.hypot(qbr[0] - qtr[0], qbr[1] - qtr[1]);
+      const avgWidth = (topEdge + bottomEdge) / 2;
+      const avgHeight = (leftEdge + rightEdge) / 2;
+      const trueAspect = avgWidth / avgHeight;
+      const tiltAngle = Math.atan2(qtr[1] - qtl[1], qtr[0] - qtl[0]) * 180 / Math.PI;
+      const shotAspect = screenshotW / screenshotH;
+      const aspectDelta = Math.abs(shotAspect - trueAspect);
+      return { topEdge, bottomEdge, leftEdge, rightEdge, avgWidth, avgHeight, trueAspect, tiltAngle, aspectDelta, shotAspect };
+    }
 
-      const labels = ['TL','TR','BR','BL'];
+    const labels = ['TL', 'TR', 'BR', 'BL'];
 
-      const out = document.getElementById('out');
-      function renderText(pts, m) {
-        const [qtl, qtr, qbr, qbl] = pts;
-        out.innerHTML = `
+    function renderText(pts, m) {
+      const [qtl, qtr, qbr, qbl] = pts;
+      const shotLabel = screenshot ? screenshotName : '(upload a screenshot — using placeholder aspect for labels)';
+      out.innerHTML = `
 <span class="highlight">═══ SVG ViewBox ═══</span>
   ${viewBox.width} × ${viewBox.height}
 
-<span class="warn">═══ Bounding Box (MISLEADING for isometric!) ═══</span>
+<span class="warn">═══ Bounding Box (misleading for isometric) ═══</span>
   width: ${bboxW.toFixed(1)}  height: ${bboxH.toFixed(1)}
-  Aspect: ${(bboxW/bboxH).toFixed(3)}  ← this is wrong for tilted screens
+  Aspect: ${(bboxW / bboxH).toFixed(3)}
 
-<span class="cyan">═══ Screen Quad (normalized + expanded) ═══</span>
-  mode: hardcoded
+<span class="cyan">═══ Screen quad (auto + normalized to shot aspect) ═══</span>
   TL: (${qtl[0].toFixed(1)}, ${qtl[1].toFixed(1)})
   TR: (${qtr[0].toFixed(1)}, ${qtr[1].toFixed(1)})
   BR: (${qbr[0].toFixed(1)}, ${qbr[1].toFixed(1)})
   BL: (${qbl[0].toFixed(1)}, ${qbl[1].toFixed(1)})
 
-<span class="highlight">═══ TRUE Screen Dimensions (along screen edges) ═══</span>
-  Top edge    (TL→TR): ${m.topEdge.toFixed(1)}px
-  Bottom edge (BL→BR): ${m.bottomEdge.toFixed(1)}px
-  Left edge   (TL→BL): ${m.leftEdge.toFixed(1)}px
-  Right edge  (TR→BR): ${m.rightEdge.toFixed(1)}px
+<span class="highlight">═══ TRUE screen dimensions (along edges) ═══</span>
+  Top: ${m.topEdge.toFixed(1)}px  Bottom: ${m.bottomEdge.toFixed(1)}px
+  Left: ${m.leftEdge.toFixed(1)}px  Right: ${m.rightEdge.toFixed(1)}px
+  Average width: ${m.avgWidth.toFixed(1)}px · height: ${m.avgHeight.toFixed(1)}px
+  TRUE aspect: ${m.trueAspect.toFixed(3)} · tilt: ${m.tiltAngle.toFixed(1)}°
 
-  <span class="highlight">Average width:  ${m.avgWidth.toFixed(1)}px</span>
-  <span class="highlight">Average height: ${m.avgHeight.toFixed(1)}px</span>
-  <span class="highlight">TRUE aspect ratio: ${m.trueAspect.toFixed(3)}</span>
-  Screen tilt angle: ${m.tiltAngle.toFixed(1)}°
+<span class="highlight">═══ Screenshot ═══</span>
+  ${shotLabel}
+  ${screenshot ? `${screenshotW} × ${screenshotH} (aspect ${m.shotAspect.toFixed(3)})` : `placeholder aspect ${DEFAULT_ASPECT.toFixed(3)} for corner labels`}
+  ${screenshot ? (m.aspectDelta < 0.1 ? '✓ Good aspect match' : '⚠ Mismatch vs screen ' + m.trueAspect.toFixed(3)) : ''}
 
-<span class="highlight">═══ Recommended Screenshot Size ═══</span>
-  Aspect ratio should be ≈ <span class="highlight">${m.trueAspect.toFixed(2)}</span>
-  Suggested: <span class="highlight">${Math.round(m.avgWidth)} × ${Math.round(m.avgHeight)}</span>
-  Or scaled: <span class="highlight">${Math.round(m.avgWidth*2)} × ${Math.round(m.avgHeight*2)}</span>
-
-<span class="warn">═══ Your current ${screenshotFile} ═══</span>
-  ${screenshotW} × ${screenshotH} (aspect ${screenshotAspect.toFixed(3)})
-  ${m.aspectDelta < 0.1 ? '✓ Good match!' : '⚠ Aspect ratio mismatch: ' + screenshotAspect.toFixed(3) + ' vs screen ' + m.trueAspect.toFixed(3)}
-
-<span class="highlight">═══ Common Device Screenshots ═══</span>
-  iPhone 14 Pro Max:  1290 × 2796  (${(1290/2796).toFixed(3)})
-  iPhone 14 Pro:      1179 × 2556  (${(1179/2556).toFixed(3)})
-  iPhone 14:          1170 × 2532  (${(1170/2532).toFixed(3)})
-  iPad Pro 11":       1668 × 2388  (${(1668/2388).toFixed(3)})
-  Pixel 7:            1080 × 2400  (${(1080/2400).toFixed(3)})
-
-<span class="cyan">═══ Manual Quad (copy this back) ═══</span>
-  expand_u_px: ${AUTO_EXPAND_U_PX}
-  expand_v_px: ${AUTO_EXPAND_V_PX}
-  ${JSON.stringify({
-    TL: [Number(qtl[0].toFixed(2)), Number(qtl[1].toFixed(2))],
-    TR: [Number(qtr[0].toFixed(2)), Number(qtr[1].toFixed(2))],
-    BR: [Number(qbr[0].toFixed(2)), Number(qbr[1].toFixed(2))],
-    BL: [Number(qbl[0].toFixed(2)), Number(qbl[1].toFixed(2))]
-  }, null, 2)}
+<span class="cyan">═══ Quad JSON ═══</span>
+${JSON.stringify({
+  TL: [Number(qtl[0].toFixed(2)), Number(qtl[1].toFixed(2))],
+  TR: [Number(qtr[0].toFixed(2)), Number(qtr[1].toFixed(2))],
+  BR: [Number(qbr[0].toFixed(2)), Number(qbr[1].toFixed(2))],
+  BL: [Number(qbl[0].toFixed(2)), Number(qbl[1].toFixed(2))],
+}, null, 2)}
 `;
+    }
+
+    const toCanvas = ([x, y]) => [x * scale + ox, y * scale + oy];
+    const toWorld = (cx, cy) => [(cx - ox) / scale, (cy - oy) / scale];
+
+    /** Map pointer to canvas bitmap coords (handles CSS scaling of the canvas element). */
+    function pointerToCanvasPx(e) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width / rect.width;
+      const sy = canvas.height / rect.height;
+      return [(e.clientX - rect.left) * sx, (e.clientY - rect.top) * sy];
+    }
+
+    function draw() {
+      if (!quadPts || !worldPts.length) return;
+      const m = calcMetrics(quadPts);
+      renderText(quadPts, m);
+
+      ctx.fillStyle = '#181818';
+      ctx.fillRect(0, 0, 700, 600);
+
+      ctx.beginPath();
+      for (let i = 0; i < worldPts.length; i += 1) {
+        const [px, py] = toCanvas(worldPts[i]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(68,255,136,0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#4f8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-      // === Draw visualization ===
-      const canvas = document.getElementById('vis');
-      canvas.width = 700; canvas.height = 600;
-      const ctx = canvas.getContext('2d');
-      const scale = Math.min(660/bboxW, 560/bboxH);
-      const ox = 20 - minX*scale, oy = 20 - minY*scale;
+      ctx.strokeStyle = '#f44';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(minX * scale + ox, minY * scale + oy, bboxW * scale, bboxH * scale);
+      ctx.setLineDash([]);
 
-      const toCanvas = ([x, y]) => [x * scale + ox, y * scale + oy];
-      const toWorld = (cx, cy) => [(cx - ox) / scale, (cy - oy) / scale];
+      ctx.beginPath();
+      for (let i = 0; i < 4; i += 1) {
+        const [px, py] = toCanvas(quadPts[i]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = '#4df';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-      function draw() {
-        const m = calcMetrics(quadPts);
-        renderText(quadPts, m);
-
-        ctx.fillStyle = '#181818';
-        ctx.fillRect(0, 0, 700, 600);
-
+      ctx.font = 'bold 13px ui-monospace, monospace';
+      for (let i = 0; i < 4; i += 1) {
+        const [px, py] = toCanvas(quadPts[i]);
+        ctx.fillStyle = '#4df';
         ctx.beginPath();
-        for (let i = 0; i < worldPts.length; i++) {
-          const [px, py] = toCanvas(worldPts[i]);
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(68,255,136,0.15)';
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#4f8';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.strokeStyle = '#f44';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5,5]);
-        ctx.strokeRect(minX*scale+ox, minY*scale+oy, bboxW*scale, bboxH*scale);
-        ctx.setLineDash([]);
-
-        ctx.beginPath();
-        for (let i = 0; i < 4; i++) {
-          const [px, py] = toCanvas(quadPts[i]);
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.strokeStyle = '#4df';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.font = 'bold 14px monospace';
-        for (let i = 0; i < 4; i++) {
-          const [px, py] = toCanvas(quadPts[i]);
-          ctx.fillStyle = '#4df';
-          ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.fillText(labels[i], px + 10, py + 5);
-        }
-
-        ctx.font = '12px monospace';
-        ctx.fillStyle = '#f44'; ctx.fillText('▬ BBox (misleading)', 10, canvas.height-56);
-        ctx.fillStyle = '#4f8'; ctx.fillText('▬ Mask shape (actual screen)', 10, canvas.height-40);
-        ctx.fillStyle = '#4df'; ctx.fillText('▬ Draggable screen quad', 10, canvas.height-24);
-        ctx.fillStyle = '#aaa'; ctx.fillText('Drag blue points to correct corners', 10, canvas.height-8);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(labels[i], px + 10, py + 5);
       }
 
-      let dragIdx = -1;
-      canvas.addEventListener('mousedown', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        for (let i = 0; i < 4; i++) {
-          const [px, py] = toCanvas(quadPts[i]);
-          if (Math.hypot(mx - px, my - py) <= 12) {
-            dragIdx = i;
-            break;
-          }
-        }
-      });
-      window.addEventListener('mouseup', () => { dragIdx = -1; });
-      canvas.addEventListener('mousemove', (e) => {
-        if (dragIdx < 0) return;
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        quadPts[dragIdx] = toWorld(mx, my);
-        draw();
-      });
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.fillStyle = '#f44';
+      ctx.fillText('▬ BBox', 10, canvas.height - 52);
+      ctx.fillStyle = '#4f8';
+      ctx.fillText('▬ Mask', 10, canvas.height - 36);
+      ctx.fillStyle = '#4df';
+      ctx.fillText('▬ Quad', 10, canvas.height - 20);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Drag corners · then Render', 10, canvas.height - 4);
+    }
 
+    const HANDLE_RADIUS = 14;
+
+    function endDrag(e) {
+      if (dragIdx >= 0 && e?.pointerId != null) {
+        try {
+          canvas.releasePointerCapture(e.pointerId);
+        } catch (_) { /* noop */ }
+      }
+      dragIdx = -1;
+      canvas.classList.remove('dragging');
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!quadPts || e.button !== 0) return;
+      const [mx, my] = pointerToCanvasPx(e);
+      for (let i = 0; i < 4; i += 1) {
+        const [px, py] = toCanvas(quadPts[i]);
+        if (Math.hypot(mx - px, my - py) <= HANDLE_RADIUS) {
+          dragIdx = i;
+          canvas.classList.add('dragging');
+          canvas.setPointerCapture(e.pointerId);
+          e.preventDefault();
+          break;
+        }
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (dragIdx < 0 || !quadPts) return;
+      const [mx, my] = pointerToCanvasPx(e);
+      quadPts[dragIdx] = toWorld(mx, my);
       draw();
-    })();
+      e.preventDefault();
+    });
+
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('lostpointercapture', () => {
+      dragIdx = -1;
+      canvas.classList.remove('dragging');
+    });
+
+    /** Copy TL→TR→BR→BL corners for render (snapshot at click = latest after any drags). */
+    function snapshotQuad(pts) {
+      return pts.map((p) => [Number(p[0]), Number(p[1])]);
+    }
+
+    renderBtn.addEventListener('click', async () => {
+      setErr('');
+      if (!_cvReady || !svgText || !screenPath || !screenshot || !quadPts || !viewBox) {
+        setErr('Need OpenCV, SVG, screenshot, and quad.');
+        return;
+      }
+      try {
+        renderBtn.disabled = true;
+        const cornersForRender = snapshotQuad(quadPts);
+        await compositeWithUserQuad(
+          svgText,
+          screenPath,
+          worldMatrix,
+          viewBox,
+          screenshot,
+          cornersForRender,
+          outputCanvas,
+        );
+        outputCanvas.style.width = `${viewBox.width}px`;
+        outputCanvas.style.height = `${viewBox.height}px`;
+        outSection.classList.remove('hidden');
+        const dataUrl = outputCanvas.toDataURL('image/png');
+        downloadLink.href = dataUrl;
+        downloadLink.classList.remove('hidden');
+      } catch (err) {
+        console.error(err);
+        setErr(err?.message || String(err));
+      } finally {
+        updateButtons();
+      }
+    });
+
   </script>
 </body>
 </html>
