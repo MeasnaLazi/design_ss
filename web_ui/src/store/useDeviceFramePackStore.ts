@@ -3,12 +3,10 @@ import { create } from 'zustand'
 import { setScreenQuadConfigCache } from '../canvas/loadScreenRegion'
 import {
   type CatalogDevice,
-  type DeviceFrameStyle,
   type DeviceFrameType,
   DEVICE_FRAME_TYPES,
   loadDeviceCatalog,
   mergeQuadRowsFromDevices,
-  stylesFromManifest,
 } from '../lib/deviceFrameCatalog'
 
 export type DeviceFrameRegistryStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -63,11 +61,6 @@ function pickDefaultForCatalog(devices: CatalogDevice[]): Pick<
     selectedPackId: any.id,
     selectedFrameName: any.manifest.frames[0]?.name ?? 'front',
   }
-}
-
-function activeDevice(devices: CatalogDevice[], packId: string | null): CatalogDevice | null {
-  if (!packId) return null
-  return devices.find((d) => d.id === packId) ?? null
 }
 
 /** Dedupes overlapping `loadRegistry` calls (e.g. React StrictMode double mount). */
@@ -144,9 +137,3 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
     set({ selectedFrameName: name })
   },
 }))
-
-export function selectActivePackStyles(state: State & Actions): DeviceFrameStyle[] {
-  const dev = activeDevice(state.devices, state.selectedPackId)
-  if (!dev) return []
-  return stylesFromManifest(dev.manifest)
-}

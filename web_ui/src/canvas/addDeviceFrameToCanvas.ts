@@ -2,7 +2,8 @@ import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fab
 import { getArtboardDimensionsFromConfig, getArtboardPreset } from '../constants/artboardPresets'
 import { deviceFrameTargetWidth } from '../constants/deviceFrame'
 import { DEFAULT_DEVICE_FRAME_STYLE_ID, getDeviceFrameStyle } from '../constants/deviceFrameStyles'
-import { selectActivePackStyles, useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
+import { activePackStyles } from '../lib/deviceFrameCatalog'
+import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import {
   fetchPlaceholderAsFile,
   placeholderFilenameForPreset,
@@ -28,7 +29,7 @@ export async function addDeviceFrameToCanvas(
     console.warn('[addDeviceFrameToCanvas] device registry not ready or no pack selected')
     return
   }
-  const styles = selectActivePackStyles(packState)
+  const styles = activePackStyles(packState.devices, packState.selectedPackId)
   const style = getDeviceFrameStyle(styleId, styles)
   const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
   const frame = await FabricImage.fromURL(

@@ -64,14 +64,20 @@ export function stylesFromManifest(m: DeviceFrameManifest): DeviceFrameStyle[] {
   }))
 }
 
-export function normalizeDeviceFrameType(raw: string | undefined): DeviceFrameType {
+export function activePackStyles(devices: CatalogDevice[], packId: string | null): DeviceFrameStyle[] {
+  if (!packId) return []
+  const dev = devices.find((d) => d.id === packId)
+  return dev ? stylesFromManifest(dev.manifest) : []
+}
+
+function normalizeDeviceFrameType(raw: string | undefined): DeviceFrameType {
   const t = (raw ?? '').toLowerCase()
   if ((DEVICE_FRAME_TYPES as readonly string[]).includes(t)) return t as DeviceFrameType
   return 'phone'
 }
 
 /** Derive pack folder id from `/device-frames/<pack>/frame.json`. */
-export function packIdFromManifestUrl(manifestUrl: string): string {
+function packIdFromManifestUrl(manifestUrl: string): string {
   try {
     const u = new URL(manifestUrl, 'http://localhost')
     const parts = u.pathname.replace(/^\/+|\/+$/g, '').split('/')
@@ -85,7 +91,7 @@ export function packIdFromManifestUrl(manifestUrl: string): string {
   return cleaned.length >= 2 ? cleaned[1] : 'device'
 }
 
-export function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQuadConfigEntry[] {
+function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQuadConfigEntry[] {
   return frames.map((f) => ({
     name: f.name,
     framePath: normalizeAssetPath(f.framePath),
@@ -104,11 +110,11 @@ export function mergeQuadRowsFromDevices(devices: CatalogDevice[]): ScreenQuadCo
   return out
 }
 
-export type DeviceFrameIndexFile = {
+type DeviceFrameIndexFile = {
   manifests?: string[]
 }
 
-export async function fetchDeviceFrameIndex(): Promise<string[]> {
+async function fetchDeviceFrameIndex(): Promise<string[]> {
   const res = await fetch(INDEX_URL)
   if (!res.ok) throw new Error(`[deviceFrameCatalog] ${INDEX_URL} (${res.status})`)
   const json = (await res.json()) as DeviceFrameIndexFile
@@ -116,7 +122,7 @@ export async function fetchDeviceFrameIndex(): Promise<string[]> {
   return list.filter((u): u is string => typeof u === 'string' && u.length > 0)
 }
 
-export async function fetchDeviceManifest(manifestUrl: string): Promise<DeviceFrameManifest> {
+async function fetchDeviceManifest(manifestUrl: string): Promise<DeviceFrameManifest> {
   const res = await fetch(manifestUrl)
   if (!res.ok) throw new Error(`[deviceFrameCatalog] ${manifestUrl} (${res.status})`)
   const json = (await res.json()) as Record<string, unknown>

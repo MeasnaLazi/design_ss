@@ -74,7 +74,7 @@ function normalizeFramePath(svgUrl: string): string {
   }
 }
 
-async function loadScreenQuadConfig(): Promise<ScreenQuadConfigEntry[]> {
+function getScreenQuadConfigRows(): ScreenQuadConfigEntry[] {
   return screenQuadConfigCache
 }
 
@@ -149,7 +149,7 @@ export async function loadScreenQuad(svgUrl: string): Promise<ScreenQuad> {
   if (cached) return cached
 
   const normalizedPath = normalizeFramePath(svgUrl)
-  const configRows = await loadScreenQuadConfig()
+  const configRows = getScreenQuadConfigRows()
   const configMatch = configRows.find((row) => normalizeFramePath(row.framePath) === normalizedPath)
 
   const text = await fetch(svgUrl).then((r) => {

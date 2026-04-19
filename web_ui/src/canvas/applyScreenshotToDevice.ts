@@ -173,12 +173,12 @@ export async function applyScreenshotToDeviceGroup(
   }
 
   const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
-  const pack = useDeviceFramePackStore.getState()
+  const frameRegistry = useDeviceFramePackStore.getState()
   const style = resolveDeviceFrameStyle(
     existing?.deviceFramePackId,
     existing?.deviceFrameStyleId,
-    pack.devices,
-    pack.selectedPackId ?? undefined,
+    frameRegistry.devices,
+    frameRegistry.selectedPackId ?? undefined,
   )
 
   const fw = frame.getScaledWidth()
