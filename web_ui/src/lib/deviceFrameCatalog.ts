@@ -1,5 +1,8 @@
 import type { ScreenQuadConfigEntry } from '../canvas/loadScreenRegion'
 
+/** Used when the registry is empty or a style cannot be resolved (matches default pack `front.svg`). */
+export const DEVICE_FRAME_FALLBACK_SRC = '/device-frames/iphone_12_pro/frame/front.svg' as const
+
 export const DEVICE_FRAME_TYPES = ['iphone', 'ipad', 'phone', 'tablet'] as const
 export type DeviceFrameType = (typeof DEVICE_FRAME_TYPES)[number]
 
@@ -102,14 +105,6 @@ function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQua
   }))
 }
 
-export function mergeQuadRowsFromDevices(devices: CatalogDevice[]): ScreenQuadConfigEntry[] {
-  const out: ScreenQuadConfigEntry[] = []
-  for (const d of devices) {
-    out.push(...manifestFramesToQuadRows(d.manifest.frames))
-  }
-  return out
-}
-
 type DeviceFrameIndexFile = {
   manifests?: string[]
 }
@@ -142,7 +137,11 @@ async function fetchDeviceManifest(manifestUrl: string): Promise<DeviceFrameMani
   }
 }
 
-export async function loadDeviceCatalog(): Promise<CatalogDevice[]> {
+/** Loads all manifests from `index.json` plus merged quad rows for the screen-region loader cache. */
+export async function loadDeviceFrameRegistry(): Promise<{
+  devices: CatalogDevice[]
+  quadConfigRows: ScreenQuadConfigEntry[]
+}> {
   const urls = await fetchDeviceFrameIndex()
   const devices: CatalogDevice[] = []
   for (const url of urls) {
@@ -153,13 +152,14 @@ export async function loadDeviceCatalog(): Promise<CatalogDevice[]> {
       manifest,
     })
   }
-  return devices
+  const quadConfigRows = devices.flatMap((d) => manifestFramesToQuadRows(d.manifest.frames))
+  return { devices, quadConfigRows }
 }
 
 const FALLBACK_STYLE: DeviceFrameStyle = {
   id: 'front',
   label: 'Front',
-  src: '/device-frames/iphone_12_pro/frame/front.svg',
+  src: DEVICE_FRAME_FALLBACK_SRC,
 }
 
 export function resolveDeviceFrameStyle(

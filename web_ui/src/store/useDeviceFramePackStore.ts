@@ -5,11 +5,10 @@ import {
   type CatalogDevice,
   type DeviceFrameType,
   DEVICE_FRAME_TYPES,
-  loadDeviceCatalog,
-  mergeQuadRowsFromDevices,
+  loadDeviceFrameRegistry,
 } from '../lib/deviceFrameCatalog'
 
-export type DeviceFrameRegistryStatus = 'idle' | 'loading' | 'ready' | 'error'
+type DeviceFrameRegistryStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 type State = {
   status: DeviceFrameRegistryStatus
@@ -81,9 +80,8 @@ export const useDeviceFramePackStore = create<State & Actions>((set, get) => ({
       registryLoadInflight = (async () => {
         set({ status: 'loading', errorMessage: null })
         try {
-          const nextDevices = await loadDeviceCatalog()
-          const merged = mergeQuadRowsFromDevices(nextDevices)
-          setScreenQuadConfigCache(merged)
+          const { devices: nextDevices, quadConfigRows } = await loadDeviceFrameRegistry()
+          setScreenQuadConfigCache(quadConfigRows)
           const defaults = pickDefaultForCatalog(nextDevices)
           set({
             devices: nextDevices,

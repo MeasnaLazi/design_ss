@@ -1,4 +1,4 @@
-import type { DeviceFrameStyle } from '../lib/deviceFrameCatalog'
+import { DEVICE_FRAME_FALLBACK_SRC, type DeviceFrameStyle } from '../lib/deviceFrameCatalog'
 
 export const DEFAULT_DEVICE_FRAME_STYLE_ID = 'front'
 
@@ -7,7 +7,7 @@ export function getDeviceFrameStyle(id: string | undefined, styles: DeviceFrameS
     return {
       id: DEFAULT_DEVICE_FRAME_STYLE_ID,
       label: 'Front',
-      src: '/device-frames/iphone_12_pro/frame/front.svg',
+      src: DEVICE_FRAME_FALLBACK_SRC,
     }
   }
   const found = styles.find((s) => s.id === id)
