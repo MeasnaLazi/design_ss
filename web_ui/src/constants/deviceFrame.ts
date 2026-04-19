@@ -1,31 +1,4 @@
 /**
- * Metrics for the front-facing frame SVG (see {@link DEVICE_FRAME_FRONT}).
- */
-export type DeviceFrameMetrics = {
-  viewW: number
-  viewH: number
-  screenX: number
-  screenY: number
-  screenW: number
-  screenH: number
-  cornerRadius: number
-}
-
-/**
- * `public/device-frames/iphone_12_pro/frame/front.svg`: viewBox 772×1571. Metrics scaled from the prior 428×868 frame
- * so clip / cover math matches the same bezel proportions at the new resolution.
- */
-export const DEVICE_FRAME_FRONT: DeviceFrameMetrics = {
-  viewW: 772,
-  viewH: 1571,
-  screenX: 23.81915,
-  screenY: -17.88707,
-  screenW: 722.8226,
-  screenH: 1569.05117,
-  cornerRadius: 97.02882,
-}
-
-/**
  * 4-corner definition of a non-rectangular screen face (parallelogram or trapezoid).
  * All coordinates are in SVG viewBox units.
  */

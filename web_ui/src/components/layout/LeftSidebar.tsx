@@ -35,7 +35,7 @@ import {
   ASSET_DRAG_KIND_TEXT,
   ASSET_DRAG_MIME,
 } from '../../constants/assetDrag'
-import { DEVICE_FRAME_TYPES, stylesFromManifest, type DeviceFrameType } from '../../lib/deviceFrameCatalog'
+import { activePackStyles, DEVICE_FRAME_TYPES, type DeviceFrameType } from '../../lib/deviceFrameCatalog'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
 import { useDesignStore } from '../../store/useDesignStore'
@@ -78,10 +78,10 @@ export function LeftSidebar() {
     [devices, selectedDeviceType],
   )
 
-  const packStyles = useMemo(() => {
-    const dev = devices.find((d) => d.id === selectedPackId)
-    return dev ? stylesFromManifest(dev.manifest) : []
-  }, [devices, selectedPackId])
+  const packStyles = useMemo(
+    () => activePackStyles(devices, selectedPackId),
+    [devices, selectedPackId],
+  )
 
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
 

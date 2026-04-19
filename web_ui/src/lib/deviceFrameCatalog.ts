@@ -3,7 +3,7 @@ import type { ScreenQuadConfigEntry } from '../canvas/loadScreenRegion'
 export const DEVICE_FRAME_TYPES = ['iphone', 'ipad', 'phone', 'tablet'] as const
 export type DeviceFrameType = (typeof DEVICE_FRAME_TYPES)[number]
 
-export type DeviceFrameManifestFrame = {
+type DeviceFrameManifestFrame = {
   name: string
   framePath: string
   homography?: boolean
@@ -22,7 +22,7 @@ export type DeviceFrameManifestFrame = {
   }
 }
 
-export type DeviceFrameManifest = {
+type DeviceFrameManifest = {
   type: DeviceFrameType
   name: string
   frames: DeviceFrameManifestFrame[]
@@ -43,7 +43,7 @@ export type CatalogDevice = {
 
 const INDEX_URL = '/device-frames/index.json'
 
-export function frameNameToLabel(name: string): string {
+function frameNameToLabel(name: string): string {
   return name
     .split(/[-_]+/)
     .filter(Boolean)
@@ -56,7 +56,7 @@ function normalizeAssetPath(p: string): string {
   return p.startsWith('/') ? p : `/${p}`
 }
 
-export function stylesFromManifest(m: DeviceFrameManifest): DeviceFrameStyle[] {
+function stylesFromManifest(m: DeviceFrameManifest): DeviceFrameStyle[] {
   return m.frames.map((f) => ({
     id: f.name,
     label: frameNameToLabel(f.name),

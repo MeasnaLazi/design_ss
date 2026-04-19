@@ -1,8 +1,5 @@
 import type { DeviceFrameStyle } from '../lib/deviceFrameCatalog'
 
-/** Preset id: matches `frames[].name` in each device `frame.json`. */
-export type DeviceFrameStyleId = string
-
 export const DEFAULT_DEVICE_FRAME_STYLE_ID = 'front'
 
 export function getDeviceFrameStyle(id: string | undefined, styles: DeviceFrameStyle[]): DeviceFrameStyle {
