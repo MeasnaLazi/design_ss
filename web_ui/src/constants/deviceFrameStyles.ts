@@ -1,42 +1,42 @@
 /**
- * Seven perspective presets (SVG under `public/device-frames/`).
+ * Seven perspective presets (SVG under `public/device-frames/iphone_12_pro/frame/`).
  * Order matches the reference grid: top row L→R, then next rows.
  */
 export const DEVICE_FRAME_STYLES = [
   {
     id: 'iso-down-right',
     label: 'Iso down-right',
-    src: '/device-frames/iso-down-right.svg',
+    src: '/device-frames/iphone_12_pro/frame/iso-down-right.svg',
   },
   {
     id: 'perspective-right',
     label: 'Angled right',
-    src: '/device-frames/perspective-right.svg',
+    src: '/device-frames/iphone_12_pro/frame/perspective-right.svg',
   },
   {
     id: 'perspective-left',
     label: 'Angled left',
-    src: '/device-frames/perspective-left.svg',
+    src: '/device-frames/iphone_12_pro/frame/perspective-left.svg',
   },
   {
     id: 'front',
     label: 'Front',
-    src: '/device-frames/front.svg',
+    src: '/device-frames/iphone_12_pro/frame/front.svg',
   },
   {
     id: 'iso-up-right',
     label: 'Iso up-right',
-    src: '/device-frames/iso-up-right.svg',
+    src: '/device-frames/iphone_12_pro/frame/iso-up-right.svg',
   },
   {
     id: 'iso-down-left',
     label: 'Iso down-left',
-    src: '/device-frames/iso-down-left.svg',
+    src: '/device-frames/iphone_12_pro/frame/iso-down-left.svg',
   },
   {
     id: 'iso-up-left',
     label: 'Iso up-left',
-    src: '/device-frames/iso-up-left.svg',
+    src: '/device-frames/iphone_12_pro/frame/iso-up-left.svg',
   },
 ] as const
 

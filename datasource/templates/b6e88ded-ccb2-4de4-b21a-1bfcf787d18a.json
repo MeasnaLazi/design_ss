@@ -320,7 +320,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:4713/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -529,7 +529,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:4713/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -792,7 +792,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:4713/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -1055,7 +1055,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:4713/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }
@@ -1426,7 +1426,7 @@
             "globalCompositeOperation": "source-over",
             "skewX": 0,
             "skewY": 0,
-            "src": "http://localhost:4713/device-frames/front.svg",
+            "src": "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
             "crossOrigin": "anonymous",
             "filters": []
           }

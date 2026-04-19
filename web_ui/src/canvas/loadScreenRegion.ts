@@ -28,7 +28,7 @@ export type ScreenRegion = {
 
 const cache = new Map<string, ScreenRegion>()
 const quadCache = new Map<string, ScreenQuad>()
-const quadConfigUrl = '/device-frames/screen-quad-config.json'
+const quadConfigUrl = '/device-frames/iphone_12_pro/frame.json'
 
 type ScreenQuadConfigEntry = {
   framePath: string

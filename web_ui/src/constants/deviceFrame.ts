@@ -2,7 +2,7 @@ import { DEFAULT_DEVICE_FRAME_STYLE_ID } from './deviceFrameStyles'
 
 /**
  * Must match each frame SVG's logical size and masked “screen” opening (iso/perspective: 320×640).
- * `front.svg` uses {@link DEVICE_FRAME_FRONT} (772×1571 viewBox).
+ * `iphone_12_pro/frame/front.svg` uses {@link DEVICE_FRAME_FRONT} (772×1571 viewBox).
  */
 export const DEVICE_FRAME = {
   viewW: 320,
@@ -25,7 +25,7 @@ export type DeviceFrameMetrics = {
 }
 
 /**
- * `public/device-frames/front.svg`: viewBox 772×1571. Metrics scaled from the prior 428×868 frame
+ * `public/device-frames/iphone_12_pro/frame/front.svg`: viewBox 772×1571. Metrics scaled from the prior 428×868 frame
  * so clip / cover math matches the same bezel proportions at the new resolution.
  */
 export const DEVICE_FRAME_FRONT: DeviceFrameMetrics = {
@@ -69,7 +69,7 @@ export type ScreenQuadClipCornerRadiiPx = {
 }
 
 /**
- * `public/device-frames/iso-down-left.svg`: viewBox 1282×1485.
+ * `public/device-frames/iphone_12_pro/frame/iso-down-left.svg`: viewBox 1282×1485.
  * Corners extracted from the `fill="none"` path (the transparent screen face).
  */
 export const ISO_DOWN_LEFT_SCREEN_QUAD: ScreenQuad = {
@@ -99,7 +99,7 @@ export function getScreenQuadForStyle(styleId: string | undefined): ScreenQuad |
  * Portrait screenshots: match **width ÷ height** to these values so uniform “cover” scaling
  * fills the hole without trimming an extra band on one axis (same as matching `screenW`:`screenH` in SVG units).
  *
- * - **Front** (`front.svg` hole): same aspect as `screenW`:`screenH` (~**1 : 2.17**). Example bake: 2241×4745.
+ * - **Front** (`iphone_12_pro/frame/front.svg` hole): same aspect as `screenW`:`screenH` (~**1 : 2.17**). Example bake: 2241×4745.
  * - **Iso / perspective** (`DEVICE_FRAME`): **33 : 61** (264×488), height ÷ width ≈ **1.848**.
  */
 export const IDEAL_SCREENSHOT_ASPECT_RATIO_FRONT =

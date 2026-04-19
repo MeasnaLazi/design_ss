@@ -526,7 +526,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
   "globalCompositeOperation": "source-over",
   "skewX":       0,
   "skewY":       0,
-  "src":         "http://localhost:4713/device-frames/front.svg",
+  "src":         "http://localhost:4713/device-frames/iphone_12_pro/frame/front.svg",
   "crossOrigin": "anonymous",
   "filters":     []
 }
@@ -534,7 +534,7 @@ A device frame is a `Group` containing exactly **two children** in this order:
 
 | Field | Notes |
 |---|---|
-| `src` | `http://localhost:4713/device-frames/<styleId>.svg`. Available: `front.svg`, `iso-down-right.svg`, `perspective-right.svg`, `perspective-left.svg`, `iso-up-right.svg`, `iso-down-left.svg`, `iso-up-left.svg`. |
+| `src` | `http://localhost:4713/device-frames/iphone_12_pro/frame/<styleId>.svg`. Available: `front.svg`, `iso-down-right.svg`, `perspective-right.svg`, `perspective-left.svg`, `iso-up-right.svg`, `iso-down-left.svg`, `iso-up-left.svg`. |
 | `originX` / `originY` | `"left"` / `"top"` — frame SVG is top-left anchored, unlike the screenshot child which uses `"center"`. |
 | `width` / `height` | SVG logical viewBox. All frame styles = **320 × 640**. |
 | `scaleX` / `scaleY` | Scale so frame fills the group. `"front"` (968 wide): `968/320 = 3.025`. Iso/perspective (704 wide): `704/320 ≈ 2.2`. Use the same value for both `scaleX` and `scaleY`. |
