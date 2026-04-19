@@ -19,7 +19,230 @@
     import { parseSVG } from './pipeline/svg-parser.js';
     import { sampleScreenPath } from './pipeline/opencv-compositor.js';
 
+    function cross(o, a, b) {
+      return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    }
+
+    function convexHull(points) {
+      if (points.length <= 1) return points.slice();
+      const pts = points.slice().sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
+      const lower = [];
+      for (const p of pts) {
+        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+          lower.pop();
+        }
+        lower.push(p);
+      }
+      const upper = [];
+      for (let i = pts.length - 1; i >= 0; i -= 1) {
+        const p = pts[i];
+        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+          upper.pop();
+        }
+        upper.push(p);
+      }
+      lower.pop();
+      upper.pop();
+      return lower.concat(upper);
+    }
+
+    function orientedMinAreaRect(points) {
+      const hull = convexHull(points);
+      if (hull.length < 3) {
+        throw new Error('Not enough points to compute oriented rectangle.');
+      }
+      let best = null;
+      const n = hull.length;
+      for (let i = 0; i < n; i += 1) {
+        const p0 = hull[i];
+        const p1 = hull[(i + 1) % n];
+        const ex = p1[0] - p0[0];
+        const ey = p1[1] - p0[1];
+        const len = Math.hypot(ex, ey);
+        if (!len) continue;
+        const ux = ex / len;
+        const uy = ey / len;
+        const vx = -uy;
+        const vy = ux;
+        let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+        for (const p of hull) {
+          const pu = p[0] * ux + p[1] * uy;
+          const pv = p[0] * vx + p[1] * vy;
+          minU = Math.min(minU, pu); maxU = Math.max(maxU, pu);
+          minV = Math.min(minV, pv); maxV = Math.max(maxV, pv);
+        }
+        const area = (maxU - minU) * (maxV - minV);
+        if (!best || area < best.area) {
+          best = { area, ux, uy, vx, vy, minU, maxU, minV, maxV };
+        }
+      }
+      if (!best) throw new Error('Failed to compute oriented rectangle.');
+      const corner = (u, v) => [best.ux * u + best.vx * v, best.uy * u + best.vy * v];
+      const tl = corner(best.minU, best.minV);
+      const tr = corner(best.maxU, best.minV);
+      const br = corner(best.maxU, best.maxV);
+      const bl = corner(best.minU, best.maxV);
+      return [tl, tr, br, bl];
+    }
+
+    function directionalQuad(points) {
+      const hull = convexHull(points);
+      if (hull.length < 4) {
+        throw new Error('Not enough hull points to compute directional quad.');
+      }
+      const pick = (dx, dy) => {
+        let best = hull[0];
+        let bestScore = -Infinity;
+        for (const p of hull) {
+          const score = p[0] * dx + p[1] * dy;
+          if (score > bestScore) {
+            bestScore = score;
+            best = p;
+          }
+        }
+        return best;
+      };
+      return [
+        pick(-1, -1), // TL
+        pick(1, -1),  // TR
+        pick(1, 1),   // BR
+        pick(-1, 1),  // BL
+      ];
+    }
+
+    function diagonalExtremeQuad(points) {
+      let tl = points[0], tr = points[0], br = points[0], bl = points[0];
+      let minSum = Infinity, maxSum = -Infinity, maxDiff = -Infinity, minDiff = Infinity;
+      for (const p of points) {
+        const sum = p[0] + p[1];
+        const diff = p[0] - p[1];
+        if (sum < minSum) { minSum = sum; tl = p; }
+        if (sum > maxSum) { maxSum = sum; br = p; }
+        if (diff > maxDiff) { maxDiff = diff; tr = p; }
+        if (diff < minDiff) { minDiff = diff; bl = p; }
+      }
+      return [tl, tr, br, bl];
+    }
+
+    function dot(a, b) {
+      return a[0] * b[0] + a[1] * b[1];
+    }
+
+    function normalize(v) {
+      const len = Math.hypot(v[0], v[1]) || 1;
+      return [v[0] / len, v[1] / len];
+    }
+
+    function centerOf(points) {
+      let sx = 0, sy = 0;
+      for (const [x, y] of points) {
+        sx += x;
+        sy += y;
+      }
+      return [sx / points.length, sy / points.length];
+    }
+
+    function snapRectCornersToContour(worldPts) {
+      const rect = orientedMinAreaRect(worldPts);
+      const c = centerOf(worldPts);
+      return rect.map(([x, y]) => {
+        const dir = normalize([x - c[0], y - c[1]]);
+        let best = worldPts[0];
+        let bestScore = -Infinity;
+        for (const p of worldPts) {
+          const rel = [p[0] - c[0], p[1] - c[1]];
+          const parallel = dot(rel, dir);
+          const perp = Math.abs(rel[0] * dir[1] - rel[1] * dir[0]);
+          const score = parallel - perp * 0.08;
+          if (score > bestScore) {
+            bestScore = score;
+            best = p;
+          }
+        }
+        return best;
+      });
+    }
+
+    function polygonArea(pts) {
+      let area = 0;
+      for (let i = 0; i < pts.length; i += 1) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[(i + 1) % pts.length];
+        area += x1 * y2 - x2 * y1;
+      }
+      return area / 2;
+    }
+
+    function orderClockwise(points) {
+      const c = centerOf(points);
+      const sorted = points.slice().sort((a, b) => {
+        const aa = Math.atan2(a[1] - c[1], a[0] - c[0]);
+        const bb = Math.atan2(b[1] - c[1], b[0] - c[0]);
+        return aa - bb;
+      });
+      // Enforce clockwise in SVG (+Y down) coordinates.
+      return polygonArea(sorted) > 0 ? sorted : sorted.reverse();
+    }
+
+    function rotate4(arr, n) {
+      return [arr[n % 4], arr[(n + 1) % 4], arr[(n + 2) % 4], arr[(n + 3) % 4]];
+    }
+
+    function avgAspectForQuad(pts) {
+      const [tl, tr, br, bl] = pts;
+      const topEdge = Math.hypot(tr[0]-tl[0], tr[1]-tl[1]);
+      const bottomEdge = Math.hypot(br[0]-bl[0], br[1]-bl[1]);
+      const leftEdge = Math.hypot(bl[0]-tl[0], bl[1]-tl[1]);
+      const rightEdge = Math.hypot(br[0]-tr[0], br[1]-tr[1]);
+      const avgWidth = (topEdge + bottomEdge) / 2;
+      const avgHeight = (leftEdge + rightEdge) / 2;
+      return avgWidth / avgHeight;
+    }
+
+    function normalizeQuadLabels(rawQuad, targetAspect) {
+      const cw = orderClockwise(rawQuad);
+      const ccw = cw.slice().reverse();
+      const preferPortrait = targetAspect < 1;
+      let best = cw;
+      let bestScore = Infinity;
+      for (const base of [cw, ccw]) {
+        for (let i = 0; i < 4; i += 1) {
+          const candidate = rotate4(base, i);
+          const aspect = avgAspectForQuad(candidate);
+          const shapeScore = Math.abs(Math.log(Math.max(1e-6, aspect)) - Math.log(Math.max(1e-6, targetAspect)));
+
+          // Penalize orientation mismatches so portrait screenshots don't get landscape-labeled quads.
+          const orientationMismatch = (preferPortrait && aspect >= 1) || (!preferPortrait && aspect < 1) ? 1 : 0;
+          // Prefer top edge above bottom edge in image space for stable TL/TR selection.
+          const [tl, tr, br, bl] = candidate;
+          const topY = (tl[1] + tr[1]) / 2;
+          const bottomY = (bl[1] + br[1]) / 2;
+          const verticalPenalty = topY > bottomY ? 0.5 : 0;
+
+          const score = shapeScore + orientationMismatch * 2 + verticalPenalty;
+          if (score < bestScore) {
+            bestScore = score;
+            best = candidate;
+          }
+        }
+      }
+      return best;
+    }
+
+    function expandQuadByAxes(pts, expandU, expandV) {
+      const [tl, tr, br, bl] = pts;
+      const u = normalize([tr[0] - tl[0], tr[1] - tl[1]]); // width axis
+      const v = normalize([bl[0] - tl[0], bl[1] - tl[1]]); // height axis
+      return [
+        [tl[0] - u[0] * expandU - v[0] * expandV, tl[1] - u[1] * expandU - v[1] * expandV],
+        [tr[0] + u[0] * expandU - v[0] * expandV, tr[1] + u[1] * expandU - v[1] * expandV],
+        [br[0] + u[0] * expandU + v[0] * expandV, br[1] + u[1] * expandU + v[1] * expandV],
+        [bl[0] - u[0] * expandU + v[0] * expandV, bl[1] - u[1] * expandU + v[1] * expandV],
+      ];
+    }
+
     (async () => {
+      const screenshotFile = 'iphone16s_setting.png';
       const resp = await fetch('./assets/iso-down-left.svg');
       const svgText = await resp.text();
       const { svgElement, screenPath, worldMatrix, viewBox } = parseSVG(svgText);
@@ -40,32 +263,63 @@
       }
       const bboxW = maxX - minX, bboxH = maxY - minY;
 
-      // === Find 4 extreme diagonal corners (TL, TR, BR, BL) ===
+      // === Find screen quad from diagonal extremes (best match for this isometric shape) ===
       let tl, tr, br, bl;
-      let tlS=Infinity, trS=-Infinity, brS=-Infinity, blS=Infinity;
-      for (const [x,y] of worldPts) {
-        const sum = x+y, diff = x-y;
-        if (sum < tlS)  { tlS = sum;  tl = [x,y]; }
-        if (sum > brS)  { brS = sum;  br = [x,y]; }
-        if (diff > trS) { trS = diff; tr = [x,y]; }
-        if (diff < blS) { blS = diff; bl = [x,y]; }
+      try {
+        [tl, tr, br, bl] = diagonalExtremeQuad(worldPts);
+      } catch (quadErr) {
+        console.warn('[analyze-screen] diagonal quad failed, using fallback:', quadErr);
+        try {
+          [tl, tr, br, bl] = directionalQuad(worldPts);
+        } catch {
+          [tl, tr, br, bl] = snapRectCornersToContour(worldPts);
+        }
       }
 
-      // === Compute TRUE screen dimensions (along the screen's own edges) ===
-      const topEdge = Math.sqrt((tr[0]-tl[0])**2 + (tr[1]-tl[1])**2);
-      const bottomEdge = Math.sqrt((br[0]-bl[0])**2 + (br[1]-bl[1])**2);
-      const leftEdge = Math.sqrt((bl[0]-tl[0])**2 + (bl[1]-tl[1])**2);
-      const rightEdge = Math.sqrt((br[0]-tr[0])**2 + (br[1]-tr[1])**2);
+      // Load screenshot to report real dimensions/aspect for current asset.
+      const screenshot = new Image();
+      screenshot.src = `./assets/${screenshotFile}`;
+      await screenshot.decode();
+      const screenshotW = screenshot.naturalWidth;
+      const screenshotH = screenshot.naturalHeight;
+      const screenshotAspect = screenshotW / screenshotH;
+      // Rounded screen masks need a slightly larger quad than the tight contour fit.
+      // This avoids clipping near corners when represented by a 4-point plane.
+      const AUTO_EXPAND_U_PX = 0;
+      const AUTO_EXPAND_V_PX = 0;
+      const HARDCODED_QUAD = {
+        TL: [10.4, 121.29],
+        TR: [586.79, -13.89],
+        BR: [1316.21, 1271.52],
+        BL: [739.82, 1450.05],
+      };
+      let quadPts = [
+        HARDCODED_QUAD.TL,
+        HARDCODED_QUAD.TR,
+        HARDCODED_QUAD.BR,
+        HARDCODED_QUAD.BL,
+      ];
 
-      const avgWidth = (topEdge + bottomEdge) / 2;
-      const avgHeight = (leftEdge + rightEdge) / 2;
-      const trueAspect = avgWidth / avgHeight;
+      function calcMetrics(pts) {
+        const [qtl, qtr, qbr, qbl] = pts;
+        const topEdge = Math.hypot(qtr[0]-qtl[0], qtr[1]-qtl[1]);
+        const bottomEdge = Math.hypot(qbr[0]-qbl[0], qbr[1]-qbl[1]);
+        const leftEdge = Math.hypot(qbl[0]-qtl[0], qbl[1]-qtl[1]);
+        const rightEdge = Math.hypot(qbr[0]-qtr[0], qbr[1]-qtr[1]);
+        const avgWidth = (topEdge + bottomEdge) / 2;
+        const avgHeight = (leftEdge + rightEdge) / 2;
+        const trueAspect = avgWidth / avgHeight;
+        const tiltAngle = Math.atan2(qtr[1]-qtl[1], qtr[0]-qtl[0]) * 180 / Math.PI;
+        const aspectDelta = Math.abs(screenshotAspect - trueAspect);
+        return { topEdge, bottomEdge, leftEdge, rightEdge, avgWidth, avgHeight, trueAspect, tiltAngle, aspectDelta };
+      }
 
-      // Compute tilt angle of the screen
-      const tiltAngle = Math.atan2(tr[1]-tl[1], tr[0]-tl[0]) * 180 / Math.PI;
+      const labels = ['TL','TR','BR','BL'];
 
       const out = document.getElementById('out');
-      out.innerHTML = `
+      function renderText(pts, m) {
+        const [qtl, qtr, qbr, qbl] = pts;
+        out.innerHTML = `
 <span class="highlight">═══ SVG ViewBox ═══</span>
   ${viewBox.width} × ${viewBox.height}
 
@@ -73,31 +327,32 @@
   width: ${bboxW.toFixed(1)}  height: ${bboxH.toFixed(1)}
   Aspect: ${(bboxW/bboxH).toFixed(3)}  ← this is wrong for tilted screens
 
-<span class="cyan">═══ 4 Diagonal Corners (the actual screen quad) ═══</span>
-  TL: (${tl[0].toFixed(1)}, ${tl[1].toFixed(1)})
-  TR: (${tr[0].toFixed(1)}, ${tr[1].toFixed(1)})
-  BR: (${br[0].toFixed(1)}, ${br[1].toFixed(1)})
-  BL: (${bl[0].toFixed(1)}, ${bl[1].toFixed(1)})
+<span class="cyan">═══ Screen Quad (normalized + expanded) ═══</span>
+  mode: hardcoded
+  TL: (${qtl[0].toFixed(1)}, ${qtl[1].toFixed(1)})
+  TR: (${qtr[0].toFixed(1)}, ${qtr[1].toFixed(1)})
+  BR: (${qbr[0].toFixed(1)}, ${qbr[1].toFixed(1)})
+  BL: (${qbl[0].toFixed(1)}, ${qbl[1].toFixed(1)})
 
 <span class="highlight">═══ TRUE Screen Dimensions (along screen edges) ═══</span>
-  Top edge    (TL→TR): ${topEdge.toFixed(1)}px
-  Bottom edge (BL→BR): ${bottomEdge.toFixed(1)}px
-  Left edge   (TL→BL): ${leftEdge.toFixed(1)}px
-  Right edge  (TR→BR): ${rightEdge.toFixed(1)}px
+  Top edge    (TL→TR): ${m.topEdge.toFixed(1)}px
+  Bottom edge (BL→BR): ${m.bottomEdge.toFixed(1)}px
+  Left edge   (TL→BL): ${m.leftEdge.toFixed(1)}px
+  Right edge  (TR→BR): ${m.rightEdge.toFixed(1)}px
 
-  <span class="highlight">Average width:  ${avgWidth.toFixed(1)}px</span>
-  <span class="highlight">Average height: ${avgHeight.toFixed(1)}px</span>
-  <span class="highlight">TRUE aspect ratio: ${trueAspect.toFixed(3)}</span>
-  Screen tilt angle: ${tiltAngle.toFixed(1)}°
+  <span class="highlight">Average width:  ${m.avgWidth.toFixed(1)}px</span>
+  <span class="highlight">Average height: ${m.avgHeight.toFixed(1)}px</span>
+  <span class="highlight">TRUE aspect ratio: ${m.trueAspect.toFixed(3)}</span>
+  Screen tilt angle: ${m.tiltAngle.toFixed(1)}°
 
 <span class="highlight">═══ Recommended Screenshot Size ═══</span>
-  Aspect ratio should be ≈ <span class="highlight">${trueAspect.toFixed(2)}</span>
-  Suggested: <span class="highlight">${Math.round(avgWidth)} × ${Math.round(avgHeight)}</span>
-  Or scaled: <span class="highlight">${Math.round(avgWidth*2)} × ${Math.round(avgHeight*2)}</span>
+  Aspect ratio should be ≈ <span class="highlight">${m.trueAspect.toFixed(2)}</span>
+  Suggested: <span class="highlight">${Math.round(m.avgWidth)} × ${Math.round(m.avgHeight)}</span>
+  Or scaled: <span class="highlight">${Math.round(m.avgWidth*2)} × ${Math.round(m.avgHeight*2)}</span>
 
-<span class="warn">═══ Your current book.PNG ═══</span>
-  1284 × 2778 (aspect ${(1284/2778).toFixed(3)})
-  ${Math.abs(1284/2778 - trueAspect) < 0.1 ? '✓ Good match!' : '⚠ Aspect ratio mismatch: ' + (1284/2778).toFixed(3) + ' vs screen ' + trueAspect.toFixed(3)}
+<span class="warn">═══ Your current ${screenshotFile} ═══</span>
+  ${screenshotW} × ${screenshotH} (aspect ${screenshotAspect.toFixed(3)})
+  ${m.aspectDelta < 0.1 ? '✓ Good match!' : '⚠ Aspect ratio mismatch: ' + screenshotAspect.toFixed(3) + ' vs screen ' + m.trueAspect.toFixed(3)}
 
 <span class="highlight">═══ Common Device Screenshots ═══</span>
   iPhone 14 Pro Max:  1290 × 2796  (${(1290/2796).toFixed(3)})
@@ -105,7 +360,18 @@
   iPhone 14:          1170 × 2532  (${(1170/2532).toFixed(3)})
   iPad Pro 11":       1668 × 2388  (${(1668/2388).toFixed(3)})
   Pixel 7:            1080 × 2400  (${(1080/2400).toFixed(3)})
+
+<span class="cyan">═══ Manual Quad (copy this back) ═══</span>
+  expand_u_px: ${AUTO_EXPAND_U_PX}
+  expand_v_px: ${AUTO_EXPAND_V_PX}
+  ${JSON.stringify({
+    TL: [Number(qtl[0].toFixed(2)), Number(qtl[1].toFixed(2))],
+    TR: [Number(qtr[0].toFixed(2)), Number(qtr[1].toFixed(2))],
+    BR: [Number(qbr[0].toFixed(2)), Number(qbr[1].toFixed(2))],
+    BL: [Number(qbl[0].toFixed(2)), Number(qbl[1].toFixed(2))]
+  }, null, 2)}
 `;
+      }
 
       // === Draw visualization ===
       const canvas = document.getElementById('vis');
@@ -114,66 +380,84 @@
       const scale = Math.min(660/bboxW, 560/bboxH);
       const ox = 20 - minX*scale, oy = 20 - minY*scale;
 
-      ctx.fillStyle = '#181818';
-      ctx.fillRect(0, 0, 700, 600);
+      const toCanvas = ([x, y]) => [x * scale + ox, y * scale + oy];
+      const toWorld = (cx, cy) => [(cx - ox) / scale, (cy - oy) / scale];
 
-      // Draw mask outline (green filled)
-      ctx.beginPath();
-      for (let i=0; i<worldPts.length; i++) {
-        const px = worldPts[i][0]*scale + ox;
-        const py = worldPts[i][1]*scale + oy;
-        if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      function draw() {
+        const m = calcMetrics(quadPts);
+        renderText(quadPts, m);
+
+        ctx.fillStyle = '#181818';
+        ctx.fillRect(0, 0, 700, 600);
+
+        ctx.beginPath();
+        for (let i = 0; i < worldPts.length; i++) {
+          const [px, py] = toCanvas(worldPts[i]);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(68,255,136,0.15)';
+        ctx.fill();
+        ctx.strokeStyle = '#4f8';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5,5]);
+        ctx.strokeRect(minX*scale+ox, minY*scale+oy, bboxW*scale, bboxH*scale);
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const [px, py] = toCanvas(quadPts[i]);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = '#4df';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.font = 'bold 14px monospace';
+        for (let i = 0; i < 4; i++) {
+          const [px, py] = toCanvas(quadPts[i]);
+          ctx.fillStyle = '#4df';
+          ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.fillText(labels[i], px + 10, py + 5);
+        }
+
+        ctx.font = '12px monospace';
+        ctx.fillStyle = '#f44'; ctx.fillText('▬ BBox (misleading)', 10, canvas.height-56);
+        ctx.fillStyle = '#4f8'; ctx.fillText('▬ Mask shape (actual screen)', 10, canvas.height-40);
+        ctx.fillStyle = '#4df'; ctx.fillText('▬ Draggable screen quad', 10, canvas.height-24);
+        ctx.fillStyle = '#aaa'; ctx.fillText('Drag blue points to correct corners', 10, canvas.height-8);
       }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(68,255,136,0.15)';
-      ctx.fill();
-      ctx.strokeStyle = '#4f8';
-      ctx.lineWidth = 2;
-      ctx.stroke();
 
-      // Draw bbox (red dashed)
-      ctx.strokeStyle = '#f44';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5,5]);
-      ctx.strokeRect(minX*scale+ox, minY*scale+oy, bboxW*scale, bboxH*scale);
-      ctx.setLineDash([]);
+      let dragIdx = -1;
+      canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        for (let i = 0; i < 4; i++) {
+          const [px, py] = toCanvas(quadPts[i]);
+          if (Math.hypot(mx - px, my - py) <= 12) {
+            dragIdx = i;
+            break;
+          }
+        }
+      });
+      window.addEventListener('mouseup', () => { dragIdx = -1; });
+      canvas.addEventListener('mousemove', (e) => {
+        if (dragIdx < 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        quadPts[dragIdx] = toWorld(mx, my);
+        draw();
+      });
 
-      // Draw the 4 diagonal corners and quad edges (cyan)
-      const pts = [tl, tr, br, bl];
-      ctx.beginPath();
-      for (let i=0; i<4; i++) {
-        const px = pts[i][0]*scale+ox, py = pts[i][1]*scale+oy;
-        if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
-      }
-      ctx.closePath();
-      ctx.strokeStyle = '#4df';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Draw corner dots and labels
-      const labels = ['TL','TR','BR','BL'];
-      ctx.font = 'bold 14px monospace';
-      for (let i=0; i<4; i++) {
-        const px = pts[i][0]*scale+ox, py = pts[i][1]*scale+oy;
-        ctx.fillStyle = '#4df';
-        ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillText(labels[i], px+10, py+5);
-      }
-
-      // Legend
-      ctx.font = '12px monospace';
-      ctx.fillStyle = '#f44'; ctx.fillText('▬ BBox (misleading)', 10, canvas.height-40);
-      ctx.fillStyle = '#4f8'; ctx.fillText('▬ Mask shape (actual screen)', 10, canvas.height-25);
-      ctx.fillStyle = '#4df'; ctx.fillText('▬ Screen quad (TL→TR→BR→BL)', 10, canvas.height-10);
-
-      // Edge length labels
-      ctx.font = '11px monospace';
-      ctx.fillStyle = '#ff8';
-      const midTop = [(tl[0]+tr[0])/2*scale+ox, (tl[1]+tr[1])/2*scale+oy];
-      ctx.fillText(`W: ${topEdge.toFixed(0)}px`, midTop[0]-30, midTop[1]-8);
-      const midLeft = [(tl[0]+bl[0])/2*scale+ox, (tl[1]+bl[1])/2*scale+oy];
-      ctx.fillText(`H: ${leftEdge.toFixed(0)}px`, midLeft[0]-60, midLeft[1]);
+      draw();
     })();
   </script>
 </body>
