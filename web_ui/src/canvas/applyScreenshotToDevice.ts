@@ -6,7 +6,8 @@ import {
   type Canvas,
   type FabricObject,
 } from 'fabric'
-import { getDeviceFrameStyle } from '../constants/deviceFrameStyles'
+import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
+import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import { screenshotBucketForConfig } from '../constants/artboardPresets'
 import { uploadScreenshotBlob } from '../lib/datasourceScreenshotsApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
@@ -172,8 +173,13 @@ export async function applyScreenshotToDeviceGroup(
   }
 
   const existing = useDesignStore.getState().objects.find((o) => o.id === groupAppId)
-  const styleId = existing?.deviceFrameStyleId
-  const style = getDeviceFrameStyle(styleId)
+  const pack = useDeviceFramePackStore.getState()
+  const style = resolveDeviceFrameStyle(
+    existing?.deviceFramePackId,
+    existing?.deviceFrameStyleId,
+    pack.devices,
+    pack.selectedPackId ?? undefined,
+  )
 
   const fw = frame.getScaledWidth()
   const fh = frame.getScaledHeight()
@@ -297,5 +303,5 @@ export async function applyScreenshotToDeviceGroup(
 
   canvas.setActiveObject(target)
   canvas.requestRenderAll()
-  console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, styleId, iso: !!quad })
+  console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, frameStyleId: style.id, iso: !!quad })
 }

@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -35,11 +35,8 @@ import {
   ASSET_DRAG_KIND_TEXT,
   ASSET_DRAG_MIME,
 } from '../../constants/assetDrag'
-import {
-  DEFAULT_DEVICE_FRAME_STYLE_ID,
-  DEVICE_FRAME_STYLES_FOR_SIDEBAR,
-  type DeviceFrameStyleId,
-} from '../../constants/deviceFrameStyles'
+import { DEVICE_FRAME_TYPES, stylesFromManifest, type DeviceFrameType } from '../../lib/deviceFrameCatalog'
+import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
@@ -66,9 +63,25 @@ export function LeftSidebar() {
     return 'solid'
   })
 
-  const [deviceFrameStyleId, setDeviceFrameStyleId] = useState<DeviceFrameStyleId>(
-    () => DEVICE_FRAME_STYLES_FOR_SIDEBAR[0]?.id ?? DEFAULT_DEVICE_FRAME_STYLE_ID,
+  const devices = useDeviceFramePackStore((s) => s.devices)
+  const registryStatus = useDeviceFramePackStore((s) => s.status)
+  const registryError = useDeviceFramePackStore((s) => s.errorMessage)
+  const selectedDeviceType = useDeviceFramePackStore((s) => s.selectedDeviceType)
+  const selectedPackId = useDeviceFramePackStore((s) => s.selectedPackId)
+  const selectedFrameName = useDeviceFramePackStore((s) => s.selectedFrameName)
+  const setSelectedDeviceType = useDeviceFramePackStore((s) => s.setSelectedDeviceType)
+  const setSelectedPackId = useDeviceFramePackStore((s) => s.setSelectedPackId)
+  const setSelectedFrameName = useDeviceFramePackStore((s) => s.setSelectedFrameName)
+
+  const devicesOfType = useMemo(
+    () => devices.filter((d) => d.manifest.type === selectedDeviceType),
+    [devices, selectedDeviceType],
   )
+
+  const packStyles = useMemo(() => {
+    const dev = devices.find((d) => d.id === selectedPackId)
+    return dev ? stylesFromManifest(dev.manifest) : []
+  }, [devices, selectedPackId])
 
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
 
@@ -88,7 +101,7 @@ export function LeftSidebar() {
       return
     }
     try {
-      await addDeviceFrameToCanvas(canvas, deviceFrameStyleId)
+      await addDeviceFrameToCanvas(canvas, selectedFrameName)
     } catch (e) {
       console.error('[LeftSidebar] add device failed', e)
     }
@@ -405,22 +418,65 @@ export function LeftSidebar() {
             <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
               Device frame
             </p>
+            <label className="block text-[11px] text-zinc-500">
+              <span className="mb-0.5 block text-zinc-600">Product type</span>
+              <select
+                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100"
+                value={selectedDeviceType}
+                onChange={(e) => setSelectedDeviceType(e.target.value as DeviceFrameType)}
+                disabled={registryStatus !== 'ready'}
+              >
+                {DEVICE_FRAME_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-[11px] text-zinc-500">
+              <span className="mb-0.5 block text-zinc-600">Device</span>
+              <select
+                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100"
+                value={selectedPackId ?? ''}
+                onChange={(e) => setSelectedPackId(e.target.value)}
+                disabled={registryStatus !== 'ready' || devicesOfType.length === 0}
+              >
+                {devicesOfType.length === 0 ? (
+                  <option value="">No devices for this type</option>
+                ) : (
+                  devicesOfType.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.manifest.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+            {registryStatus === 'error' && registryError ? (
+              <p className="rounded border border-amber-900/60 bg-amber-950/40 px-2 py-1 text-[10px] leading-snug text-amber-200/90">
+                {registryError}
+              </p>
+            ) : null}
+            {registryStatus === 'loading' ? (
+              <p className="text-[10px] text-zinc-500">Loading device frames…</p>
+            ) : null}
             <div
-              className="grid grid-cols-2 gap-1.5"
+              className="grid max-h-48 grid-cols-2 gap-1.5 overflow-y-auto pr-0.5"
               role="radiogroup"
-              aria-label="Device perspective"
+              aria-label="Frame angle"
             >
-              {DEVICE_FRAME_STYLES_FOR_SIDEBAR.map((s) => (
+              {packStyles.map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   role="radio"
-                  aria-checked={deviceFrameStyleId === s.id}
+                  aria-checked={selectedFrameName === s.id}
                   aria-label={s.label}
                   title={s.label}
-                  onClick={() => setDeviceFrameStyleId(s.id)}
-                  className={`flex flex-col items-center gap-0.5 rounded-md border p-1.5 transition-colors ${
-                    deviceFrameStyleId === s.id
+                  onClick={() => setSelectedFrameName(s.id)}
+                  disabled={registryStatus !== 'ready'}
+                  className={`flex flex-col items-center gap-0.5 rounded-md border p-1.5 transition-colors disabled:opacity-40 ${
+                    selectedFrameName === s.id
                       ? 'border-emerald-500/60 bg-zinc-800 ring-1 ring-emerald-500/30'
                       : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600'
                   }`}
@@ -439,7 +495,8 @@ export function LeftSidebar() {
             <button
               type="button"
               onClick={handleAddDevice}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
+              disabled={registryStatus !== 'ready' || !selectedPackId || packStyles.length === 0}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Smartphone className="size-4 shrink-0" aria-hidden />
               Add device

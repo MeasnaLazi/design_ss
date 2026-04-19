@@ -1,5 +1,4 @@
 import type { ArtboardPresetId } from '../constants/artboardPresets'
-import type { DeviceFrameStyleId } from '../constants/deviceFrameStyles'
 
 /**
  * Serializable design-layer metadata kept in sync with the Fabric canvas in later phases.
@@ -45,6 +44,8 @@ export interface DesignObjectRecord {
   name: string
   /** Layer order; higher values draw on top */
   zIndex: number
-  /** Set for {@link DesignObjectKind} `device` when using a perspective preset. */
-  deviceFrameStyleId?: DeviceFrameStyleId
+  /** Set for {@link DesignObjectKind} `device`: matches `frames[].name` in `frame.json`. */
+  deviceFrameStyleId?: string
+  /** Pack id under `public/device-frames/<id>/` (e.g. `iphone_12_pro`). */
+  deviceFramePackId?: string
 }

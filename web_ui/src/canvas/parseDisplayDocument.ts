@@ -41,6 +41,9 @@ function isDesignObjectRecord(x: unknown): x is DesignObjectRecord {
   if (x.deviceFrameStyleId !== undefined && typeof x.deviceFrameStyleId !== 'string') {
     return false
   }
+  if (x.deviceFramePackId !== undefined && typeof x.deviceFramePackId !== 'string') {
+    return false
+  }
   return true
 }
 

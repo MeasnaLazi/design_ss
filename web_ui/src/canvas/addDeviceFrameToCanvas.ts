@@ -1,17 +1,15 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
 import { getArtboardDimensionsFromConfig, getArtboardPreset } from '../constants/artboardPresets'
 import { deviceFrameTargetWidth } from '../constants/deviceFrame'
-import {
-  DEFAULT_DEVICE_FRAME_STYLE_ID,
-  getDeviceFrameStyle,
-  type DeviceFrameStyleId,
-} from '../constants/deviceFrameStyles'
+import { DEFAULT_DEVICE_FRAME_STYLE_ID, getDeviceFrameStyle } from '../constants/deviceFrameStyles'
+import { selectActivePackStyles, useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import {
   fetchPlaceholderAsFile,
   placeholderFilenameForPreset,
 } from '../lib/datasourcePlaceholderApi'
 import { registerFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
+import { useToastStore } from '../store/useToastStore'
 import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 
 /**
@@ -19,9 +17,19 @@ import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
  */
 export async function addDeviceFrameToCanvas(
   canvas: Canvas,
-  styleId: DeviceFrameStyleId = DEFAULT_DEVICE_FRAME_STYLE_ID,
+  styleId: string = DEFAULT_DEVICE_FRAME_STYLE_ID,
 ): Promise<void> {
-  const style = getDeviceFrameStyle(styleId)
+  const packState = useDeviceFramePackStore.getState()
+  const packId = packState.selectedPackId
+  if (!packId || packState.status !== 'ready') {
+    useToastStore
+      .getState()
+      .showToast('Device frames are still loading or no device is selected. Try again in a moment.', 'warning')
+    console.warn('[addDeviceFrameToCanvas] device registry not ready or no pack selected')
+    return
+  }
+  const styles = selectActivePackStyles(packState)
+  const style = getDeviceFrameStyle(styleId, styles)
   const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
   const frame = await FabricImage.fromURL(
     style.src,
@@ -78,6 +86,7 @@ export async function addDeviceFrameToCanvas(
     name: `Device · ${style.label}`,
     zIndex,
     deviceFrameStyleId: style.id,
+    deviceFramePackId: packId,
   })
 
   canvas.add(group)

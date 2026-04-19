@@ -28,9 +28,11 @@ export type ScreenRegion = {
 
 const cache = new Map<string, ScreenRegion>()
 const quadCache = new Map<string, ScreenQuad>()
-const quadConfigUrl = '/device-frames/iphone_12_pro/frame.json'
 
-type ScreenQuadConfigEntry = {
+/** One frame angle entry merged from device manifest JSON under public/device-frames. */
+export type ScreenQuadConfigEntry = {
+  /** Optional id from manifest (per-frame name field), for tooling only. */
+  name?: string
   framePath: string
   /**
    * When `false`, this frame uses the rectangular pipeline (`loadScreenRegion` + exact `#screen` path clip),
@@ -52,7 +54,16 @@ type ScreenQuadConfigEntry = {
   }
 }
 
-let screenQuadConfigCache: ScreenQuadConfigEntry[] | null = null
+let screenQuadConfigCache: ScreenQuadConfigEntry[] = []
+
+/**
+ * Replaces merged quad config (all device manifests). Clears in-memory quad cache so
+ * corners re-resolve after a registry reload.
+ */
+export function setScreenQuadConfigCache(rows: ScreenQuadConfigEntry[]): void {
+  screenQuadConfigCache = rows
+  quadCache.clear()
+}
 
 function normalizeFramePath(svgUrl: string): string {
   try {
@@ -64,14 +75,7 @@ function normalizeFramePath(svgUrl: string): string {
 }
 
 async function loadScreenQuadConfig(): Promise<ScreenQuadConfigEntry[]> {
-  if (screenQuadConfigCache) return screenQuadConfigCache
-  const rows = await fetch(quadConfigUrl).then(async (r) => {
-    if (!r.ok) throw new Error(`[loadScreenQuadConfig] fetch failed: ${quadConfigUrl} (${r.status})`)
-    const json = (await r.json()) as { frames?: ScreenQuadConfigEntry[] }
-    return json.frames ?? []
-  })
-  screenQuadConfigCache = rows
-  return rows
+  return screenQuadConfigCache
 }
 
 export async function loadScreenRegion(svgUrl: string): Promise<ScreenRegion> {

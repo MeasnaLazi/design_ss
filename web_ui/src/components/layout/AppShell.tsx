@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
+
 import { useArrowNudgeLayerHotkeys } from '../../hooks/useArrowNudgeLayerHotkeys'
+import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
@@ -11,6 +14,10 @@ import { LeftSidebar } from './LeftSidebar'
 import { TopToolbar } from './TopToolbar'
 
 export function AppShell() {
+  useEffect(() => {
+    void useDeviceFramePackStore.getState().loadRegistry()
+  }, [])
+
   useArrowNudgeLayerHotkeys()
   useCopyPasteLayerHotkeys()
   useDeleteLayerHotkeys()
