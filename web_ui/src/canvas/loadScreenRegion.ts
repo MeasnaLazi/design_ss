@@ -32,6 +32,11 @@ const quadConfigUrl = '/device-frames/iphone_12_pro/frame.json'
 
 type ScreenQuadConfigEntry = {
   framePath: string
+  /**
+   * When `false`, this frame uses the rectangular pipeline (`loadScreenRegion` + exact `#screen` path clip),
+   * not WebGL homography. Omit or `true` for iso / perspective quads.
+   */
+  homography?: boolean
   clipCornerRadiusPx?: number
   clipCornerRadiiPx?: {
     tl?: number
@@ -163,6 +168,9 @@ export async function loadScreenQuad(svgUrl: string): Promise<ScreenQuad> {
   if (!pathD) throw new Error(`[loadScreenQuad] #screen has no "d" attribute in ${svgUrl}`)
 
   if (configMatch) {
+    if (configMatch.homography === false) {
+      throw new Error(`[loadScreenQuad] homography disabled for ${normalizedPath}`)
+    }
     const quad: ScreenQuad = {
       tl: configMatch.corners.TL,
       tr: configMatch.corners.TR,

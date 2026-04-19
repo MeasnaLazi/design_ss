@@ -1,6 +1,16 @@
 {
   "frames": [
     {
+      "framePath": "/device-frames/iphone_12_pro/frame/front.svg",
+      "homography": false,
+      "corners": {
+        "TL": [23.82, -17.89],
+        "TR": [746.64, -17.89],
+        "BR": [746.64, 1551.16],
+        "BL": [23.82, 1551.16]
+      }
+    },
+    {
       "framePath": "/device-frames/iphone_12_pro/frame/iso-down-left.svg",
       "clipCornerRadiiPx": {
         "tl": 95,
