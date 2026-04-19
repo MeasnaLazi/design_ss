@@ -231,24 +231,29 @@ export async function applyScreenshotToDeviceGroup(
 
   const shot = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' })
 
-  // Set everything except left/top — those are set after _enterGroup (see below)
-  shot.set({
-    originX: 'center',
-    originY: 'center',
-    angle: 0,
-    skewX: 0,
-    skewY: 0,
-    selectable: false,
-    evented: false,
-    lockMovementX: true,
-    lockMovementY: true,
-    lockRotation: true,
-    dirty: true,
-    objectCaching: false,
-    scaleX,
-    scaleY,
-    ...(clipPath ? { clipPath } : {}),
-  })
+  /** Group-local scale so the baked bitmap (viewW×viewH) matches the bezel image size. */
+  const applyShotGroupLocalTransform = (): void => {
+    shot.set({
+      originX: 'center',
+      originY: 'center',
+      angle: 0,
+      skewX: 0,
+      skewY: 0,
+      selectable: false,
+      evented: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      lockRotation: true,
+      dirty: true,
+      objectCaching: false,
+      scaleX,
+      scaleY,
+      ...(clipPath ? { clipPath } : {}),
+    })
+  }
+
+  // Pre-insert props (left/top fixed after insert — see below)
+  applyShotGroupLocalTransform()
 
   // ── Insert into group ─────────────────────────────────────────────────────
   const overlays = objects.slice(0, -1)
@@ -256,6 +261,10 @@ export async function applyScreenshotToDeviceGroup(
     target.remove(o)
   }
   target.insertAt(0, shot)
+  // Fabric's `insertAt` → `enterGroup(obj, true)` converts from canvas plane using
+  // `inverse(groupMatrix)`. Our scaleX/Y are already in **group-local** space (they match
+  // `frame.getScaledWidth()` / viewW). Re-apply after insert or scaled groups shrink the shot.
+  applyShotGroupLocalTransform()
   shot.setCoords()
   target.set('dirty', true)
   resyncScreenshotChildInDeviceGroup(shot, target)
@@ -280,6 +289,7 @@ export async function applyScreenshotToDeviceGroup(
     // Rect frames: triggerLayout stabilises the FixedLayout group after the child
     // swap, then re-read the frame position to place the shot correctly.
     target.triggerLayout({})
+    applyShotGroupLocalTransform()
     const afterObjects = target.getObjects()
     const frameAfter = afterObjects[afterObjects.length - 1]
     if (frameAfter instanceof FabricImage) {
