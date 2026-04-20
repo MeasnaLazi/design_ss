@@ -7,9 +7,9 @@ import { InteractiveFabricObject } from 'fabric'
 Object.assign(InteractiveFabricObject.ownDefaults, {
   borderScaleFactor: 2.5,
   /** Visual size of scale/rotate handles on the selection box */
-  cornerSize: 22,
+  cornerSize: 28,
   /** Invisible hit target around each handle (pointer / touch) */
-  touchCornerSize: 48,
+  touchCornerSize: 56,
   borderColor: 'rgba(244, 244, 245, 0.95)',
   cornerColor: 'rgba(244, 244, 245, 0.95)',
   cornerStrokeColor: 'rgba(24, 24, 27, 0.85)',
