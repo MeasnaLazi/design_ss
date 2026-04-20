@@ -34,7 +34,9 @@ export async function addDeviceFrameToCanvas(
   }
   const styles = activePackStyles(packState.devices, packId)
   const style = getDeviceFrameStyle(styleId, styles)
-  const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
+  const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(
+    useDesignStore.getState().config,
+  )
   const targetW = deviceFrameTargetWidth(panelW)
   const packDevice = packState.devices.find((d) => d.id === packId)
   const frontManifest = packDevice?.manifest.frames.find((f) => f.name === DEFAULT_DEVICE_FRAME_ANGLE_ID)
@@ -90,15 +92,19 @@ export async function addDeviceFrameToCanvas(
 
   const group = new Group([frame], {
     layoutManager: new LayoutManager(new FixedLayout()),
-    left: 160,
-    top: 140,
+    left: 0,
+    top: 0,
     originX: 'left',
     originY: 'top',
     subTargetCheck: false,
     interactive: false,
     lockRotation: false,
-    /** Extra space so the rotate handle clears the tall frame. */
-    padding: 28,
+    /**
+     * Fabric adds this inset on every side to the selection box (border + handles).
+     * Keep it small so the control rect tracks the bezel; global `cornerSize` / `touchCornerSize`
+     * already give the handles their own hit area.
+     */
+    padding: 8,
     /**
      * Clipped screenshot child + rotation: a cached group bitmap can mis-compose clipPath vs
      * group angle; disable caching for reliable preview when the frame is rotated.
@@ -106,13 +112,12 @@ export async function addDeviceFrameToCanvas(
     objectCaching: false,
   })
 
-  const w = group.getScaledWidth()
-  const h = group.getScaledHeight()
+  /** Center on screenshot panel 1 — avoids a large fixed offset (legacy 160×140) vs panel size. */
   group.set({
     originX: 'center',
     originY: 'center',
-    left: 160 + w / 2,
-    top: 140 + h / 2,
+    left: panelW / 2,
+    top: panelH / 2,
   })
   group.setCoords()
 

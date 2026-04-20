@@ -229,7 +229,16 @@ export async function applyScreenshotToDeviceGroup(
     clipPath = makeClipPath(region.pathD, viewW, viewH)
   }
 
-  const shot = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' })
+  /**
+   * Lock logical size to the SVG viewBox used for `scaleX` / `scaleY`.
+   * Some decoders report `naturalWidth`/`naturalHeight` at a higher pixel ratio than the
+   * baked canvas; Fabric would then use that for layout while our scale assumes `viewW`×`viewH`,
+   * inflating the group bbox on {@link Group#triggerLayout} (rect / front frames only).
+   */
+  const shot = await FabricImage.fromURL(imageUrl, { crossOrigin: 'anonymous' }, {
+    width: viewW,
+    height: viewH,
+  })
 
   /** Group-local scale so the baked bitmap (viewW×viewH) matches the bezel image size. */
   const applyShotGroupLocalTransform = (): void => {
@@ -286,20 +295,36 @@ export async function applyScreenshotToDeviceGroup(
       shot.setCoords()
     }
   } else {
-    // Rect frames: triggerLayout stabilises the FixedLayout group after the child
-    // swap, then re-read the frame position to place the shot correctly.
-    target.triggerLayout({})
-    applyShotGroupLocalTransform()
-    const afterObjects = target.getObjects()
-    const frameAfter = afterObjects[afterObjects.length - 1]
-    if (frameAfter instanceof FabricImage) {
+    // Rect frames: centre the shot on the bezel *before* triggerLayout. Fabric's insert path
+    // leaves shot left/top in a bad group-local state; computing layout first unions a huge
+    // bbox (empty top-left, frame pushed to bottom-right of the selection box).
+    const allObjects = target.getObjects()
+    const frameNow = allObjects[allObjects.length - 1]
+    if (frameNow instanceof FabricImage) {
       shot.set({
-        left: frameAfter.left + frameAfter.getScaledWidth() / 2,
-        top: frameAfter.top + frameAfter.getScaledHeight() / 2,
+        left: frameNow.left + frameNow.getScaledWidth() / 2,
+        top: frameNow.top + frameNow.getScaledHeight() / 2,
         dirty: true,
       })
       shot.setCoords()
       resyncScreenshotChildInDeviceGroup(shot, target)
+      applyShotGroupLocalTransform()
+      target.triggerLayout({})
+      applyShotGroupLocalTransform()
+      const afterObjects = target.getObjects()
+      const frameAfter = afterObjects[afterObjects.length - 1]
+      if (frameAfter instanceof FabricImage) {
+        shot.set({
+          left: frameAfter.left + frameAfter.getScaledWidth() / 2,
+          top: frameAfter.top + frameAfter.getScaledHeight() / 2,
+          dirty: true,
+        })
+        shot.setCoords()
+        resyncScreenshotChildInDeviceGroup(shot, target)
+      }
+      applyShotGroupLocalTransform()
+      target.triggerLayout({})
+      applyShotGroupLocalTransform()
     }
   }
 
