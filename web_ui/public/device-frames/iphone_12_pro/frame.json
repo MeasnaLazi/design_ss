@@ -6,6 +6,9 @@
       "name": "front",
       "framePath": "/device-frames/iphone_12_pro/frame/front.svg",
       "homography": false,
+      "viewWidth": 772,
+      "viewHeight": 1571,
+      "layoutScale": 0.75,
       "corners": {
         "TL": [23.82, -17.89],
         "TR": [746.64, -17.89],
@@ -16,6 +19,9 @@
     {
       "name": "iso-down-left",
       "framePath": "/device-frames/iphone_12_pro/frame/iso-down-left.svg",
+      "viewWidth": 1282,
+      "viewHeight": 1485,
+      "layoutScale": 0.75,
       "clipCornerRadiiPx": {
         "tl": 95,
         "tr": 95,
@@ -27,6 +33,25 @@
         "TR": [586.79, -13.89],
         "BR": [1316.21, 1271.52],
         "BL": [739.82, 1450.05]
+      }
+    },
+    {
+      "name": "iso-down-right",
+      "framePath": "/device-frames/iphone_12_pro/frame/iso-down-right.svg",
+      "viewWidth": 1282,
+      "viewHeight": 1485,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 95,
+        "tr": 95,
+        "br": 95,
+        "bl": 95
+      },
+      "corners": {
+        "TL": [694.27, -14.42],
+        "TR": [1267, 125.26],
+        "BR": [536.42, 1454.41],
+        "BL": [-27.82, 1257.14]
       }
     }
   ]

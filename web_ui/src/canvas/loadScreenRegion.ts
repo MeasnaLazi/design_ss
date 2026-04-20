@@ -32,6 +32,12 @@ const quadCache = new Map<string, ScreenQuad>()
 /** One frame angle entry merged from device manifest JSON under public/device-frames. */
 export type ScreenQuadConfigEntry = {
   framePath: string
+  /** Matches SVG `width` / viewBox width. Used with `corners` to align screen size across angles. */
+  viewWidth?: number
+  /** Matches SVG `height` / viewBox height (optional; reserved for future use). */
+  viewHeight?: number
+  /** Multiplies final canvas scale (default `1`). Use e.g. `0.8` to make this angle 20% smaller without changing the SVG. */
+  layoutScale?: number
   /**
    * When `false`, this frame uses the rectangular pipeline (`loadScreenRegion` + exact `#screen` path clip),
    * not WebGL homography. Omit or `true` for iso / perspective quads.

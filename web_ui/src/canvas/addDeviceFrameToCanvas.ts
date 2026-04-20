@@ -1,8 +1,11 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
 import { getArtboardDimensionsFromConfig, getArtboardPreset } from '../constants/artboardPresets'
-import { deviceFrameTargetWidth } from '../constants/deviceFrame'
+import {
+  deviceFrameTargetWidth,
+  uniformScaleForMatchingFrontScreenHeight,
+} from '../constants/deviceFrame'
 import { DEFAULT_DEVICE_FRAME_STYLE_ID, getDeviceFrameStyle } from '../constants/deviceFrameStyles'
-import { activePackStyles } from '../lib/deviceFrameCatalog'
+import { activePackStyles, DEFAULT_DEVICE_FRAME_ANGLE_ID } from '../lib/deviceFrameCatalog'
 import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import {
   fetchPlaceholderAsFile,
@@ -32,6 +35,10 @@ export async function addDeviceFrameToCanvas(
   const styles = activePackStyles(packState.devices, packId)
   const style = getDeviceFrameStyle(styleId, styles)
   const { width: panelW } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
+  const targetW = deviceFrameTargetWidth(panelW)
+  const packDevice = packState.devices.find((d) => d.id === packId)
+  const frontManifest = packDevice?.manifest.frames.find((f) => f.name === DEFAULT_DEVICE_FRAME_ANGLE_ID)
+  const currentManifest = packDevice?.manifest.frames.find((f) => f.name === style.id)
   const frame = await FabricImage.fromURL(
     style.src,
     { crossOrigin: 'anonymous' },
@@ -45,7 +52,36 @@ export async function addDeviceFrameToCanvas(
     },
   )
 
-  frame.scaleToWidth(deviceFrameTargetWidth(panelW))
+  /** Must match the real SVG width; using loaded `frame.width` for `front` avoids stale/wrong JSON. */
+  const referenceFrontViewWidth =
+    style.id === DEFAULT_DEVICE_FRAME_ANGLE_ID
+      ? frame.width
+      : typeof frontManifest?.viewWidth === 'number'
+        ? frontManifest.viewWidth
+        : undefined
+
+  const layoutScale =
+    typeof currentManifest?.layoutScale === 'number' && Number.isFinite(currentManifest.layoutScale)
+      ? currentManifest.layoutScale
+      : 1
+
+  const uniform =
+    frontManifest?.corners &&
+    currentManifest?.corners &&
+    referenceFrontViewWidth !== undefined &&
+    referenceFrontViewWidth > 0
+      ? uniformScaleForMatchingFrontScreenHeight({
+          referenceFrontViewWidth,
+          referenceCorners: frontManifest.corners,
+          currentCorners: currentManifest.corners,
+          targetReferenceFrameWidthPx: targetW,
+        })
+      : null
+  if (uniform != null) {
+    frame.set({ scaleX: uniform * layoutScale, scaleY: uniform * layoutScale })
+  } else {
+    frame.scaleToWidth(targetW * layoutScale)
+  }
   frame.set({ dirty: true, objectCaching: false })
 
   const id = crypto.randomUUID()

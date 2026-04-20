@@ -25,6 +25,47 @@ export function deviceFrameTargetWidth(panelWidthPx: number): number {
   return Math.round(panelWidthPx * 0.75)
 }
 
+/** Same shape as `ScreenQuadConfigEntry['corners']` in `loadScreenRegion` (kept inline to avoid a circular import). */
+export type DeviceFrameManifestCorners = {
+  TL: [number, number]
+  TR: [number, number]
+  BR: [number, number]
+  BL: [number, number]
+}
+
+/**
+ * Axis-aligned height of the screen quad from manifest corners (SVG viewBox units).
+ */
+export function screenQuadAabbHeight(corners: DeviceFrameManifestCorners): number {
+  const pts = [corners.TL, corners.TR, corners.BR, corners.BL]
+  const ys = pts.map((p) => p[1])
+  return Math.max(...ys) - Math.min(...ys)
+}
+
+/**
+ * Uniform scale so the screen opening matches the height it would have if the **front** frame were
+ * scaled to `targetReferenceFrameWidthPx` (same idea as {@link deviceFrameTargetWidth} + `scaleToWidth`).
+ *
+ * Values come from the device manifest (`corners` + `viewWidth` on the front row). If anything is
+ * missing or invalid, callers should fall back to `scaleToWidth`.
+ */
+export function uniformScaleForMatchingFrontScreenHeight(opts: {
+  referenceFrontViewWidth: number
+  referenceCorners: DeviceFrameManifestCorners
+  currentCorners: DeviceFrameManifestCorners
+  targetReferenceFrameWidthPx: number
+}): number | null {
+  const { referenceFrontViewWidth, referenceCorners, currentCorners, targetReferenceFrameWidthPx } =
+    opts
+  if (!(referenceFrontViewWidth > 0) || !(targetReferenceFrameWidthPx > 0)) return null
+  const hRef = screenQuadAabbHeight(referenceCorners)
+  const hCur = screenQuadAabbHeight(currentCorners)
+  if (hRef < 1e-6 || hCur < 1e-6) return null
+  const targetScreenHPx = hRef * (targetReferenceFrameWidthPx / referenceFrontViewWidth)
+  const s = targetScreenHPx / hCur
+  return Number.isFinite(s) && s > 0 ? s : null
+}
+
 /**
  * After dragging, clamping allows the bezel to extend past the artboard top/bottom by this many
  * canvas px so a frame can sit partly “above” the screenshot row (e.g. spanning two+ panels).
