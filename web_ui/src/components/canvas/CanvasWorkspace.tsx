@@ -139,6 +139,10 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
         height,
         backgroundColor: CANVAS_GUTTER_COLOR,
         preserveObjectStacking: true,
+        /** Marquee / multi-select rectangle — default 1px is easy to miss on dark gutters */
+        selectionLineWidth: 2,
+        selectionBorderColor: 'rgba(244, 244, 245, 0.9)',
+        selectionColor: 'rgba(96, 165, 250, 0.22)',
         /**
          * Default `enableRetinaScaling` multiplies backing-store pixels by devicePixelRatio.
          * At full App Store artboard resolution that makes each drag-frame paint enormous; CSS zoom
