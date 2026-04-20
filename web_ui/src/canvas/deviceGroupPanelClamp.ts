@@ -1,5 +1,5 @@
 import type { Canvas } from 'fabric'
-import { Group } from 'fabric'
+import { FabricImage, Group } from 'fabric'
 
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { DEVICE_FRAME_PANEL_CLAMP_VERTICAL_BLEED_PX } from '../constants/deviceFrame'
@@ -74,6 +74,11 @@ function unionPanelBoundsFromIndices(
  * Keeps a device frame group’s axis-aligned bbox inside the union of every screenshot panel it
  * horizontally overlaps (so one phone can span two or more panels), with optional vertical bleed
  * past the artboard top/bottom. Falls back to the nearest panel if the bbox lies only in gutters.
+ *
+ * Uses the **bezel** {@link FabricImage} (last group child), not {@link Group#getBoundingRect}, so
+ * the clamp matches the visible frame — same idea as {@link deviceGroupFrameUnionBBox}. The group
+ * bbox can diverge (e.g. layout / children union), which showed up with the axis-aligned **front**
+ * frame sitting past the panel edge while other angles looked fine.
  */
 export function clampDeviceGroupToNearestPanel(target: Group): void {
   const id = getFabricObjectId(target)
@@ -87,7 +92,10 @@ export function clampDeviceGroupToNearestPanel(target: Group): void {
 
   const { width: W, height: H } = getArtboardDimensionsFromConfig(cfg)
 
-  const b = target.getBoundingRect()
+  const children = target.getObjects()
+  const frame = children[children.length - 1]
+  const b =
+    frame instanceof FabricImage ? frame.getBoundingRect() : target.getBoundingRect()
   const br = b.left + b.width
   const indices = panelIndicesOverlappingHorizontally(b.left, br, screens, gap, W)
   const union = unionPanelBoundsFromIndices(indices, gap, W, H)
