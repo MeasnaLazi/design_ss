@@ -53,6 +53,82 @@
         "BR": [536.42, 1454.41],
         "BL": [-27.82, 1257.14]
       }
+    },
+    {
+      "name": "iso-up-left",
+      "framePath": "/device-frames/iphone_12_pro/frame/iso-up-left.svg",
+      "viewWidth": 1041,
+      "viewHeight": 1418,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 95,
+        "tr": 95,
+        "br": 95,
+        "bl": 95
+      },
+      "corners": {
+        "TL": [24.9, -4.2],
+        "TR": [655.5, 20.4],
+        "BR": [1053.9, 1341.5],
+        "BL": [404.5, 1366.7]
+      }
+    },
+    {
+      "name": "iso-up-right",
+      "framePath": "/device-frames/iphone_12_pro/frame/iso-up-right.svg",
+      "viewWidth": 1041,
+      "viewHeight": 1418,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 95,
+        "tr": 95,
+        "br": 95,
+        "bl": 95
+      },
+      "corners": {
+        "TL": [388.4, 21.0],
+        "TR": [1022.7, 1.5],
+        "BR": [642.8, 1367.5],
+        "BL": [-16.6, 1343.8]
+      }
+    },
+    {
+      "name": "perspective-left",
+      "framePath": "/device-frames/iphone_12_pro/frame/perspective-left.svg",
+      "viewWidth": 669,
+      "viewHeight": 1591,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 25,
+        "tr": 25,
+        "br": 25,
+        "bl": 25
+      },
+      "corners": {
+        "TL": [21.7, 50.3],
+        "TR": [629.6, 28.9],
+        "BR": [627.5, 1562.3],
+        "BL": [21.2, 1537.0]
+      }
+    },
+    {
+      "name": "perspective-right",
+      "framePath": "/device-frames/iphone_12_pro/frame/perspective-right.svg",
+      "viewWidth": 669,
+      "viewHeight": 1591,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 25,
+        "tr": 25,
+        "br": 25,
+        "bl": 25
+      },
+      "corners": {
+        "TL": [70.5, 26.4],
+        "TR": [674.0, 49.6],
+        "BR": [674.0, 1532.4],
+        "BL": [70.1, 1555.7]
+      }
     }
   ]
 }
