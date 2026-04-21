@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { applyEmptyDesignForPreset, loadDisplayDocumentIntoCanvas } from '../canvas/loadDisplayDocument'
+import { resetDesignHistoryFromCurrentCanvas } from '../history/designHistory'
 import { parseDisplayDocument } from '../canvas/parseDisplayDocument'
 import { getDisplayFileSlug } from '../constants/artboardPresets'
 import { tryFetchDisplayDocument } from '../lib/datasourceApi'
@@ -50,6 +51,8 @@ export function useArtboardPresetDisplaySync(): void {
         } else {
           await applyEmptyDesignForPreset(preset)
         }
+        if (myGen !== genRef.current) return
+        resetDesignHistoryFromCurrentCanvas()
       } catch (e) {
         if (myGen !== genRef.current) return
         console.error('[useArtboardPresetDisplaySync] load failed', e)
@@ -60,6 +63,8 @@ export function useArtboardPresetDisplaySync(): void {
             'warning',
           )
         await applyEmptyDesignForPreset(preset)
+        if (myGen !== genRef.current) return
+        resetDesignHistoryFromCurrentCanvas()
       }
     })()
   }, [fabricCanvas, artboardPresetId])

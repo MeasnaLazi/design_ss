@@ -52,6 +52,7 @@ export function ContextualPositionToolbar() {
       if (!obj) return
       obj.set(patch)
       obj.setCoords()
+      canvas.fire('object:modified', { target: obj })
       canvas.requestRenderAll()
       bump()
     },

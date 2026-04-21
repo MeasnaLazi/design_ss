@@ -1,5 +1,13 @@
 import { useEffect, useId, useState } from 'react'
-import { ChevronDown, Download, LayoutTemplate, Save, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  Download,
+  LayoutTemplate,
+  Redo2,
+  Save,
+  Trash2,
+  Undo2,
+} from 'lucide-react'
 
 import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
@@ -15,6 +23,14 @@ import {
   saveDesignTemplate,
   type DesignTemplateListItem,
 } from '../../lib/designTemplatePersistence'
+import {
+  canRedoDesignHistory,
+  canUndoDesignHistory,
+  redoDesignHistory,
+  resetDesignHistoryFromCurrentCanvas,
+  undoDesignHistory,
+  useDesignHistoryStore,
+} from '../../history/designHistory'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
 import type { DisplayDocumentV1 } from '../../types/displayDocument'
@@ -24,8 +40,11 @@ import { ContextualPositionToolbar } from './ContextualPositionToolbar'
 import { ContextualTextToolbar } from './ContextualTextToolbar'
 
 export function TopToolbar() {
+  useDesignHistoryStore((s) => s.rev)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
+  const canUndo = canUndoDesignHistory()
+  const canRedo = canRedoDesignHistory()
 
   const saveDialogTitleId = useId()
   const loadDialogTitleId = useId()
@@ -116,7 +135,8 @@ export function TopToolbar() {
       return
     }
     try {
-      await loadDisplayDocumentIntoCanvas(doc)
+      await loadDisplayDocumentIntoCanvas(doc, { skipPresetDatasourceSync: true })
+      resetDesignHistoryFromCurrentCanvas()
       setLoadTemplateOpen(false)
       showToast('Template loaded.', 'success')
     } catch (e) {
@@ -155,6 +175,29 @@ export function TopToolbar() {
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <ContextualPositionToolbar />
+        <div className="hidden h-6 w-px bg-zinc-700 sm:block" aria-hidden />
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            title="Undo (⌘Z / Ctrl+Z)"
+            aria-label="Undo"
+            disabled={!canUndo}
+            onClick={() => void undoDesignHistory()}
+            className="rounded-md border border-zinc-700 bg-zinc-800 p-1.5 text-zinc-100 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Undo2 className="size-3.5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            title="Redo (⌘⇧Z / Ctrl+Y)"
+            aria-label="Redo"
+            disabled={!canRedo}
+            onClick={() => void redoDesignHistory()}
+            className="rounded-md border border-zinc-700 bg-zinc-800 p-1.5 text-zinc-100 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Redo2 className="size-3.5" aria-hidden />
+          </button>
+        </div>
         <details className="relative">
           <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700 [&::-webkit-details-marker]:hidden">
             <Save className="size-3.5 shrink-0" aria-hidden />

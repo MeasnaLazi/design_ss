@@ -39,6 +39,7 @@ export function ContextualTextToolbar() {
     if (!c || !(obj instanceof IText)) return
     obj.set(patch)
     obj.set('dirty', true)
+    c.fire('object:modified', { target: obj })
     c.requestRenderAll()
     bump()
     console.log('[ContextualTextToolbar] applied', patch)

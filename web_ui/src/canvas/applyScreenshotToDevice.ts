@@ -337,6 +337,7 @@ export async function applyScreenshotToDeviceGroup(
   }
 
   canvas.setActiveObject(target)
+  canvas.fire('object:modified', { target })
   canvas.requestRenderAll()
   console.log('[applyScreenshotToDeviceGroup] done', { groupAppId, frameStyleId: style.id, iso: !!quad })
 }

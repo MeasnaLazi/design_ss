@@ -22,16 +22,20 @@ function discardIfActive(canvas: Canvas, target: Parameters<Canvas['remove']>[0]
 /**
  * Removes a user layer from the Fabric canvas and the design store.
  * No-op on the canvas side if the object is missing (store is still updated).
+ *
+ * Store is updated **before** `canvas.remove` so undo history (`buildDisplayDocumentFromCanvas`)
+ * never captures a frame where Fabric no longer has the object but `objects` still lists it.
  */
 export function deleteLayerById(id: string): void {
   const canvas = useDesignStore.getState().fabricCanvas
+
+  useDesignStore.getState().removeObject(id)
 
   if (canvas) {
     const target = findObjectOnCanvasByAppId(canvas, id)
     if (target) {
       if (isDesignSystemCanvasObject(target)) {
         console.warn('[deleteLayerById] skipped system object', id)
-        useDesignStore.getState().removeObject(id)
         return
       }
       discardIfActive(canvas, target)
@@ -40,8 +44,6 @@ export function deleteLayerById(id: string): void {
       canvas.requestRenderAll()
     }
   }
-
-  useDesignStore.getState().removeObject(id)
 }
 
 /**

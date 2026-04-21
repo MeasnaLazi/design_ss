@@ -5,7 +5,9 @@ import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
+import { useDesignHistoryRecorder } from '../../hooks/useDesignHistoryRecorder'
 import { useSaveDesignHotkey } from '../../hooks/useSaveDesignHotkey'
+import { useUndoRedoHotkeys } from '../../hooks/useUndoRedoHotkeys'
 import { ToastHost } from '../ui/ToastHost'
 
 import { BottomFooter } from './BottomFooter'
@@ -22,6 +24,8 @@ export function AppShell() {
   useCopyPasteLayerHotkeys()
   useDeleteLayerHotkeys()
   useSaveDesignHotkey()
+  useUndoRedoHotkeys()
+  useDesignHistoryRecorder()
   useArtboardPresetDisplaySync()
 
   return (

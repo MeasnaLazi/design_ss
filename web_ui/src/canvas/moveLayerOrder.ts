@@ -63,6 +63,7 @@ export function moveLayerById(id: string, towardTopOfList: boolean): boolean {
 
   bringGutterOverlaysToFront(canvas)
   reindexLayersFromCanvas()
+  canvas.fire('object:modified', { target: obj })
   canvas.requestRenderAll()
   return true
 }
