@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -65,6 +65,7 @@ export function LeftSidebar() {
   const fabricCanvas = useDesignStore((s) => s.fabricCanvas)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
+  const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
@@ -76,12 +77,19 @@ export function LeftSidebar() {
   /** Detail panel next to the nav; click the active section again to collapse and widen the canvas. */
   const [panelOpen, setPanelOpen] = useState(true)
 
-  const [canvasFillTab, setCanvasFillTab] = useState<CanvasFillTab>(() => {
-    const c = useDesignStore.getState().config
-    if (c.backgroundImageUrl) return 'image'
-    if (c.backgroundMode === 'gradient') return 'gradient'
+  /** True while user opened the Image tab before choosing a file (not persisted). */
+  const [imagePanelActive, setImagePanelActive] = useState(false)
+
+  const canvasFillTab = useMemo((): CanvasFillTab => {
+    if (backgroundImageUrl != null && backgroundImageUrl.length > 0) return 'image'
+    if (imagePanelActive) return 'image'
+    if (backgroundMode === 'gradient') return 'gradient'
     return 'solid'
-  })
+  }, [backgroundImageUrl, backgroundMode, imagePanelActive])
+
+  useEffect(() => {
+    setImagePanelActive(false)
+  }, [backgroundImageUrl, backgroundMode, artboardPresetId])
 
   const devices = useDeviceFramePackStore((s) => s.devices)
   const registryStatus = useDeviceFramePackStore((s) => s.status)
@@ -168,7 +176,6 @@ export function LeftSidebar() {
         const url = typeof fr.result === 'string' ? fr.result : ''
         if (url) {
           setConfig({ backgroundImageUrl: url })
-          setCanvasFillTab('image')
           console.log('[LeftSidebar] canvas background image set (embedded)')
         }
       }
@@ -178,7 +185,6 @@ export function LeftSidebar() {
       const bucket = screenshotBucketForConfig(useDesignStore.getState().config)
       const url = await uploadScreenshotFile(file, { bucket })
       setConfig({ backgroundImageUrl: url })
-      setCanvasFillTab('image')
       console.log('[LeftSidebar] canvas background image set')
     } catch {
       useToastStore
@@ -319,7 +325,7 @@ export function LeftSidebar() {
                 role="tab"
                 aria-selected={canvasFillTab === 'solid'}
                 onClick={() => {
-                  setCanvasFillTab('solid')
+                  setImagePanelActive(false)
                   setConfig({ backgroundMode: 'solid' })
                 }}
                 className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
@@ -335,7 +341,7 @@ export function LeftSidebar() {
                 role="tab"
                 aria-selected={canvasFillTab === 'gradient'}
                 onClick={() => {
-                  setCanvasFillTab('gradient')
+                  setImagePanelActive(false)
                   setConfig({ backgroundMode: 'gradient' })
                 }}
                 className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
@@ -350,7 +356,7 @@ export function LeftSidebar() {
                 type="button"
                 role="tab"
                 aria-selected={canvasFillTab === 'image'}
-                onClick={() => setCanvasFillTab('image')}
+                onClick={() => setImagePanelActive(true)}
                 className={`min-w-0 flex-1 rounded px-1.5 py-1.5 text-[11px] font-medium sm:px-2 sm:text-xs ${
                   canvasFillTab === 'image'
                     ? 'bg-zinc-700 text-zinc-100'
