@@ -3,11 +3,9 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
-  ImageIcon,
   ImagePlus,
   Layers,
   Palette,
-  Shapes,
   Smartphone,
   Trash2,
   Type,
@@ -500,28 +498,6 @@ export function LeftSidebar() {
             >
               <Smartphone className="size-4 shrink-0" aria-hidden />
               Add device
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              disabled
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-400 opacity-60"
-              title="Available in a later phase"
-            >
-              <Shapes className="size-4 shrink-0" aria-hidden />
-              Shapes
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              disabled
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-400 opacity-60"
-              title="Available in a later phase"
-            >
-              <ImageIcon className="size-4 shrink-0" aria-hidden />
-              Images
             </button>
           </li>
         </ul>
