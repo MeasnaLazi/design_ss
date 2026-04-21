@@ -1,4 +1,6 @@
 import { Textbox, type Canvas } from 'fabric'
+
+import { DEFAULT_TEXT_FONT_FAMILY } from '../constants/textFonts'
 import { registerFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 
@@ -34,7 +36,7 @@ export function addTextboxToCanvas(
     width,
     fontSize,
     fill: '#f4f4f5',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontFamily: DEFAULT_TEXT_FONT_FAMILY,
     fontWeight: '600',
   })
 

@@ -6,11 +6,24 @@ import type { ArtboardPresetId } from '../constants/artboardPresets'
  */
 export type CanvasBackgroundMode = 'solid' | 'gradient'
 
-/** Linear gradient under optional background image. Angle: 0° = left→right, 90° = top→bottom (canvas +y down). */
+export type BackgroundGradientKind = 'linear' | 'radial'
+
+export interface GradientColorStop {
+  /** Position along the gradient axis, 0–1. */
+  offset: number
+  color: string
+}
+
+/**
+ * Panel gradient under optional background image.
+ * - Linear: `angleDeg` — 0° → right, 90° → down (canvas +y down).
+ * - Radial: fills from a focal point; `angleDeg` shifts the focal point for a soft vignette.
+ */
 export interface BackgroundGradientConfig {
-  colorFrom: string
-  colorTo: string
+  kind: BackgroundGradientKind
   angleDeg: number
+  /** At least two stops; offsets are clamped to [0, 1] when rendering. */
+  stops: GradientColorStop[]
 }
 
 export interface DesignConfig {

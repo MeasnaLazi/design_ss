@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { useArrowNudgeLayerHotkeys } from '../../hooks/useArrowNudgeLayerHotkeys'
+import { useCustomFontStore } from '../../store/useCustomFontStore'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
@@ -18,6 +19,10 @@ import { TopToolbar } from './TopToolbar'
 export function AppShell() {
   useEffect(() => {
     void useDeviceFramePackStore.getState().loadRegistry()
+  }, [])
+
+  useEffect(() => {
+    void useCustomFontStore.getState().hydrateFromIndexedDb()
   }, [])
 
   useArrowNudgeLayerHotkeys()

@@ -36,6 +36,7 @@ export async function exportAppStoreScreensToZip(
   canvas.requestRenderAll()
 
   try {
+    await document.fonts.ready
     const zip = new JSZip()
 
     for (let i = 0; i < screens; i++) {

@@ -10,6 +10,7 @@ import {
   createDefaultDesignSnapshotForPreset,
   useDesignStore,
 } from '../store/useDesignStore'
+import { useCustomFontStore } from '../store/useCustomFontStore'
 
 import { isDesignSystemCanvasObject } from './canvasObjectMarks'
 import { parseDisplayDocument } from './parseDisplayDocument'
@@ -49,6 +50,8 @@ export async function loadDisplayDocumentIntoCanvas(
   if (options?.skipPresetDatasourceSync) {
     suppressArtboardPresetDatasourceSyncOnce()
   }
+
+  await useCustomFontStore.getState().hydrateFromIndexedDb()
 
   beginDocumentApply()
   try {

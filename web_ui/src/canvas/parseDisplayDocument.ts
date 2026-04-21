@@ -1,4 +1,8 @@
 import { normalizeArtboardPresetId } from '../constants/artboardPresets'
+import {
+  isValidBackgroundGradientJson,
+  normalizeBackgroundGradient,
+} from '../lib/backgroundGradient'
 import type { DesignConfig, DesignObjectRecord } from '../store/designTypes'
 import type { DisplayDesignSnapshot, DisplayDocumentV1 } from '../types/displayDocument'
 import { DISPLAY_DOCUMENT_VERSION } from '../types/displayDocument'
@@ -16,9 +20,7 @@ function isDesignConfigShape(x: unknown): boolean {
     typeof x.background === 'string' &&
     (x.backgroundMode === 'solid' || x.backgroundMode === 'gradient') &&
     isRecord(x.backgroundGradient) &&
-    typeof (x.backgroundGradient as { colorFrom?: unknown }).colorFrom === 'string' &&
-    typeof (x.backgroundGradient as { colorTo?: unknown }).colorTo === 'string' &&
-    typeof (x.backgroundGradient as { angleDeg?: unknown }).angleDeg === 'number' &&
+    isValidBackgroundGradientJson(x.backgroundGradient) &&
     (x.backgroundImageUrl === null || typeof x.backgroundImageUrl === 'string')
   )
 }
@@ -81,6 +83,7 @@ export function parseDisplayDocument(raw: unknown): DisplayDocumentV1 {
       artboardPresetId: normalizeArtboardPresetId(
         typeof rawCfg.artboardPresetId === 'string' ? rawCfg.artboardPresetId : undefined,
       ),
+      backgroundGradient: normalizeBackgroundGradient(rawCfg.backgroundGradient),
     },
     objects: design.objects,
     canvasZoom: design.canvasZoom,

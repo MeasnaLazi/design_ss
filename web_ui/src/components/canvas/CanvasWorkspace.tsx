@@ -117,9 +117,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
   const background = useDesignStore((s) => s.config.background)
   const backgroundMode = useDesignStore((s) => s.config.backgroundMode)
-  const gradientFrom = useDesignStore((s) => s.config.backgroundGradient.colorFrom)
-  const gradientTo = useDesignStore((s) => s.config.backgroundGradient.colorTo)
-  const gradientAngle = useDesignStore((s) => s.config.backgroundGradient.angleDeg)
+  const gradientKey = useDesignStore((s) => JSON.stringify(s.config.backgroundGradient))
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const canvasZoom = useDesignStore((s) => s.canvasZoom)
 
@@ -261,9 +259,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
     artboardPresetId,
     background,
     backgroundMode,
-    gradientFrom,
-    gradientTo,
-    gradientAngle,
+    gradientKey,
   ])
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import {
   registerFabricObjectId,
 } from '../lib/fabricObjectRegistry'
 import type { DesignObjectRecord } from '../store/designTypes'
+import { useCustomFontStore } from '../store/useCustomFontStore'
 import { useDesignStore } from '../store/useDesignStore'
 
 import { isDesignSystemCanvasObject } from './canvasObjectMarks'
@@ -108,6 +109,8 @@ export async function pasteLayersFromClipboard(): Promise<boolean> {
   const canvas = useDesignStore.getState().fabricCanvas
   const payload = clipboard
   if (!canvas || !payload?.items.length) return false
+
+  await useCustomFontStore.getState().hydrateFromIndexedDb()
 
   const baseZ =
     useDesignStore.getState().objects.reduce((m, o) => Math.max(m, o.zIndex), -1) + 1

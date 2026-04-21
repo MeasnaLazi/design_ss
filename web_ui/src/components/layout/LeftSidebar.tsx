@@ -9,6 +9,7 @@ import {
   Smartphone,
   Trash2,
   Type,
+  Upload,
 } from 'lucide-react'
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
@@ -36,8 +37,11 @@ import {
 import { activePackStyles, DEVICE_FRAME_TYPES, type DeviceFrameType } from '../../lib/deviceFrameCatalog'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
+import { useCustomFontStore } from '../../store/useCustomFontStore'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
+
+import { CanvasGradientControls } from './CanvasGradientControls'
 
 type CanvasFillTab = 'solid' | 'gradient' | 'image'
 
@@ -46,7 +50,6 @@ export function LeftSidebar() {
   const fabricCanvas = useDesignStore((s) => s.fabricCanvas)
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const background = useDesignStore((s) => s.config.background)
-  const backgroundGradient = useDesignStore((s) => s.config.backgroundGradient)
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
@@ -82,6 +85,33 @@ export function LeftSidebar() {
   )
 
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
+  const customFontInputRef = useRef<HTMLInputElement>(null)
+
+  const customFonts = useCustomFontStore((s) => s.fonts)
+  const showToast = useToastStore((s) => s.showToast)
+
+  const handleCustomFontFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      await useCustomFontStore.getState().addFromFile(file)
+      showToast('Font added — available in the text toolbar.', 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not add font'
+      showToast(msg, 'error')
+    }
+  }
+
+  const handleRemoveCustomFont = async (id: string, label: string) => {
+    try {
+      await useCustomFontStore.getState().removeById(id)
+      showToast(`Removed “${label}”.`, 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not remove font'
+      showToast(msg, 'error')
+    }
+  }
 
   const handleAddText = () => {
     const canvas = useDesignStore.getState().fabricCanvas
@@ -226,69 +256,7 @@ export function LeftSidebar() {
           </label>
         ) : null}
 
-        {canvasFillTab === 'gradient' ? (
-          <div className="mt-2 space-y-2">
-            <label className="flex items-center gap-2 text-xs text-zinc-400">
-              <span className="w-14 shrink-0">From</span>
-              <input
-                type="color"
-                className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
-                value={
-                  backgroundGradient.colorFrom.startsWith('#') &&
-                  backgroundGradient.colorFrom.length >= 7
-                    ? backgroundGradient.colorFrom.slice(0, 7)
-                    : '#0f172a'
-                }
-                onChange={(e) =>
-                  setConfig({ backgroundGradient: { colorFrom: e.target.value } })
-                }
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-zinc-400">
-              <span className="w-14 shrink-0">To</span>
-              <input
-                type="color"
-                className="h-8 w-full max-w-[7rem] cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
-                value={
-                  backgroundGradient.colorTo.startsWith('#') &&
-                  backgroundGradient.colorTo.length >= 7
-                    ? backgroundGradient.colorTo.slice(0, 7)
-                    : '#1e293b'
-                }
-                onChange={(e) =>
-                  setConfig({ backgroundGradient: { colorTo: e.target.value } })
-                }
-              />
-            </label>
-            <div>
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span>Angle</span>
-                <span className="tabular-nums text-zinc-500">
-                  {Math.round(backgroundGradient.angleDeg)}°
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={360}
-                step={1}
-                className="mt-1 w-full accent-emerald-500"
-                value={((backgroundGradient.angleDeg % 360) + 360) % 360}
-                onChange={(e) =>
-                  setConfig({
-                    backgroundGradient: {
-                      angleDeg: Number(e.target.value),
-                    },
-                  })
-                }
-                aria-label="Gradient angle in degrees"
-              />
-              <p className="mt-0.5 text-[10px] leading-tight text-zinc-600">
-                0° → right, 90° → down, 180° → left.
-              </p>
-            </div>
-          </div>
-        ) : null}
+        {canvasFillTab === 'gradient' ? <CanvasGradientControls /> : null}
 
         {canvasFillTab === 'image' ? (
           <div className="mt-2 space-y-2">
@@ -411,6 +379,54 @@ export function LeftSidebar() {
             >
               <GripVertical className="size-4" aria-hidden />
             </button>
+          </li>
+          <li className="space-y-2 border-t border-zinc-800/80 pt-2">
+            <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+              Custom fonts
+            </p>
+            <p className="text-[10px] leading-snug text-zinc-600">
+              Saved in this browser. They stay in the text toolbar font menu until you remove them here.
+            </p>
+            <button
+              type="button"
+              onClick={() => customFontInputRef.current?.click()}
+              className="flex w-full items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
+            >
+              <Upload className="size-4 shrink-0" aria-hidden />
+              Upload font…
+            </button>
+            <input
+              ref={customFontInputRef}
+              type="file"
+              accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
+              className="hidden"
+              onChange={handleCustomFontFile}
+            />
+            {customFonts.length === 0 ? (
+              <p className="text-[10px] text-zinc-600">No custom fonts yet.</p>
+            ) : (
+              <ul className="max-h-36 space-y-1 overflow-y-auto pr-0.5">
+                {customFonts.map((f) => (
+                  <li
+                    key={f.id}
+                    className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/60 px-1.5 py-1"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-300" title={f.label}>
+                      {f.label}
+                    </span>
+                    <button
+                      type="button"
+                      title="Remove font"
+                      aria-label={`Remove font ${f.label}`}
+                      className="flex shrink-0 items-center justify-center rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-rose-300"
+                      onClick={() => void handleRemoveCustomFont(f.id, f.label)}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
           <li className="space-y-2">
             <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">

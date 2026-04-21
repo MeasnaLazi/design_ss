@@ -1,16 +1,10 @@
 import { IText } from 'fabric'
 import { AlignCenter, AlignLeft, AlignRight, Minus, Plus } from 'lucide-react'
-import { useCallback, useEffect, useReducer, useState } from 'react'
-import { useDesignStore } from '../../store/useDesignStore'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 
-const FONT_CHOICES = [
-  'system-ui, -apple-system, sans-serif',
-  'Georgia, serif',
-  '"Times New Roman", Times, serif',
-  'Arial, Helvetica, sans-serif',
-  '"Helvetica Neue", Helvetica, sans-serif',
-  '"Courier New", monospace',
-] as const
+import { PRESET_FONT_FAMILIES } from '../../constants/textFonts'
+import { useCustomFontStore } from '../../store/useCustomFontStore'
+import { useDesignStore } from '../../store/useDesignStore'
 
 const FONT_SIZE_MIN = 8
 const FONT_SIZE_MAX = 400
@@ -28,6 +22,7 @@ function textFillToHex(obj: IText): string {
 
 export function ContextualTextToolbar() {
   const canvas = useDesignStore((s) => s.fabricCanvas)
+  const customFonts = useCustomFontStore((s) => s.fonts)
   /** Subscribe so we re-render when Fabric updates selection via the store */
   const selectedObject = useDesignStore((s) => s.selectedObject)
   const [, bump] = useReducer((n: number) => n + 1, 0)
@@ -78,13 +73,20 @@ export function ContextualTextToolbar() {
     [fontSizeDraft, patchActiveText],
   )
 
+  const customFamilySet = useMemo(
+    () => new Set(customFonts.map((f) => f.familyName)),
+    [customFonts],
+  )
+
   if (!(active instanceof IText)) return null
 
-  const fontFamily = active.fontFamily ?? FONT_CHOICES[0]
+  const fontFamily = active.fontFamily ?? PRESET_FONT_FAMILIES[0]
   const fontSize = active.fontSize ?? 32
   const fill = textFillToHex(active)
   const align = active.textAlign ?? 'left'
-  const fontInPresetList = (FONT_CHOICES as readonly string[]).includes(fontFamily)
+  const inPresetList = (PRESET_FONT_FAMILIES as readonly string[]).includes(fontFamily)
+  const inCustomList = customFamilySet.has(fontFamily)
+  const fontInKnownList = inPresetList || inCustomList
 
   return (
     <div
@@ -95,18 +97,29 @@ export function ContextualTextToolbar() {
       <label className="flex items-center gap-1.5 text-xs text-zinc-400">
         <span className="hidden sm:inline">Font</span>
         <select
-          className="max-w-[10rem] rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100"
+          className="max-w-[12rem] rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100"
           value={fontFamily}
           onChange={(e) => patchActiveText({ fontFamily: e.target.value })}
         >
-          {!fontInPresetList ? (
+          {!fontInKnownList ? (
             <option value={fontFamily}>{fontFamily}</option>
           ) : null}
-          {FONT_CHOICES.map((f) => (
-            <option key={f} value={f}>
-              {f.split(',')[0]?.replaceAll('"', '')}
-            </option>
-          ))}
+          <optgroup label="Built-in">
+            {PRESET_FONT_FAMILIES.map((f) => (
+              <option key={f} value={f}>
+                {f.split(',')[0]?.replaceAll('"', '')}
+              </option>
+            ))}
+          </optgroup>
+          {customFonts.length > 0 ? (
+            <optgroup label="Your fonts">
+              {customFonts.map((f) => (
+                <option key={f.id} value={f.familyName} title={f.label}>
+                  {f.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
       </label>
 

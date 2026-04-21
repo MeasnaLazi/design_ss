@@ -25,7 +25,14 @@ export interface DisplayDesignSnapshot {
  *       "gap": 40,
  *       "background": "#1a1a1a",
  *       "backgroundMode": "solid",
- *       "backgroundGradient": { "colorFrom": "#0f172a", "colorTo": "#1e293b", "angleDeg": 135 },
+ *       "backgroundGradient": {
+ *         "kind": "linear",
+ *         "angleDeg": 135,
+ *         "stops": [
+ *           { "offset": 0, "color": "#0f172a" },
+ *           { "offset": 1, "color": "#1e293b" }
+ *         ]
+ *       },
  *       "backgroundImageUrl": null
  *     },
  *     "objects": [

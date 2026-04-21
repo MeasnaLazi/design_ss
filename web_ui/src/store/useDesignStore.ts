@@ -1,5 +1,6 @@
 import type { DisplayDesignSnapshot } from '../types/displayDocument'
 
+import { DEFAULT_BACKGROUND_GRADIENT, normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import type {
   DesignConfig,
   DesignConfigPartial,
@@ -34,9 +35,8 @@ const defaultConfig: DesignConfig = {
   background: '#1a1a1a',
   backgroundMode: 'solid',
   backgroundGradient: {
-    colorFrom: '#0f172a',
-    colorTo: '#1e293b',
-    angleDeg: 135,
+    ...DEFAULT_BACKGROUND_GRADIENT,
+    stops: DEFAULT_BACKGROUND_GRADIENT.stops.map((s) => ({ ...s })),
   },
   backgroundImageUrl: null,
 }
@@ -173,10 +173,10 @@ export const useDesignStore = create<DesignStore>((set) => ({
       config: {
         ...defaultConfig,
         ...snapshot.config,
-        backgroundGradient: {
+        backgroundGradient: normalizeBackgroundGradient({
           ...defaultConfig.backgroundGradient,
           ...snapshot.config.backgroundGradient,
-        },
+        }),
         artboardPresetId: normalizeArtboardPresetId(snapshot.config.artboardPresetId),
         screens: clampLayoutScreens(snapshot.config.screens),
         gap: clampLayoutGap(snapshot.config.gap),
