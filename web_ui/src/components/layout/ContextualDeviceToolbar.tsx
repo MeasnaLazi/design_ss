@@ -24,8 +24,12 @@ export function ContextualDeviceToolbar() {
   const deviceSizeMaxPx = Math.round(panelWidth * 3)
   const [bumpCount, bump] = useReducer((n: number) => n + 1, 0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const widthFieldFocusedRef = useRef(false)
+  const heightFieldFocusedRef = useRef(false)
+  const angleFieldFocusedRef = useRef(false)
   const [widthText, setWidthText] = useState('')
   const [heightText, setHeightText] = useState('')
+  const [angleText, setAngleText] = useState('')
 
   const deviceSelected =
     selectedObject != null &&
@@ -50,9 +54,11 @@ export function ContextualDeviceToolbar() {
     if (!(target instanceof Group)) return
     const w = String(Math.round(target.getScaledWidth()))
     const h = String(Math.round(target.getScaledHeight()))
+    const a = String(Math.round((target.angle ?? 0) * 100) / 100)
     queueMicrotask(() => {
-      setWidthText(w)
-      setHeightText(h)
+      if (!widthFieldFocusedRef.current) setWidthText(w)
+      if (!heightFieldFocusedRef.current) setHeightText(h)
+      if (!angleFieldFocusedRef.current) setAngleText(a)
     })
   }, [deviceSelected, selectedObject, fabricCanvas, bumpCount])
 
@@ -60,8 +66,6 @@ export function ContextualDeviceToolbar() {
 
   const target = findObjectOnCanvasByAppId(fabricCanvas, selectedObject)
   if (!(target instanceof Group)) return null
-
-  const deviceAngleDeg = target.angle ?? 0
 
   const applyDeviceRotation = (deg: number) => {
     const canvas = useDesignStore.getState().fabricCanvas
@@ -111,6 +115,24 @@ export function ContextualDeviceToolbar() {
     bump()
   }
 
+  const commitDeviceAngle = () => {
+    const canvas = useDesignStore.getState().fabricCanvas
+    if (!canvas || !selectedObject) return
+    const o = findObjectOnCanvasByAppId(canvas, selectedObject)
+    if (!(o instanceof Group)) return
+    const trimmed = angleText.trim()
+    if (trimmed === '') {
+      setAngleText(String(Math.round((o.angle ?? 0) * 100) / 100))
+      return
+    }
+    const n = Number(trimmed)
+    if (!Number.isFinite(n)) {
+      setAngleText(String(Math.round((o.angle ?? 0) * 100) / 100))
+      return
+    }
+    applyDeviceRotation(n)
+  }
+
   const openScreenshotPicker = () => fileInputRef.current?.click()
 
   const handleScreenshotFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -153,14 +175,18 @@ export function ContextualDeviceToolbar() {
         <label className="flex items-center gap-1.5 text-xs text-zinc-400">
           <span className="w-9 shrink-0 sm:w-10">Width</span>
           <input
-            type="number"
-            min={DEVICE_SIZE_MIN_PX}
-            max={deviceSizeMaxPx}
-            step={1}
+            type="text"
+            inputMode="numeric"
             className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
             value={widthText}
+            onFocus={() => {
+              widthFieldFocusedRef.current = true
+            }}
             onChange={(e) => setWidthText(e.target.value)}
-            onBlur={() => commitDeviceDimensions()}
+            onBlur={() => {
+              widthFieldFocusedRef.current = false
+              commitDeviceDimensions()
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 ;(e.target as HTMLInputElement).blur()
@@ -173,14 +199,18 @@ export function ContextualDeviceToolbar() {
         <label className="flex items-center gap-1.5 text-xs text-zinc-400">
           <span className="w-9 shrink-0 sm:w-10">Height</span>
           <input
-            type="number"
-            min={DEVICE_SIZE_MIN_PX}
-            max={deviceSizeMaxPx}
-            step={1}
+            type="text"
+            inputMode="numeric"
             className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
             value={heightText}
+            onFocus={() => {
+              heightFieldFocusedRef.current = true
+            }}
             onChange={(e) => setHeightText(e.target.value)}
-            onBlur={() => commitDeviceDimensions()}
+            onBlur={() => {
+              heightFieldFocusedRef.current = false
+              commitDeviceDimensions()
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 ;(e.target as HTMLInputElement).blur()
@@ -193,13 +223,23 @@ export function ContextualDeviceToolbar() {
         <label className="flex items-center gap-1.5 text-xs text-zinc-400">
           <span className="w-9 shrink-0 sm:w-10">Angle</span>
           <input
-            type="number"
-            step={1}
+            type="text"
+            inputMode="decimal"
             className="w-[4.5rem] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-100 tabular-nums"
-            value={Math.round(deviceAngleDeg * 100) / 100}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (Number.isFinite(n)) applyDeviceRotation(n)
+            value={angleText}
+            onFocus={() => {
+              angleFieldFocusedRef.current = true
+              setAngleText(String(Math.round((target.angle ?? 0) * 100) / 100))
+            }}
+            onChange={(e) => setAngleText(e.target.value)}
+            onBlur={() => {
+              angleFieldFocusedRef.current = false
+              commitDeviceAngle()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                ;(e.target as HTMLInputElement).blur()
+              }
             }}
             aria-label="Device rotation in degrees"
           />

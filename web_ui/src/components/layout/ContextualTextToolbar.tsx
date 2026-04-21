@@ -1,6 +1,6 @@
 import { IText } from 'fabric'
 import { AlignCenter, AlignLeft, AlignRight, Minus, Plus } from 'lucide-react'
-import { useCallback, useReducer } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useDesignStore } from '../../store/useDesignStore'
 
 const FONT_CHOICES = [
@@ -29,8 +29,9 @@ function textFillToHex(obj: IText): string {
 export function ContextualTextToolbar() {
   const canvas = useDesignStore((s) => s.fabricCanvas)
   /** Subscribe so we re-render when Fabric updates selection via the store */
-  useDesignStore((s) => s.selectedObject)
+  const selectedObject = useDesignStore((s) => s.selectedObject)
   const [, bump] = useReducer((n: number) => n + 1, 0)
+  const [fontSizeDraft, setFontSizeDraft] = useState<string | null>(null)
 
   const patchActiveText = useCallback((patch: Record<string, unknown>) => {
     const c = useDesignStore.getState().fabricCanvas
@@ -44,6 +45,38 @@ export function ContextualTextToolbar() {
   }, [])
 
   const active = canvas?.getActiveObject()
+
+  useEffect(() => {
+    setFontSizeDraft(null)
+  }, [selectedObject])
+
+  const commitFontSizeDraft = useCallback(() => {
+    if (fontSizeDraft == null) return
+    const trimmed = fontSizeDraft.trim()
+    setFontSizeDraft(null)
+    if (trimmed === '') return
+    const n = Number(trimmed)
+    if (!Number.isFinite(n)) return
+    patchActiveText({ fontSize: clampFontSize(n) })
+  }, [fontSizeDraft, patchActiveText])
+
+  const nudgeFontSize = useCallback(
+    (delta: number) => {
+      const obj = useDesignStore.getState().fabricCanvas?.getActiveObject()
+      const committed = obj instanceof IText ? (obj.fontSize ?? 32) : 32
+      if (fontSizeDraft != null) {
+        const trimmed = fontSizeDraft.trim()
+        const parsed = trimmed === '' ? NaN : Number(trimmed)
+        const base = Number.isFinite(parsed) ? clampFontSize(parsed) : committed
+        setFontSizeDraft(null)
+        patchActiveText({ fontSize: clampFontSize(base + delta) })
+        return
+      }
+      patchActiveText({ fontSize: clampFontSize(committed + delta) })
+    },
+    [fontSizeDraft, patchActiveText],
+  )
+
   if (!(active instanceof IText)) return null
 
   const fontFamily = active.fontFamily ?? FONT_CHOICES[0]
@@ -89,22 +122,26 @@ export function ContextualTextToolbar() {
             aria-label="Decrease font size"
             disabled={fontSize <= FONT_SIZE_MIN}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-l border-r border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-            onClick={() =>
-              patchActiveText({ fontSize: clampFontSize(fontSize - FONT_SIZE_STEP) })
-            }
+            onClick={() => nudgeFontSize(-FONT_SIZE_STEP)}
           >
             <Minus className="size-3.5" aria-hidden />
           </button>
           <input
-            type="number"
-            min={FONT_SIZE_MIN}
-            max={FONT_SIZE_MAX}
+            type="text"
+            inputMode="decimal"
             className="w-14 border-0 bg-transparent px-1 py-1 text-center text-xs text-zinc-100 tabular-nums outline-none focus:ring-0"
-            value={Math.round(fontSize)}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (Number.isFinite(n)) patchActiveText({ fontSize: clampFontSize(n) })
+            value={fontSizeDraft ?? String(Math.round(fontSize))}
+            onFocus={() => setFontSizeDraft(String(Math.round(fontSize)))}
+            onChange={(e) => setFontSizeDraft(e.target.value)}
+            onBlur={() => commitFontSizeDraft()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                ;(e.target as HTMLInputElement).blur()
+              }
             }}
+            aria-valuemin={FONT_SIZE_MIN}
+            aria-valuemax={FONT_SIZE_MAX}
+            aria-label="Font size in pixels"
           />
           <button
             type="button"
@@ -112,9 +149,7 @@ export function ContextualTextToolbar() {
             aria-label="Increase font size"
             disabled={fontSize >= FONT_SIZE_MAX}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r border-l border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-            onClick={() =>
-              patchActiveText({ fontSize: clampFontSize(fontSize + FONT_SIZE_STEP) })
-            }
+            onClick={() => nudgeFontSize(FONT_SIZE_STEP)}
           >
             <Plus className="size-3.5" aria-hidden />
           </button>
