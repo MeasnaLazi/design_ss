@@ -189,6 +189,16 @@ export function ContextualTextToolbar() {
         </div>
       </div>
 
+      <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+        <span className="hidden sm:inline">Color</span>
+        <input
+          type="color"
+          className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
+          value={fill.startsWith('#') && fill.length >= 7 ? fill.slice(0, 7) : '#f4f4f5'}
+          onChange={(e) => patchActiveText({ fill: e.target.value })}
+        />
+      </label>
+
       <div
         className="flex items-center gap-0.5 rounded border border-zinc-700 bg-zinc-900 p-0.5"
         role="group"
@@ -235,16 +245,6 @@ export function ContextualTextToolbar() {
           Italic
         </button>
       </div>
-
-      <label className="flex items-center gap-1.5 text-xs text-zinc-400">
-        <span className="hidden sm:inline">Color</span>
-        <input
-          type="color"
-          className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
-          value={fill.startsWith('#') && fill.length >= 7 ? fill.slice(0, 7) : '#f4f4f5'}
-          onChange={(e) => patchActiveText({ fill: e.target.value })}
-        />
-      </label>
 
       <div className="flex items-center gap-0.5 rounded border border-zinc-700 bg-zinc-900 p-0.5" role="group" aria-label="Text alignment">
         {(
