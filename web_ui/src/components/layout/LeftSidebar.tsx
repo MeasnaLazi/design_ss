@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type Key
 import {
   ChevronDown,
   ChevronUp,
-  GripVertical,
   ImagePlus,
   Layers,
   LayoutTemplate,
@@ -15,7 +14,11 @@ import {
 } from 'lucide-react'
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
-import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
+import {
+  addTextboxToCanvas,
+  DEFAULT_TEXTBOX_WIDTH,
+  DEFAULT_TEXT_FONT_SIZE,
+} from '../../canvas/addTextboxToCanvas'
 import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
 import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
 import { deleteLayerById, selectLayerById } from '../../canvas/deleteLayerById'
@@ -34,10 +37,7 @@ import {
   SCREEN_LAYOUT_GAP_MAX,
   SCREEN_LAYOUT_GAP_MIN,
 } from '../../constants/appStoreScreens'
-import {
-  ASSET_DRAG_KIND_TEXT,
-  ASSET_DRAG_MIME,
-} from '../../constants/assetDrag'
+import { TEXT_STYLE_PRESETS, type TextStylePresetId } from '../../constants/textStylePresets'
 import { activePackStyles, DEVICE_FRAME_TYPES, type DeviceFrameType } from '../../lib/deviceFrameCatalog'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
@@ -189,6 +189,15 @@ export function LeftSidebar() {
       return
     }
     addTextboxToCanvas(canvas)
+  }
+
+  const handleAddTextPreset = (presetId: TextStylePresetId) => {
+    const canvas = useDesignStore.getState().fabricCanvas
+    if (!canvas) {
+      console.warn('[LeftSidebar] add text preset: no canvas')
+      return
+    }
+    addTextboxToCanvas(canvas, { preset: presetId })
   }
 
   const handleAddDevice = async () => {
@@ -605,28 +614,40 @@ export function LeftSidebar() {
               Text
             </h2>
             <ul className="mt-2 space-y-1">
-              <li className="flex items-stretch gap-0.5">
-                <button
-                  type="button"
-                  onClick={handleAddText}
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
-                >
-                  <Type className="size-4 shrink-0" aria-hidden />
-                  Text
-                </button>
-                <button
-                  type="button"
-                  draggable
-                  title="Drag onto canvas to place text"
-                  aria-label="Drag text onto canvas"
-                  className="flex shrink-0 items-center justify-center rounded-md border border-zinc-800 px-1.5 text-zinc-500 hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-300"
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(ASSET_DRAG_MIME, ASSET_DRAG_KIND_TEXT)
-                    e.dataTransfer.effectAllowed = 'copy'
-                  }}
-                >
-                  <GripVertical className="size-4" aria-hidden />
-                </button>
+              <li className="space-y-1.5">
+                <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                  Text styles
+                </p>
+                <p className="text-[10px] leading-snug text-zinc-600">
+                  Presets sized for store screenshots (canvas px). Plain text uses the default size and weight.
+                </p>
+                <div className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+                  <button
+                    type="button"
+                    onClick={handleAddText}
+                    className="flex w-full flex-col items-stretch gap-0.5 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-left hover:border-zinc-600 hover:bg-zinc-800/60"
+                  >
+                    <span className="text-xs font-medium text-zinc-200">Plain text</span>
+                    <span className="font-mono text-[9px] text-zinc-600">default</span>
+                    <span className="text-[10px] text-zinc-500">
+                      {DEFAULT_TEXT_FONT_SIZE}px · 600 · {DEFAULT_TEXTBOX_WIDTH}px
+                    </span>
+                  </button>
+                  {TEXT_STYLE_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleAddTextPreset(p.id)}
+                      className="flex w-full flex-col items-stretch gap-0.5 rounded-md border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-left hover:border-zinc-600 hover:bg-zinc-800/60"
+                    >
+                      <span className="text-xs font-medium text-zinc-200">{p.label}</span>
+                      <span className="font-mono text-[9px] text-zinc-600">{p.styleToken}</span>
+                      <span className="text-[10px] text-zinc-500">
+                        {p.fontSize}px · {String(p.fontWeight)} · {p.width}px
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </li>
               <li className="space-y-2 border-t border-zinc-800/80 pt-2">
                 <p className="px-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
