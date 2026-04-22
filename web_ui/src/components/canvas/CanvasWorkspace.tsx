@@ -3,6 +3,7 @@ import { screenshotLeftEdgeXs, totalContinuousWidth } from '../../constants/appS
 import {
   ActiveSelection,
   Canvas,
+  Circle,
   type FabricObject,
   FabricImage,
   Group,
@@ -44,6 +45,11 @@ import { useDesignStore } from '../../store/useDesignStore'
 
 const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
+const SMART_GUIDE_STROKE = 'rgba(255, 215, 0, 0.98)'
+const SMART_GUIDE_DASH: [number, number] = [10, 14]
+/** Visual thresholds in on-screen px (converted to canvas units via CSS zoom). */
+const SMART_GUIDE_SHOW_TOLERANCE_SCREEN_PX = 12
+const SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX = 6
 
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
@@ -105,6 +111,276 @@ function attachSelectionSync(canvas: Canvas): void {
   })
 }
 
+type PanelBounds = { left: number; top: number; right: number; bottom: number }
+
+type SmartGuideOverlay = {
+  vertical: Line
+  horizontal: Line
+  intersectionDot: Circle
+}
+
+type AxisBestMatch = { dist: number; anchor: number; feature: number; featureIdx: 0 | 1 | 2 }
+type AxisSnapCandidate = { anchor: number; featureIdx: 0 | 1 | 2 }
+
+type DragSnapState = {
+  target: FabricObject | null
+  snapX: AxisSnapCandidate | null
+  snapY: AxisSnapCandidate | null
+}
+
+function panelBoundsForCenterX(
+  centerX: number,
+  screens: number,
+  gap: number,
+  panelW: number,
+  panelH: number,
+): PanelBounds {
+  let bestIdx = 0
+  let bestDist = Infinity
+  for (let i = 0; i < screens; i++) {
+    const midX = i * (panelW + gap) + panelW / 2
+    const dist = Math.abs(centerX - midX)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestIdx = i
+    }
+  }
+  const left = bestIdx * (panelW + gap)
+  return { left, top: 0, right: left + panelW, bottom: panelH }
+}
+
+function createSmartGuideOverlay(canvas: Canvas): SmartGuideOverlay {
+  const vertical = new Line([0, 0, 0, 0], {
+    stroke: SMART_GUIDE_STROKE,
+    strokeWidth: 8,
+    strokeDashArray: [...SMART_GUIDE_DASH],
+    selectable: false,
+    evented: false,
+    visible: false,
+    excludeFromExport: true,
+  })
+  const horizontal = new Line([0, 0, 0, 0], {
+    stroke: SMART_GUIDE_STROKE,
+    strokeWidth: 8,
+    strokeDashArray: [...SMART_GUIDE_DASH],
+    selectable: false,
+    evented: false,
+    visible: false,
+    excludeFromExport: true,
+  })
+  const intersectionDot = new Circle({
+    radius: 3,
+    fill: SMART_GUIDE_STROKE,
+    left: 0,
+    top: 0,
+    originX: 'center',
+    originY: 'center',
+    selectable: false,
+    evented: false,
+    visible: false,
+    excludeFromExport: true,
+  })
+  canvas.add(vertical, horizontal, intersectionDot)
+  return { vertical, horizontal, intersectionDot }
+}
+
+function hideSmartGuideOverlay(overlay: SmartGuideOverlay): void {
+  overlay.vertical.set({ visible: false })
+  overlay.horizontal.set({ visible: false })
+  overlay.intersectionDot.set({ visible: false })
+}
+
+function attachPanelAlignmentGuides(canvas: Canvas): () => void {
+  const overlay = createSmartGuideOverlay(canvas)
+  const dragState: DragSnapState = { target: null, snapX: null, snapY: null }
+
+  const getBestAxisMatch = (
+    anchors: number[],
+    features: [number, number, number],
+  ): AxisBestMatch | null => {
+    let best: AxisBestMatch | null = null
+    anchors.forEach((anchor) => {
+      features.forEach((feature, idx) => {
+        const dist = Math.abs(anchor - feature)
+        if (!best || dist < best.dist) {
+          best = {
+            dist,
+            anchor,
+            feature,
+            featureIdx: idx as 0 | 1 | 2,
+          }
+        }
+      })
+    })
+    return best
+  }
+
+  const onMoving = (opt?: { target?: FabricObject }) => {
+    const target = opt?.target
+    if (!target || target === overlay.vertical || target === overlay.horizontal) return
+    if (dragState.target !== target) {
+      dragState.target = target
+      dragState.snapX = null
+      dragState.snapY = null
+    }
+
+    const cfg = useDesignStore.getState().config
+    if (cfg.screens < 1) return
+    const canvasZoom = Math.max(useDesignStore.getState().canvasZoom, 0.01)
+    const showTolerance = SMART_GUIDE_SHOW_TOLERANCE_SCREEN_PX / canvasZoom
+    const snapTolerance = SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX / canvasZoom
+    const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(cfg)
+    const bboxBefore = target.getBoundingRect()
+    const panel = panelBoundsForCenterX(
+      bboxBefore.left + bboxBefore.width / 2,
+      cfg.screens,
+      cfg.gap,
+      panelW,
+      panelH,
+    )
+
+    const xAnchors = [panel.left, panel.left + panelW / 2, panel.right]
+    const yAnchors = [panel.top, panel.top + panelH / 2, panel.bottom]
+
+    const xFeatures: [number, number, number] = [
+      bboxBefore.left,
+      bboxBefore.left + bboxBefore.width / 2,
+      bboxBefore.left + bboxBefore.width,
+    ]
+    const yFeatures: [number, number, number] = [
+      bboxBefore.top,
+      bboxBefore.top + bboxBefore.height / 2,
+      bboxBefore.top + bboxBefore.height,
+    ]
+
+    const bestX = getBestAxisMatch(xAnchors, xFeatures)
+    const bestY = getBestAxisMatch(yAnchors, yFeatures)
+
+    let guideX: number | null = null
+    let guideY: number | null = null
+
+    if (bestX && bestX.dist <= showTolerance) {
+      guideX = bestX.anchor
+      if (bestX.dist <= snapTolerance) {
+        dragState.snapX = { anchor: bestX.anchor, featureIdx: bestX.featureIdx }
+      } else {
+        dragState.snapX = null
+      }
+    } else {
+      dragState.snapX = null
+    }
+    if (bestY && bestY.dist <= showTolerance) {
+      guideY = bestY.anchor
+      if (bestY.dist <= snapTolerance) {
+        dragState.snapY = { anchor: bestY.anchor, featureIdx: bestY.featureIdx }
+      } else {
+        dragState.snapY = null
+      }
+    } else {
+      dragState.snapY = null
+    }
+
+    /**
+     * If only one axis is aligned, still draw the other axis through the object center so users
+     * always get a visible cross helper while dragging near an anchor.
+     */
+    let drawGuideX = guideX
+    let drawGuideY = guideY
+    if (drawGuideX !== null && drawGuideY === null) {
+      drawGuideY = yFeatures[1]
+    } else if (drawGuideY !== null && drawGuideX === null) {
+      drawGuideX = xFeatures[1]
+    }
+    const hasExactIntersection = guideX !== null && guideY !== null
+
+    overlay.vertical.set({
+      x1: drawGuideX ?? 0,
+      y1: panel.top,
+      x2: drawGuideX ?? 0,
+      y2: panel.bottom,
+      visible: drawGuideX !== null,
+    })
+    overlay.horizontal.set({
+      x1: panel.left,
+      y1: drawGuideY ?? 0,
+      x2: panel.right,
+      y2: drawGuideY ?? 0,
+      visible: drawGuideY !== null,
+    })
+    overlay.intersectionDot.set({
+      left: drawGuideX ?? 0,
+      top: drawGuideY ?? 0,
+      visible: hasExactIntersection,
+    })
+    canvas.bringObjectToFront(overlay.vertical)
+    canvas.bringObjectToFront(overlay.horizontal)
+    canvas.bringObjectToFront(overlay.intersectionDot)
+    canvas.requestRenderAll()
+  }
+
+  const finalizeSnapForTarget = (target?: FabricObject) => {
+    if (target && dragState.target === target) {
+      const bbox = target.getBoundingRect()
+      const xFeatures: [number, number, number] = [
+        bbox.left,
+        bbox.left + bbox.width / 2,
+        bbox.left + bbox.width,
+      ]
+      const yFeatures: [number, number, number] = [
+        bbox.top,
+        bbox.top + bbox.height / 2,
+        bbox.top + bbox.height,
+      ]
+      let moved = false
+      if (dragState.snapX) {
+        const dx = dragState.snapX.anchor - xFeatures[dragState.snapX.featureIdx]
+        if (dx !== 0) {
+          target.set({ left: (target.left ?? 0) + dx })
+          moved = true
+        }
+      }
+      if (dragState.snapY) {
+        const dy = dragState.snapY.anchor - yFeatures[dragState.snapY.featureIdx]
+        if (dy !== 0) {
+          target.set({ top: (target.top ?? 0) + dy })
+          moved = true
+        }
+      }
+      if (moved) {
+        target.setCoords()
+      }
+    }
+  }
+
+  const onModified = (opt?: { target?: FabricObject }) => {
+    finalizeSnapForTarget(opt?.target)
+    dragState.target = null
+    dragState.snapX = null
+    dragState.snapY = null
+    hideSmartGuideOverlay(overlay)
+    canvas.requestRenderAll()
+  }
+
+  const onSelectionCleared = () => {
+    dragState.target = null
+    dragState.snapX = null
+    dragState.snapY = null
+    hideSmartGuideOverlay(overlay)
+    canvas.requestRenderAll()
+  }
+
+  canvas.on('object:moving', onMoving)
+  canvas.on('object:modified', onModified)
+  canvas.on('selection:cleared', onSelectionCleared)
+
+  return () => {
+    canvas.off('object:moving', onMoving)
+    canvas.off('object:modified', onModified)
+    canvas.off('selection:cleared', onSelectionCleared)
+    canvas.remove(overlay.vertical, overlay.horizontal, overlay.intersectionDot)
+  }
+}
+
 export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<Canvas | null>(null)
@@ -114,6 +390,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
   const layerNameOverlaysRef = useRef<LayerNameOverlayText[]>([])
   const gutterStackCleanupRef = useRef<(() => void) | null>(null)
+  const smartGuideCleanupRef = useRef<(() => void) | null>(null)
   const prevLayoutRef = useRef<{ screens: number; gap: number; preset: string }>({
     screens: -1,
     gap: -1,
@@ -164,6 +441,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       attachDeviceGroupUniformScaling(canvas)
       attachDeviceGroupPanelClamp(canvas)
       attachDeviceGroupNoCacheForScreenshotClip(canvas)
+      smartGuideCleanupRef.current = attachPanelAlignmentGuides(canvas)
       gutterStackCleanupRef.current = attachGutterOverlaysAlwaysOnTop(
         canvas,
         () => gutterOverlayRectsRef.current,
@@ -430,6 +708,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
       gutterStackCleanupRef.current?.()
       gutterStackCleanupRef.current = null
+      smartGuideCleanupRef.current?.()
+      smartGuideCleanupRef.current = null
       const c = fabricRef.current
       if (c) {
         removeGutterOverlaysFromCanvas(c, gutterOverlayRectsRef)
