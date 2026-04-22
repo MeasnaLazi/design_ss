@@ -1,3 +1,4 @@
+import { Download, LayoutTemplate, Redo2, Save, Undo2 } from 'lucide-react'
 import {
   canRedoDesignHistory,
   canUndoDesignHistory,
@@ -5,6 +6,10 @@ import {
   undoDesignHistory,
   useDesignHistoryStore,
 } from '../../history/designHistory'
+
+import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
+import { ContextualPositionToolbar } from './ContextualPositionToolbar'
+import { ContextualTextToolbar } from './ContextualTextToolbar'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
 import {
   getArtboardDimensionsFromConfig,
@@ -13,16 +18,8 @@ import { saveDisplayToDatasource } from '../../lib/saveDisplayToDatasource'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
 
-import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
-import { ContextualPositionToolbar } from './ContextualPositionToolbar'
-import { ContextualTextToolbar } from './ContextualTextToolbar'
-
-import { Download, LayoutTemplate, Redo2, Save, Undo2 } from 'lucide-react'
-
 export function TopToolbar() {
   useDesignHistoryStore((s) => s.rev)
-  const screens = useDesignStore((s) => s.config.screens)
-  const gap = useDesignStore((s) => s.config.gap)
   const canUndo = canUndoDesignHistory()
   const canRedo = canRedoDesignHistory()
 
@@ -54,7 +51,7 @@ export function TopToolbar() {
       <div className="flex shrink-0 items-center gap-2">
         <LayoutTemplate className="size-5 text-emerald-400" aria-hidden />
         <span className="font-semibold tracking-tight text-zinc-100">
-          App Store Screenshot Designer
+          Screenshot Designer
         </span>
       </div>
 
@@ -106,9 +103,6 @@ export function TopToolbar() {
           <Download className="size-3.5" aria-hidden />
           <span className="hidden sm:inline">Export ZIP</span>
         </button>
-        <div className="hidden text-xs text-zinc-500 lg:block" aria-live="polite">
-          {screens} screens · gap {gap}px
-        </div>
       </div>
     </header>
   )

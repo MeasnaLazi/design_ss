@@ -20,6 +20,22 @@ function textFillToHex(obj: IText): string {
   return '#f4f4f5'
 }
 
+/** Treat Fabric numeric weights 600+ and keyword bold as bold for toolbar state. */
+function isFontBold(obj: IText): boolean {
+  const w = obj.fontWeight
+  if (w === 'bold' || w === 'bolder') return true
+  if (typeof w === 'number' && w >= 600) return true
+  if (typeof w === 'string') {
+    const n = Number(w)
+    if (!Number.isNaN(n) && n >= 600) return true
+  }
+  return false
+}
+
+function isFontItalic(obj: IText): boolean {
+  return obj.fontStyle === 'italic'
+}
+
 export function ContextualTextToolbar() {
   const canvas = useDesignStore((s) => s.fabricCanvas)
   const customFonts = useCustomFontStore((s) => s.fonts)
@@ -84,6 +100,9 @@ export function ContextualTextToolbar() {
   const fontSize = active.fontSize ?? 32
   const fill = textFillToHex(active)
   const align = active.textAlign ?? 'left'
+  const boldActive = isFontBold(active)
+  const italicActive = isFontItalic(active)
+  const regularActive = !boldActive && !italicActive
   const inPresetList = (PRESET_FONT_FAMILIES as readonly string[]).includes(fontFamily)
   const inCustomList = customFamilySet.has(fontFamily)
   const fontInKnownList = inPresetList || inCustomList
@@ -168,6 +187,53 @@ export function ContextualTextToolbar() {
             <Plus className="size-3.5" aria-hidden />
           </button>
         </div>
+      </div>
+
+      <div
+        className="flex items-center gap-0.5 rounded border border-zinc-700 bg-zinc-900 p-0.5"
+        role="group"
+        aria-label="Font weight and style"
+      >
+        <button
+          type="button"
+          title="Regular"
+          aria-label="Regular weight and style"
+          aria-pressed={regularActive}
+          className={`rounded px-2 py-1.5 text-xs font-medium ${
+            regularActive ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800'
+          }`}
+          onClick={() => patchActiveText({ fontWeight: 'normal', fontStyle: 'normal' })}
+        >
+          Regular
+        </button>
+        <button
+          type="button"
+          title="Bold"
+          aria-label="Bold"
+          aria-pressed={boldActive}
+          className={`rounded px-2 py-1.5 text-xs font-bold ${
+            boldActive ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800'
+          }`}
+          onClick={() =>
+            patchActiveText({ fontWeight: boldActive ? 'normal' : 'bold' })
+          }
+        >
+          Bold
+        </button>
+        <button
+          type="button"
+          title="Italic"
+          aria-label="Italic"
+          aria-pressed={italicActive}
+          className={`rounded px-2 py-1.5 text-xs italic ${
+            italicActive ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800'
+          }`}
+          onClick={() =>
+            patchActiveText({ fontStyle: italicActive ? 'normal' : 'italic' })
+          }
+        >
+          Italic
+        </button>
       </div>
 
       <label className="flex items-center gap-1.5 text-xs text-zinc-400">
