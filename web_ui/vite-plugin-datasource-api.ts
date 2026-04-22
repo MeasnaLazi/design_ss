@@ -19,6 +19,8 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 const SCREENSHOTS_PREFIX = '/__api/datasource/screenshots/'
 const PLACEHOLDER_PREFIX = '/__api/datasource/placeholder/'
+const SCREENSHOT_REF_REGEX = /\/__api\/datasource\/screenshots\/([^"'?#\s)]+)/g
+const SCREENSHOT_CLEANUP_RETENTION_MS = 24 * 60 * 60 * 1000
 const ALLOWED_MIME_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -30,6 +32,157 @@ const SAFE_SCREENSHOT_FILENAME = /^[a-zA-Z0-9._-]+$/
 
 function isAllowedScreenshotBucket(bucket: string): boolean {
   return (ARTBOARD_PRESET_IDS as readonly string[]).includes(bucket)
+}
+
+function collectScreenshotRefs(value: unknown, out: Set<string>): void {
+  if (typeof value === 'string') {
+    SCREENSHOT_REF_REGEX.lastIndex = 0
+    let m: RegExpExecArray | null = null
+    while ((m = SCREENSHOT_REF_REGEX.exec(value)) !== null) {
+      const rel = m[1]?.trim()
+      if (rel) out.add(rel)
+    }
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectScreenshotRefs(v, out)
+    return
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      collectScreenshotRefs(v, out)
+    }
+  }
+}
+
+async function collectReferencedScreenshotPaths(datasourceDir: string): Promise<Set<string>> {
+  const refs = new Set<string>()
+  const filesToScan: string[] = []
+
+  try {
+    const names = await fs.readdir(datasourceDir, { withFileTypes: true })
+    for (const entry of names) {
+      if (
+        entry.isFile() &&
+        entry.name.endsWith('.json') &&
+        (entry.name === 'display.json' || entry.name.startsWith('display_'))
+      ) {
+        filesToScan.push(path.join(datasourceDir, entry.name))
+      }
+    }
+  } catch {
+    return refs
+  }
+
+  const templatesDir = path.join(datasourceDir, TEMPLATES_SUBDIR)
+  try {
+    const names = await fs.readdir(templatesDir, { withFileTypes: true })
+    for (const entry of names) {
+      if (entry.isFile() && entry.name.endsWith('.json')) {
+        filesToScan.push(path.join(templatesDir, entry.name))
+      }
+    }
+  } catch {
+    /* templates dir may not exist yet */
+  }
+
+  await Promise.all(
+    filesToScan.map(async (filePath) => {
+      try {
+        const raw = JSON.parse(await fs.readFile(filePath, 'utf8')) as unknown
+        collectScreenshotRefs(raw, refs)
+      } catch {
+        /* ignore malformed files */
+      }
+    }),
+  )
+
+  return refs
+}
+
+async function cleanupUnusedScreenshots(
+  datasourceDir: string,
+  screenshotsDir: string,
+): Promise<void> {
+  let entries: Awaited<ReturnType<typeof fs.readdir>>
+  try {
+    entries = await fs.readdir(screenshotsDir, { withFileTypes: true })
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException
+    if (err.code === 'ENOENT') return
+    throw e
+  }
+
+  const referenced = await collectReferencedScreenshotPaths(datasourceDir)
+  const now = Date.now()
+  let removed = 0
+  let inspected = 0
+
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      const rel = entry.name
+      inspected += 1
+      if (referenced.has(rel)) continue
+      const full = path.join(screenshotsDir, entry.name)
+      let stat: Awaited<ReturnType<typeof fs.stat>>
+      try {
+        stat = await fs.stat(full)
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException
+        if (err.code === 'ENOENT') continue
+        throw e
+      }
+      if (now - stat.mtimeMs < SCREENSHOT_CLEANUP_RETENTION_MS) continue
+      try {
+        await fs.unlink(full)
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException
+        if (err.code === 'ENOENT') continue
+        throw e
+      }
+      removed += 1
+      continue
+    }
+    if (!entry.isDirectory()) continue
+    const bucket = entry.name
+    const bucketDir = path.join(screenshotsDir, bucket)
+    let files: Awaited<ReturnType<typeof fs.readdir>>
+    try {
+      files = await fs.readdir(bucketDir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const fileEntry of files) {
+      if (!fileEntry.isFile()) continue
+      const rel = `${bucket}/${fileEntry.name}`
+      inspected += 1
+      if (referenced.has(rel)) continue
+      const full = path.join(bucketDir, fileEntry.name)
+      let stat: Awaited<ReturnType<typeof fs.stat>>
+      try {
+        stat = await fs.stat(full)
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException
+        if (err.code === 'ENOENT') continue
+        throw e
+      }
+      if (now - stat.mtimeMs < SCREENSHOT_CLEANUP_RETENTION_MS) continue
+      try {
+        await fs.unlink(full)
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException
+        if (err.code === 'ENOENT') continue
+        throw e
+      }
+      removed += 1
+    }
+  }
+
+  if (removed > 0) {
+    console.info(
+      `[datasource-api] removed ${removed} unreferenced screenshot(s) (inspected ${inspected})`,
+    )
+  }
 }
 
 const TEMPLATES_SUBDIR = 'templates'
@@ -148,6 +301,16 @@ export function datasourceApiPlugin(): Plugin {
           server.ws.send({ type: 'full-reload' })
         }
       })
+
+      void (async () => {
+        try {
+          await fs.mkdir(datasourceDir, { recursive: true })
+          await fs.mkdir(screenshotsDir, { recursive: true })
+          await cleanupUnusedScreenshots(datasourceDir, screenshotsDir)
+        } catch (e) {
+          console.warn('[datasource-api] startup screenshot cleanup failed', e)
+        }
+      })()
 
       server.middlewares.use(async (req, res, next) => {
         const pathname = (req.url ?? '').split('?')[0]
