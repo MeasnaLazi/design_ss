@@ -1,3 +1,9 @@
 {
-  "manifests": ["/device-frames/iphone_12_pro/frame.json"]
+  "devices": [
+    {
+      "name": "iPhone 12 Pro",
+      "type": "iphone",
+      "path": "/device-frames/iphone_12_pro/frame.json"
+    }
+  ]
 }

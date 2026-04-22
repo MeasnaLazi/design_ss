@@ -59,8 +59,8 @@ export interface DesignObjectRecord {
   name: string
   /** Layer order; higher values draw on top */
   zIndex: number
-  /** Set for {@link DesignObjectKind} `device`: matches `frames[].name` in `frame.json`. */
+  /** Set for {@link DesignObjectKind} `device`: matches `frames[].name` in the pack manifest JSON. */
   deviceFrameStyleId?: string
-  /** Pack id under `public/device-frames/<id>/` (e.g. `iphone_12_pro`). */
+  /** Pack id under `public/device-frames/<id>/` (e.g. `iphone_12_pro`), from manifest URL in `index.json`. */
   deviceFramePackId?: string
 }

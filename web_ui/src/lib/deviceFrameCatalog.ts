@@ -94,23 +94,46 @@ function manifestFramesToQuadRows(frames: DeviceFrameManifestFrame[]): ScreenQua
   }))
 }
 
-type DeviceFrameIndexFile = {
-  manifests?: string[]
+/** One row in `public/device-frames/index.json` under `devices`. */
+type DeviceFrameIndexEntry = {
+  name: string
+  type: string
+  path: string
 }
 
-async function fetchDeviceFrameIndex(): Promise<string[]> {
+type DeviceFrameIndexFile = {
+  devices?: unknown[]
+}
+
+function isDeviceFrameIndexEntry(x: unknown): x is DeviceFrameIndexEntry {
+  if (!x || typeof x !== 'object') return false
+  const o = x as Record<string, unknown>
+  return (
+    typeof o.name === 'string' &&
+    o.name.trim().length > 0 &&
+    typeof o.type === 'string' &&
+    o.type.trim().length > 0 &&
+    typeof o.path === 'string' &&
+    o.path.trim().length > 0
+  )
+}
+
+async function fetchDeviceFrameIndex(): Promise<DeviceFrameIndexEntry[]> {
   const res = await fetch(INDEX_URL)
   if (!res.ok) throw new Error(`[deviceFrameCatalog] ${INDEX_URL} (${res.status})`)
   const json = (await res.json()) as DeviceFrameIndexFile
-  const list = json.manifests ?? []
-  return list.filter((u): u is string => typeof u === 'string' && u.length > 0)
+  const list = json.devices ?? []
+  return list.filter(isDeviceFrameIndexEntry)
 }
 
-async function fetchDeviceManifest(manifestUrl: string): Promise<DeviceFrameManifest> {
+async function fetchDeviceManifest(
+  manifestUrl: string,
+  catalogMeta: { name: string; type: DeviceFrameType },
+): Promise<DeviceFrameManifest> {
   const res = await fetch(manifestUrl)
   if (!res.ok) throw new Error(`[deviceFrameCatalog] ${manifestUrl} (${res.status})`)
   const json = (await res.json()) as Record<string, unknown>
-  if (!json || typeof json.name !== 'string' || !Array.isArray(json.frames)) {
+  if (!json || !Array.isArray(json.frames)) {
     throw new Error(`[deviceFrameCatalog] invalid manifest: ${manifestUrl}`)
   }
   const frames = json.frames as DeviceFrameManifestFrame[]
@@ -120,24 +143,28 @@ async function fetchDeviceManifest(manifestUrl: string): Promise<DeviceFrameMani
     }
   }
   return {
-    name: json.name,
-    type: normalizeDeviceFrameType(typeof json.type === 'string' ? json.type : undefined),
+    name: catalogMeta.name,
+    type: catalogMeta.type,
     frames,
   }
 }
 
-/** Loads all manifests from `index.json` plus merged quad rows for the screen-region loader cache. */
+/** Loads all manifests listed in `index.json` `devices` plus merged quad rows for the screen-region loader cache. */
 export async function loadDeviceFrameRegistry(): Promise<{
   devices: CatalogDevice[]
   quadConfigRows: ScreenQuadConfigEntry[]
 }> {
-  const urls = await fetchDeviceFrameIndex()
+  const rows = await fetchDeviceFrameIndex()
   const devices: CatalogDevice[] = []
-  for (const url of urls) {
-    const manifest = await fetchDeviceManifest(url)
+  for (const row of rows) {
+    const manifestUrl = normalizeAssetPath(row.path.trim())
+    const manifest = await fetchDeviceManifest(manifestUrl, {
+      name: row.name.trim(),
+      type: normalizeDeviceFrameType(row.type),
+    })
     devices.push({
-      id: packIdFromManifestUrl(url),
-      manifestUrl: url,
+      id: packIdFromManifestUrl(manifestUrl),
+      manifestUrl,
       manifest,
     })
   }
