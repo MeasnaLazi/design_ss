@@ -33,6 +33,26 @@ export const ARTBOARD_PRESETS = [
     store: 'google' as const,
     formFactor: 'phone' as const,
   },
+  {
+    id: 'play_tablet_portrait',
+    /** File: `datasource/display_play_tablet_portrait.json` */
+    displayFileSlug: 'play_tablet_portrait',
+    label: 'Play Store · tablet portrait',
+    width: 1600,
+    height: 2560,
+    store: 'google' as const,
+    formFactor: 'tablet' as const,
+  },
+  {
+    id: 'play_tablet_landscape',
+    /** File: `datasource/display_play_tablet_landscape.json` */
+    displayFileSlug: 'play_tablet_landscape',
+    label: 'Play Store · tablet landscape',
+    width: 2560,
+    height: 1600,
+    store: 'google' as const,
+    formFactor: 'tablet' as const,
+  },
 ] as const
 
 export type ArtboardPreset = (typeof ARTBOARD_PRESETS)[number]
