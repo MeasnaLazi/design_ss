@@ -207,51 +207,47 @@ export function CanvasGradientControls() {
             const isEdge = index === 0 || index === n - 1
             return (
               <li
-                key={`${index}-${stop.offset}`}
-                className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-800/80 bg-zinc-900/40 px-2 py-1.5"
+                key={`stop-${index}`}
+                className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-2 py-1.5"
               >
-                <span className="w-10 shrink-0 text-[10px] text-zinc-500">
-                  {index === 0 ? 'Start' : index === n - 1 ? 'End' : `Mid ${index}`}
-                </span>
-                <input
-                  type="color"
-                  className="h-8 w-full max-w-[5.5rem] shrink-0 cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
-                  value={colorInputValue(stop.color)}
-                  onChange={(e) => setStopColor(index, e.target.value)}
-                  aria-label={`Stop ${index + 1} color`}
-                />
-                {isEdge ? (
-                  <span className="ml-auto text-[10px] tabular-nums text-zinc-600">
-                    {index === 0 ? '0%' : '100%'}
+                <div className="flex items-center gap-2">
+                  <span className="w-10 shrink-0 text-[10px] text-zinc-500">
+                    {index === 0 ? 'Start' : index === n - 1 ? 'End' : `Mid ${index}`}
                   </span>
-                ) : (
-                  <div className="ml-auto flex min-w-0 flex-1 items-center gap-2 sm:max-w-[10rem]">
+                  <input
+                    type="color"
+                    className="h-8 w-full max-w-[5.5rem] shrink-0 cursor-pointer rounded border border-zinc-700 bg-zinc-900 p-0.5"
+                    value={colorInputValue(stop.color)}
+                    onChange={(e) => setStopColor(index, e.target.value)}
+                    aria-label={`Stop ${index + 1} color`}
+                  />
+                  <span className="ml-auto w-8 shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                    {Math.round(stop.offset * 100)}%
+                  </span>
+                  {!isEdge ? (
+                    <button
+                      type="button"
+                      onClick={() => removeStopAt(index)}
+                      className="shrink-0 rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+                      aria-label={`Remove stop ${index + 1}`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  ) : null}
+                </div>
+                {!isEdge ? (
+                  <div className="mt-1 max-w-[9rem] pl-10">
                     <input
                       type="range"
                       min={0}
                       max={100}
                       step={1}
-                      className="min-w-0 flex-1 accent-emerald-500"
+                      className="h-1.5 w-full accent-emerald-500"
                       value={Math.round(stop.offset * 100)}
-                      onChange={(e) =>
-                        setStopOffset(index, Number(e.target.value) / 100)
-                      }
+                      onChange={(e) => setStopOffset(index, Number(e.target.value) / 100)}
                       aria-label={`Stop ${index + 1} position`}
                     />
-                    <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                      {Math.round(stop.offset * 100)}%
-                    </span>
                   </div>
-                )}
-                {!isEdge ? (
-                  <button
-                    type="button"
-                    onClick={() => removeStopAt(index)}
-                    className="shrink-0 rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
-                    aria-label={`Remove stop ${index + 1}`}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
                 ) : null}
               </li>
             )
