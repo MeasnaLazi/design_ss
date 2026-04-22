@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -6,6 +6,7 @@ import {
   ImagePlus,
   Layers,
   LayoutTemplate,
+  Library,
   Palette,
   Smartphone,
   Trash2,
@@ -15,6 +16,8 @@ import {
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from '../../canvas/addTextboxToCanvas'
+import { loadDisplayDocumentIntoCanvas } from '../../canvas/loadDisplayDocument'
+import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
 import { deleteLayerById, selectLayerById } from '../../canvas/deleteLayerById'
 import {
   getUserLayerIdsBottomToTop,
@@ -41,12 +44,29 @@ import { uploadScreenshotFile } from '../../lib/datasourceScreenshotsApi'
 import { useCustomFontStore } from '../../store/useCustomFontStore'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
+import {
+  deleteDesignTemplate,
+  listDesignTemplates,
+  loadDesignTemplateDocument,
+  saveDesignTemplate,
+  type DesignTemplateListItem,
+} from '../../lib/designTemplatePersistence'
+import {
+  resetDesignHistoryFromCurrentCanvas,
+} from '../../history/designHistory'
+import type { DisplayDocumentV1 } from '../../types/displayDocument'
 
 import { CanvasGradientControls } from './CanvasGradientControls'
 
 type CanvasFillTab = 'solid' | 'gradient' | 'image'
 
-type SidebarSectionId = 'background' | 'artboard' | 'text' | 'deviceFrame' | 'layers'
+type SidebarSectionId =
+  | 'background'
+  | 'artboard'
+  | 'text'
+  | 'deviceFrame'
+  | 'layers'
+  | 'templates'
 
 const SECTION_NAV: {
   id: SidebarSectionId
@@ -58,6 +78,7 @@ const SECTION_NAV: {
   { id: 'text', label: 'Text', Icon: Type },
   { id: 'deviceFrame', label: 'Device frame', Icon: Smartphone },
   { id: 'layers', label: 'Layers', Icon: Layers },
+  { id: 'templates', label: 'Templates', Icon: Library },
 ]
 
 export function LeftSidebar() {
@@ -90,6 +111,27 @@ export function LeftSidebar() {
   useEffect(() => {
     setImagePanelActive(false)
   }, [backgroundImageUrl, backgroundMode, artboardPresetId])
+
+  const saveDialogTitleId = useId()
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  const [templateNameDraft, setTemplateNameDraft] = useState('')
+  const [templateList, setTemplateList] = useState<DesignTemplateListItem[]>([])
+
+  useEffect(() => {
+    if (!saveTemplateOpen) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setSaveTemplateOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [saveTemplateOpen])
+
+  useEffect(() => {
+    if (activeSection !== 'templates') return
+    void (async () => {
+      setTemplateList(await listDesignTemplates())
+    })()
+  }, [activeSection])
 
   const devices = useDeviceFramePackStore((s) => s.devices)
   const registryStatus = useDeviceFramePackStore((s) => s.status)
@@ -195,6 +237,74 @@ export function LeftSidebar() {
         )
       applyDataUrl()
     }
+  }
+
+  const buildCurrentDisplayDocument = (): DisplayDocumentV1 | null => {
+    const canvas = useDesignStore.getState().fabricCanvas
+    if (!canvas) {
+      console.warn('[LeftSidebar] save/load template: no canvas')
+      return null
+    }
+    return buildDisplayDocumentFromCanvas(canvas)
+  }
+
+  const handleSaveAsTemplate = async () => {
+    const { showToast } = useToastStore.getState()
+    const doc = buildCurrentDisplayDocument()
+    if (!doc) {
+      showToast('Could not save template — canvas is not ready yet.', 'error')
+      return
+    }
+    try {
+      const { item, persistedTo } = await saveDesignTemplate(templateNameDraft, doc)
+      setSaveTemplateOpen(false)
+      setTemplateNameDraft('')
+      setTemplateList(await listDesignTemplates())
+      if (persistedTo === 'datasource') {
+        showToast(`Template saved to datasource/templates/${item.id}.`, 'success')
+      } else {
+        showToast(
+          `Template “${item.name}” saved in this browser only (dev server not available).`,
+          'warning',
+        )
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === 'empty_name') {
+        showToast('Enter a template name.', 'error')
+        return
+      }
+      console.error('[LeftSidebar] save template failed', e)
+      showToast('Could not save template.', 'error')
+    }
+  }
+
+  const handleLoadTemplate = async (item: DesignTemplateListItem) => {
+    const { showToast } = useToastStore.getState()
+    const doc = await loadDesignTemplateDocument(item)
+    if (!doc) {
+      showToast('That template is missing or invalid.', 'error')
+      setTemplateList(await listDesignTemplates())
+      return
+    }
+    try {
+      await loadDisplayDocumentIntoCanvas(doc, { skipPresetDatasourceSync: true })
+      resetDesignHistoryFromCurrentCanvas()
+      showToast('Template loaded.', 'success')
+    } catch (e) {
+      console.error('[LeftSidebar] load template failed', e)
+      showToast('Could not load template.', 'error')
+    }
+  }
+
+  const handleDeleteTemplate = async (item: DesignTemplateListItem) => {
+    const { showToast } = useToastStore.getState()
+    const ok = await deleteDesignTemplate(item)
+    if (!ok) {
+      showToast(`Could not delete “${item.name}”.`, 'error')
+      return
+    }
+    setTemplateList(await listDesignTemplates())
+    showToast(`Removed “${item.name}”.`, 'success')
   }
 
   const sortedLayers = [...objects].sort((a, b) => b.zIndex - a.zIndex)
@@ -741,7 +851,133 @@ export function LeftSidebar() {
             )}
           </div>
         ) : null}
+
+        {activeSection === 'templates' ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-b border-zinc-800 p-3">
+            <h2 className="shrink-0 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <span className="flex items-center gap-1.5">
+                <Library className="size-3.5" aria-hidden />
+                Templates
+              </span>
+            </h2>
+            <p className="mt-1 shrink-0 text-[11px] leading-snug text-zinc-600">
+              Save the current canvas as a template, or use a saved template below (replaces the current
+              design).
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setTemplateNameDraft('')
+                setSaveTemplateOpen(true)
+              }}
+              className="mt-3 flex w-full shrink-0 items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
+            >
+              Save as template
+            </button>
+            <p className="mt-3 shrink-0 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+              Saved templates
+            </p>
+            <ul className="mt-1.5 min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-0.5">
+              {templateList.length === 0 ? (
+                <li className="rounded-md border border-dashed border-zinc-800 px-2 py-6 text-center text-xs text-zinc-500">
+                  No templates yet. Use “Save as template…” to create one.
+                </li>
+              ) : (
+                templateList.map((t) => (
+                  <li
+                    key={`${t.source}-${t.id}`}
+                    className="rounded-md border border-zinc-800 bg-zinc-900/60 p-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-medium text-zinc-200">{t.name}</div>
+                      <div className="mt-0.5 text-[10px] text-zinc-500">
+                        {new Date(t.savedAt).toLocaleString()}
+                        {t.source === 'datasource' ? ' · datasource/templates' : ' · this browser'}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex gap-1.5">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-md border border-zinc-600 bg-zinc-800/80 px-2 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-800"
+                        onClick={() => void handleLoadTemplate(t)}
+                      >
+                        Use
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 rounded-md border border-zinc-700 px-2 py-1.5 text-xs font-medium text-zinc-400 hover:border-red-900/50 hover:bg-red-950/30 hover:text-red-300"
+                        onClick={() => void handleDeleteTemplate(t)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        ) : null}
       </div>
+
+      {saveTemplateOpen ? (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSaveTemplateOpen(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={saveDialogTitleId}
+            className="w-full max-w-sm rounded-lg border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2 id={saveDialogTitleId} className="text-sm font-semibold text-zinc-100">
+              Save as template
+            </h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              With the dev server running, saves under <span className="text-zinc-300">datasource/templates/</span>{' '}
+              as JSON. If the API is unavailable, the template is stored in this browser only.
+            </p>
+            <label className="mt-3 block text-xs font-medium text-zinc-300" htmlFor="left-sidebar-template-name">
+              Name
+            </label>
+            <input
+              id="left-sidebar-template-name"
+              type="text"
+              value={templateNameDraft}
+              onChange={(e) => setTemplateNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void handleSaveAsTemplate()
+                }
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-emerald-600"
+              placeholder="e.g. iPhone 5-screen dark"
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
+                onClick={() => setSaveTemplateOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+                onClick={() => void handleSaveAsTemplate()}
+              >
+                Save template
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   )
 }
