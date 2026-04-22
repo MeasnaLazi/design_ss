@@ -229,6 +229,8 @@ function attachPanelAlignmentGuides(canvas: Canvas): () => void {
     const canvasZoom = Math.max(useDesignStore.getState().canvasZoom, 0.01)
     const showTolerance = SMART_GUIDE_SHOW_TOLERANCE_SCREEN_PX / canvasZoom
     const snapTolerance = SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX / canvasZoom
+    const canvasWidth = canvas.getWidth()
+    const canvasHeight = canvas.getHeight()
     const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(cfg)
     const bboxBefore = target.getBoundingRect()
     const panel = panelBoundsForCenterX(
@@ -295,15 +297,15 @@ function attachPanelAlignmentGuides(canvas: Canvas): () => void {
 
     overlay.vertical.set({
       x1: drawGuideX ?? 0,
-      y1: panel.top,
+      y1: 0,
       x2: drawGuideX ?? 0,
-      y2: panel.bottom,
+      y2: canvasHeight,
       visible: drawGuideX !== null,
     })
     overlay.horizontal.set({
-      x1: panel.left,
+      x1: 0,
       y1: drawGuideY ?? 0,
-      x2: panel.right,
+      x2: canvasWidth,
       y2: drawGuideY ?? 0,
       visible: drawGuideY !== null,
     })
