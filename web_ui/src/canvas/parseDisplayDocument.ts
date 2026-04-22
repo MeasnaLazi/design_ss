@@ -21,7 +21,8 @@ function isDesignConfigShape(x: unknown): boolean {
     (x.backgroundMode === 'solid' || x.backgroundMode === 'gradient') &&
     isRecord(x.backgroundGradient) &&
     isValidBackgroundGradientJson(x.backgroundGradient) &&
-    (x.backgroundImageUrl === null || typeof x.backgroundImageUrl === 'string')
+    (x.backgroundImageUrl === null || typeof x.backgroundImageUrl === 'string') &&
+    (x.showLayerNames === undefined || typeof x.showLayerNames === 'boolean')
   )
 }
 

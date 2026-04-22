@@ -7,7 +7,9 @@ import {
   LayoutTemplate,
   Library,
   Palette,
+  Pencil,
   Smartphone,
+  Tag,
   Trash2,
   Type,
   Upload,
@@ -91,6 +93,8 @@ export function LeftSidebar() {
   const screens = useDesignStore((s) => s.config.screens)
   const gap = useDesignStore((s) => s.config.gap)
   const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
+  const showLayerNames = useDesignStore((s) => s.config.showLayerNames)
+  const upsertObject = useDesignStore((s) => s.upsertObject)
   const setConfig = useDesignStore((s) => s.setConfig)
   const clearCanvasBackgroundImage = useDesignStore((s) => s.clearCanvasBackgroundImage)
 
@@ -116,6 +120,8 @@ export function LeftSidebar() {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateNameDraft, setTemplateNameDraft] = useState('')
   const [templateList, setTemplateList] = useState<DesignTemplateListItem[]>([])
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
+  const [editingLayerName, setEditingLayerName] = useState('')
 
   useEffect(() => {
     if (!saveTemplateOpen) return
@@ -317,6 +323,31 @@ export function LeftSidebar() {
   }
 
   const sortedLayers = [...objects].sort((a, b) => b.zIndex - a.zIndex)
+
+  const startEditingLayerName = (id: string, currentName: string) => {
+    setEditingLayerId(id)
+    setEditingLayerName(currentName)
+  }
+
+  const commitEditingLayerName = (layerId: string) => {
+    const existing = objects.find((x) => x.id === layerId)
+    if (!existing) {
+      setEditingLayerId(null)
+      setEditingLayerName('')
+      return
+    }
+    const nextName = editingLayerName.trim()
+    if (nextName.length > 0 && nextName !== existing.name) {
+      upsertObject({ ...existing, name: nextName })
+    }
+    setEditingLayerId(null)
+    setEditingLayerName('')
+  }
+
+  const cancelEditingLayerName = () => {
+    setEditingLayerId(null)
+    setEditingLayerName('')
+  }
 
   const activeTabId = `left-sidebar-tab-${activeSection}`
   const panelId = 'left-sidebar-detail-panel'
@@ -808,6 +839,18 @@ export function LeftSidebar() {
             <p className="mt-1 text-[10px] leading-snug text-zinc-600">
               Use arrows to change stacking (top of list = drawn in front).
             </p>
+            <label className="mt-2 flex items-center gap-2 px-0.5 py-1 text-xs text-zinc-300">
+              <Tag className="size-3.5 shrink-0 text-zinc-500" aria-hidden />
+              <span className="min-w-0 flex-1">Show layer name</span>
+              <input
+                type="checkbox"
+                checked={showLayerNames}
+                onChange={(e) => setConfig({ showLayerNames: e.target.checked })}
+                className="size-3.5 accent-emerald-500"
+                aria-label="Show layer name on canvas"
+              />
+            </label>
+            <div className="mt-1 border-b border-zinc-800/80" aria-hidden />
             {sortedLayers.length === 0 ? (
               <p className="mt-2 text-sm text-zinc-600">No layers yet.</p>
             ) : (
@@ -841,17 +884,50 @@ export function LeftSidebar() {
                           <ChevronDown className="size-3.5" aria-hidden />
                         </button>
                       </div>
+                      {editingLayerId === o.id ? (
+                        <input
+                          value={editingLayerName}
+                          onChange={(e) => setEditingLayerName(e.target.value)}
+                          onBlur={() => commitEditingLayerName(o.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              commitEditingLayerName(o.id)
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault()
+                              cancelEditingLayerName()
+                            }
+                          }}
+                          className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-emerald-600"
+                          aria-label={`Edit layer name for ${o.name}`}
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => selectLayerById(o.id)}
+                          onDoubleClick={() => startEditingLayerName(o.id, o.name)}
+                          className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors ${
+                            selectedObject === o.id
+                              ? 'bg-zinc-800 text-zinc-100'
+                              : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+                          }`}
+                        >
+                          {o.name}
+                          <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => selectLayerById(o.id)}
-                        className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm transition-colors ${
-                          selectedObject === o.id
-                            ? 'bg-zinc-800 text-zinc-100'
-                            : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
-                        }`}
+                        title="Edit layer name"
+                        aria-label={`Edit layer ${o.name} name`}
+                        className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startEditingLayerName(o.id, o.name)
+                        }}
                       >
-                        {o.name}
-                        <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
+                        <Pencil className="size-3.5" aria-hidden />
                       </button>
                       <button
                         type="button"

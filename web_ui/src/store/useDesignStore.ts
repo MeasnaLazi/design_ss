@@ -39,6 +39,7 @@ const defaultConfig: DesignConfig = {
     stops: DEFAULT_BACKGROUND_GRADIENT.stops.map((s) => ({ ...s })),
   },
   backgroundImageUrl: null,
+  showLayerNames: false,
 }
 
 /** Default / reset zoom: 20% on-screen vs full App Store artboard (CSS scale; backstore stays 1:1). */

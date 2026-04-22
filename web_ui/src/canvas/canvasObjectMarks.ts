@@ -1,7 +1,8 @@
 import type { FabricObject } from 'fabric'
-import { FabricImage, Line, Rect } from 'fabric'
+import { FabricImage, IText, Line, Rect } from 'fabric'
 
 import { isGutterOverlayRect } from './gutterOverlayRects'
+import { LAYER_NAME_OVERLAY_MARK } from './layerNameOverlays'
 
 /** Panel slot rects drawn under user content in {@link CanvasWorkspace}. */
 export const PANEL_SLOT_MARK = '__appsPublisherPanelSlot' as const
@@ -28,5 +29,8 @@ export function isDesignSystemCanvasObject(o: FabricObject): boolean {
   if (isPanelSlotRect(o)) return true
   if (isPanelBackgroundImage(o)) return true
   if (isGutterOverlayRect(o)) return true
+  if (o instanceof IText && !!(o as IText & { [LAYER_NAME_OVERLAY_MARK]?: true })[LAYER_NAME_OVERLAY_MARK]) {
+    return true
+  }
   return false
 }

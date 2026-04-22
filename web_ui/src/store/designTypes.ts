@@ -42,6 +42,8 @@ export interface DesignConfig {
    * same-origin dev asset path such as `/__api/datasource/screenshots/<file>.png`.
    */
   backgroundImageUrl: string | null
+  /** Show non-exported layer labels near object borders on the canvas. */
+  showLayerNames: boolean
 }
 
 /** For `setConfig`: allow updating a subset of {@link backgroundGradient} fields. */

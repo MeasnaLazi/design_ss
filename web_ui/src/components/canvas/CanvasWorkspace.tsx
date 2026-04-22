@@ -3,6 +3,7 @@ import { screenshotLeftEdgeXs, totalContinuousWidth } from '../../constants/appS
 import {
   ActiveSelection,
   Canvas,
+  type FabricObject,
   FabricImage,
   Group,
   IText,
@@ -21,6 +22,12 @@ import {
   removeGutterOverlaysFromCanvas,
   type GutterOverlayRect,
 } from '../../canvas/gutterOverlayRects'
+import {
+  isLayerNameOverlayText,
+  removeLayerNameOverlaysFromCanvas,
+  syncLayerNameOverlays,
+  type LayerNameOverlayText,
+} from '../../canvas/layerNameOverlays'
 import {
   isPanelBackgroundImage,
   type PanelBgImage,
@@ -105,6 +112,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const panelBackgroundRectsRef = useRef<Rect[]>([])
   const panelBackgroundImagesRef = useRef<FabricImage[]>([])
   const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
+  const layerNameOverlaysRef = useRef<LayerNameOverlayText[]>([])
   const gutterStackCleanupRef = useRef<(() => void) | null>(null)
   const prevLayoutRef = useRef<{ screens: number; gap: number; preset: string }>({
     screens: -1,
@@ -120,6 +128,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const gradientKey = useDesignStore((s) => JSON.stringify(s.config.backgroundGradient))
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const canvasZoom = useDesignStore((s) => s.canvasZoom)
+  const showLayerNames = useDesignStore((s) => s.config.showLayerNames)
+  const objects = useDesignStore((s) => s.objects)
 
   useEffect(() => {
     const el = canvasElRef.current
@@ -364,6 +374,58 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   }, [backgroundImageUrl, screens, gap, artboardPresetId])
 
   useEffect(() => {
+    const canvas = fabricRef.current
+    if (!canvas) return
+
+    if (!showLayerNames) {
+      removeLayerNameOverlaysFromCanvas(canvas, layerNameOverlaysRef)
+      canvas.requestRenderAll()
+      return
+    }
+
+    let rafId = 0
+    const syncNow = () => {
+      try {
+        syncLayerNameOverlays(canvas, layerNameOverlaysRef, objects)
+        canvas.requestRenderAll()
+      } catch (e) {
+        console.error('[CanvasWorkspace] layer name overlay sync failed', e)
+      }
+    }
+    const scheduleSync = () => {
+      if (rafId !== 0) return
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        syncNow()
+      })
+    }
+    const onCanvasObjectChanged = (opt?: { target?: FabricObject }) => {
+      if (opt?.target && isLayerNameOverlayText(opt.target)) return
+      scheduleSync()
+    }
+
+    syncNow()
+    canvas.on('object:modified', onCanvasObjectChanged)
+    canvas.on('object:moving', onCanvasObjectChanged)
+    canvas.on('object:scaling', onCanvasObjectChanged)
+    canvas.on('object:rotating', onCanvasObjectChanged)
+    canvas.on('object:skewing', onCanvasObjectChanged)
+    canvas.on('object:added', onCanvasObjectChanged)
+    canvas.on('object:removed', onCanvasObjectChanged)
+
+    return () => {
+      if (rafId !== 0) cancelAnimationFrame(rafId)
+      canvas.off('object:modified', onCanvasObjectChanged)
+      canvas.off('object:moving', onCanvasObjectChanged)
+      canvas.off('object:scaling', onCanvasObjectChanged)
+      canvas.off('object:rotating', onCanvasObjectChanged)
+      canvas.off('object:skewing', onCanvasObjectChanged)
+      canvas.off('object:added', onCanvasObjectChanged)
+      canvas.off('object:removed', onCanvasObjectChanged)
+    }
+  }, [showLayerNames, objects, screens, gap, artboardPresetId])
+
+  useEffect(() => {
     return () => {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
       gutterStackCleanupRef.current?.()
@@ -371,11 +433,13 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       const c = fabricRef.current
       if (c) {
         removeGutterOverlaysFromCanvas(c, gutterOverlayRectsRef)
+        removeLayerNameOverlaysFromCanvas(c, layerNameOverlaysRef)
       }
       guideLinesRef.current = []
       panelBackgroundRectsRef.current = []
       panelBackgroundImagesRef.current = []
       gutterOverlayRectsRef.current = []
+      layerNameOverlaysRef.current = []
       c?.backgroundImage?.dispose()
       if (c) c.backgroundImage = undefined
       useDesignStore.getState().setFabricCanvas(null)
