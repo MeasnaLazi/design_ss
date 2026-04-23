@@ -173,7 +173,7 @@ python3 -m agent_toolkit designer handoff
 Or probe session directly:
 
 ```bash
-python3 -m agent_toolkit designer session --canvas-size iphone
+python3 -m agent_toolkit designer session
 ```
 
 Expect JSON with `ok`, `width`, `height`, `presetId`. If this fails while `curl` to port 4713 succeeded, investigate API path, `DESIGNER_API_BASE` / `.env`, or Python environment.

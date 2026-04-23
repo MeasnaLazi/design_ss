@@ -6,7 +6,7 @@ import json
 import os
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -92,7 +92,6 @@ def web_ui_url_from_designer_base(designer_base_url: str) -> str:
 def screenshot_designer_handoff(
     *,
     designer_base_override: str | None = None,
-    canvas_size: str = "iphone",
     timeout: float = 15.0,
     skip_session: bool = False,
 ) -> dict[str, Any]:
@@ -118,7 +117,7 @@ def screenshot_designer_handoff(
             },
             "session": None,
         }
-    sess = designer_session(api_base, canvas_size=canvas_size, timeout=timeout)
+    sess = designer_session(api_base, timeout=timeout)
     if not sess.get("ok"):
         raise DesignerClientError(
             "session probe did not return ok",
@@ -197,21 +196,11 @@ def _json_request(
 def designer_session(
     base_url: str,
     *,
-    canvas_size: str | None = None,
-    preset_id: str | None = None,
-    artboard: str | None = None,
     timeout: float = 60.0,
 ) -> dict[str, Any]:
+    """GET ``{base}/session`` with no query string (server resolves preset from app state / defaults)."""
     base = validate_designer_base_url(base_url)
-    q: dict[str, str] = {}
-    if canvas_size:
-        q["canvasSize"] = canvas_size
-    if preset_id:
-        q["presetId"] = preset_id
-    if artboard:
-        q["artboard"] = artboard
-    qs = ("?" + urlencode(q)) if q else ""
-    url = f"{base}/session{qs}"
+    url = f"{base}/session"
     return _json_request("GET", url, timeout=timeout)
 
 

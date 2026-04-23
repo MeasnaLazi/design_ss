@@ -59,7 +59,7 @@ def test_screenshot_designer_handoff_with_session_probe(monkeypatch: pytest.Monk
     cm.__exit__.return_value = None
     try:
         with patch("agent_toolkit.designer_client.urlopen", return_value=cm):
-            out = screenshot_designer_handoff(canvas_size="iphone", timeout=5.0)
+            out = screenshot_designer_handoff(timeout=5.0)
     finally:
         designer_client_mod.reset_publisher_dotenv_cache()
     assert out["ok"] is True
@@ -93,7 +93,7 @@ def test_designer_session_mocked() -> None:
     cm.__enter__.return_value = inner
     cm.__exit__.return_value = None
     with patch("agent_toolkit.designer_client.urlopen", return_value=cm):
-        out = designer_session("http://127.0.0.1:4713/__api/screenshot-designer", canvas_size="iphone")
+        out = designer_session("http://127.0.0.1:4713/__api/screenshot-designer")
     assert out["ok"] is True
     assert out["width"] == 100
 

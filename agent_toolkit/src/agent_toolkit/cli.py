@@ -202,7 +202,6 @@ def main(argv: list[str] | None = None) -> None:
         "handoff",
         help="Emit web_ui + designer_api handoff JSON (optional GET session probe)",
     )
-    ds_ho.add_argument("--canvas-size", default="iphone", help="Canvas for session probe (default iphone)")
     ds_ho.add_argument("--timeout", type=float, default=15.0)
     ds_ho.add_argument(
         "--skip-session",
@@ -211,13 +210,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     ds_ho.set_defaults(handler=_cmd_designer_handoff)
 
-    ds_sess = designer_sub.add_parser("session", help="GET .../session (canvasSize / presetId / artboard)")
-    ds_sess.add_argument("--canvas-size", default=None)
-    ds_sess.add_argument("--preset-id", default=None)
-    ds_sess.add_argument(
-        "--artboard",
-        default=None,
-        help="Same as web_ui ?artboard= (iphone|ipad|phone|tablet or full preset id)",
+    ds_sess = designer_sub.add_parser(
+        "session",
+        help="GET .../session (no query params; server resolves preset from browser cookies / referer / default)",
     )
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
@@ -259,7 +254,6 @@ def main(argv: list[str] | None = None) -> None:
 
 def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
     out = screenshot_designer_handoff(
-        canvas_size=str(ns.canvas_size or "iphone"),
         timeout=float(ns.timeout),
         skip_session=bool(ns.skip_session),
     )
@@ -267,13 +261,7 @@ def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
 
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
-    out = designer_session_http(
-        resolve_designer_base_url(),
-        canvas_size=ns.canvas_size,
-        preset_id=ns.preset_id,
-        artboard=ns.artboard,
-        timeout=ns.timeout,
-    )
+    out = designer_session_http(resolve_designer_base_url(), timeout=ns.timeout)
     _json_print(out, compact)
 
 

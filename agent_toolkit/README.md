@@ -20,7 +20,7 @@ python -m agent_toolkit layout image match-preset --path preview.png --canvas-si
 ```bash
 cd agent_toolkit && cp .env.example .env   # once
 python -m agent_toolkit designer handoff                    # { ok, handoff { web_ui_url, designer_api_base, web_ui_status }, session }
-python -m agent_toolkit designer session --canvas-size iphone
+python -m agent_toolkit designer session
 python -m agent_toolkit designer execute --json execute.json
 python -m agent_toolkit designer execute-op --operation clear_canvas --args-json "{}"
 python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait

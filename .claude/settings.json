@@ -1,12 +1,17 @@
 {
+  "defaultMode": "acceptEdits",
   "permissions": {
     "allow": [
-      "Read(**)",
-      "Write(**)"
+      "Read",
+      "Edit",
+      "Write",
+      "Bash",
+      "WebFetch",
+      "Agent(app_optimizer)",
+      "Agent(screenshot_designer)",
+      "Agent(toolkit_runner)"
     ],
     "deny": [
-      "Read(web_ui/**)",
-      "Write(web_ui/**)",
       "Bash(rm -rf *)"
     ]
   }

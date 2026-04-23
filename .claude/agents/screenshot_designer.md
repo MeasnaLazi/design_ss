@@ -34,7 +34,7 @@ Before any design work, you must have these three fields (same shape whether the
 
 ```bash
 python -m agent_toolkit designer handoff
-# optional: python -m agent_toolkit designer handoff --canvas-size ipad
+# optional: python -m agent_toolkit designer handoff --skip-session
 ```
 
 Response shape: `{ "ok": true, "handoff": { "web_ui_url", "designer_api_base", "web_ui_status" }, "session": { ... } }`. Treat **`ready`**, **`started`**, and **`already_running`** as “Web UI is available for design.” Prefer **`ready`** or runner statuses over **`unverified`**.
@@ -144,7 +144,7 @@ Requires **`web_ui`** with the datasource API enabled: **`npm run dev`** or a lo
 | Goal | Command |
 |------|---------|
 | **Handoff JSON** (`web_ui_url`, `designer_api_base`, `web_ui_status`) | `python -m agent_toolkit designer handoff` |
-| GET live session | `python -m agent_toolkit designer session --canvas-size iphone` |
+| GET live session | `python -m agent_toolkit designer session` |
 | POST execute (body file) | `python -m agent_toolkit designer execute --json exec.json` — body: `{ "operation", "args" }` |
 | POST execute one-liner | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
 | POST save display | `python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait` |
@@ -160,11 +160,11 @@ All requests use `Content-Type: application/json`.
 ### Get current live session
 
 ```
-GET http://localhost:4713/__api/screenshot-designer/session?canvasSize=iphone|ipad|phone|tablet
+GET http://localhost:4713/__api/screenshot-designer/session
 Response: { "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "savedAt"?: "<iso>", "displayFile"?: "display_<slug>.json" }
 ```
 
-`presetId` / dimensions reflect the resolved preset and, when `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file. No `sessionId` is used.
+`presetId` / dimensions are resolved server-side (optional query hints such as `canvasSize` / `presetId` / `artboard` are not required). The server uses the same resolution rules as the browser (cookies, `Referer` `?artboard=`, then defaults). When `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file participates in resolution. No `sessionId` is used.
 
 ### Soft reload (browser)
 
@@ -349,9 +349,9 @@ For each panel (repeat for every screenshot):
 
 **5a — Get current live session**
 ```
-GET /__api/screenshot-designer/session?canvasSize=<device>
+GET /__api/screenshot-designer/session
 ```
-(or `designer session --canvas-size <device>`)
+From the toolkit: `python -m agent_toolkit designer session` (no query params; same resolution as the SPA when hints are omitted).
 
 **5b — Build**
 1. `set_background`
