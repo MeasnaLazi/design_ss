@@ -147,7 +147,7 @@ Requires **`web_ui`** dev server (handoff from `toolkit_runner`). Base URL order
 | GET live session | `python -m agent_toolkit designer session --canvas-size iphone` |
 | POST execute (body file) | `python -m agent_toolkit designer execute --json exec.json` — body: `{ "operation", "args" }` |
 | POST execute one-liner | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
-| POST save display | `python -m agent_toolkit designer save-display --preset-id appstore_iphone_67` |
+| POST save display | `python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait` |
 
 You may use these **instead of** raw `curl` when scripting; the HTTP shapes are identical to the reference below.
 
@@ -263,8 +263,8 @@ Because Web UI is already running, each successful designer API call must be tre
 
 | Choice | canvasSize | Store JSON | presetId |
 |---|---|---|---|
-| iPhone | `iphone` | `output/appstore.json` | `appstore_iphone_67` |
-| iPad | `ipad` | `output/appstore.json` | `appstore_ipad_129` |
+| iPhone | `iphone` | `output/appstore.json` | `appstore_iphone_portrait` |
+| iPad | `ipad` | `output/appstore.json` | `appstore_ipad_portrait` |
 | Phone | `phone` | `output/playstore.json` | `play_phone_portrait` |
 | Tablet | `tablet` | `output/playstore.json` | `play_tablet_portrait` |
 

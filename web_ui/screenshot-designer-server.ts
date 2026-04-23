@@ -4,6 +4,8 @@ import path from 'node:path'
 
 import sharp from 'sharp'
 
+import { ARTBOARD_PRESET_ID_LEGACY } from './src/constants/artboardPresets'
+
 type Anchor = 'center_x' | 'center_y' | 'top' | 'bottom' | 'left' | 'right'
 type FontToken = 'headline' | 'subheadline' | 'body' | 'caption'
 type TextAlign = 'left' | 'center' | 'right'
@@ -91,15 +93,32 @@ const PANEL_GAP = 40
 type PresetInfo = { presetId: string; displaySlug: string; placeholder: string }
 
 const CANVAS_SIZE_TO_PRESET: Record<string, PresetInfo> = {
-  iphone: { presetId: 'appstore_iphone_67', displaySlug: 'iphone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg' },
-  ipad: { presetId: 'appstore_ipad_129', displaySlug: 'ipad', placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg' },
+  iphone: { presetId: 'appstore_iphone_portrait', displaySlug: 'iphone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg' },
+  ipad: { presetId: 'appstore_ipad_portrait', displaySlug: 'ipad', placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg' },
   phone: { presetId: 'play_phone_portrait', displaySlug: 'play_phone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg' },
   tablet: { presetId: 'play_tablet_portrait', displaySlug: 'play_tablet_portrait', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg' },
 }
 
+function canonicalPresetId(raw: string): string {
+  const mapped = ARTBOARD_PRESET_ID_LEGACY[raw]
+  return mapped ?? raw
+}
+
 const PRESET_BY_ID: Record<string, PresetInfo & { width: number; height: number }> = {
-  appstore_iphone_67: { presetId: 'appstore_iphone_67', displaySlug: 'iphone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg', width: 1290, height: 2796 },
-  appstore_ipad_129: { presetId: 'appstore_ipad_129', displaySlug: 'ipad', placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg', width: 2048, height: 2732 },
+  appstore_iphone_portrait: {
+    presetId: 'appstore_iphone_portrait',
+    displaySlug: 'iphone',
+    placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg',
+    width: 1290,
+    height: 2796,
+  },
+  appstore_ipad_portrait: {
+    presetId: 'appstore_ipad_portrait',
+    displaySlug: 'ipad',
+    placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg',
+    width: 2048,
+    height: 2732,
+  },
   play_phone_portrait: { presetId: 'play_phone_portrait', displaySlug: 'play_phone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 1080, height: 1920 },
   play_tablet_portrait: { presetId: 'play_tablet_portrait', displaySlug: 'play_tablet_portrait', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 1600, height: 2560 },
   play_tablet_landscape: { presetId: 'play_tablet_landscape', displaySlug: 'play_tablet_landscape', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 2560, height: 1600 },
@@ -115,7 +134,7 @@ const FONT_MAP: Record<FontToken, string> = {
   caption: 'Inter',
 }
 
-const DEFAULT_PRESET_ID = 'appstore_iphone_67'
+const DEFAULT_PRESET_ID = 'appstore_iphone_portrait'
 
 let currentSession: DesignerSession | null = null
 let currentPresetId = DEFAULT_PRESET_ID
@@ -341,7 +360,8 @@ function presetIdFromArtboardUrlParam(raw: string | undefined | null): string | 
   if (raw == null) return undefined
   const v = raw.trim()
   if (!v) return undefined
-  if (PRESET_BY_ID[v]) return v
+  const canon = canonicalPresetId(v)
+  if (PRESET_BY_ID[canon]) return canon
   const key = v.toLowerCase()
   return CANVAS_SIZE_TO_PRESET[key]?.presetId
 }
@@ -353,7 +373,10 @@ function resolvePresetId(
   cookieArtboard?: string,
   refererArtboard?: string,
 ): string {
-  if (presetId && PRESET_BY_ID[presetId]) return presetId
+  if (presetId) {
+    const canon = canonicalPresetId(presetId)
+    if (PRESET_BY_ID[canon]) return canon
+  }
   const sizeKey = canvasSize ?? ''
   const fromCanvasSize = CANVAS_SIZE_TO_PRESET[sizeKey]?.presetId
   if (fromCanvasSize) return fromCanvasSize

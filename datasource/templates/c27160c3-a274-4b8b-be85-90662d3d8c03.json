@@ -6,7 +6,7 @@
     "savedAt": "2026-04-22T14:31:41.089Z",
     "design": {
       "config": {
-        "artboardPresetId": "appstore_iphone_67",
+        "artboardPresetId": "appstore_iphone_portrait",
         "screens": 5,
         "gap": 40,
         "background": "#f5f1ee",
@@ -859,7 +859,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/3872b9d3-cd21-480e-9c89-901b1aa82d04.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/3872b9d3-cd21-480e-9c89-901b1aa82d04.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1070,7 +1070,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/79fc2df9-0ba3-4df3-a54e-897e19c65d41.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/79fc2df9-0ba3-4df3-a54e-897e19c65d41.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1281,7 +1281,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/a2e0decb-ec34-4e94-84be-1e60498f0e4c.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/a2e0decb-ec34-4e94-84be-1e60498f0e4c.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1492,7 +1492,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/dd68c606-691a-48f4-914e-2d8d5aee8d0e.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/dd68c606-691a-48f4-914e-2d8d5aee8d0e.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1703,7 +1703,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/ca855b5a-1d52-4f1e-8b8f-601a783cd40c.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/ca855b5a-1d52-4f1e-8b8f-601a783cd40c.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -1914,7 +1914,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/24078a45-e06d-4acf-bc7b-94d8dc24df53.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/24078a45-e06d-4acf-bc7b-94d8dc24df53.png",
             "crossOrigin": "anonymous",
             "filters": []
           },
@@ -2275,7 +2275,7 @@
                 ]
               ]
             },
-            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_67/70b61546-8175-4eb1-b547-f9f6220e45da.png",
+            "src": "http://localhost:4713/__api/datasource/screenshots/appstore_iphone_portrait/70b61546-8175-4eb1-b547-f9f6220e45da.png",
             "crossOrigin": "anonymous",
             "filters": []
           },

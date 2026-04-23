@@ -23,7 +23,7 @@ python -m agent_toolkit designer handoff                    # { ok, handoff { we
 python -m agent_toolkit designer session --canvas-size iphone
 python -m agent_toolkit designer execute --json execute.json
 python -m agent_toolkit designer execute-op --operation clear_canvas --args-json "{}"
-python -m agent_toolkit designer save-display --preset-id appstore_iphone_67
+python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait
 ```
 
 See `.claude/agents/screenshot_designer.md` for when to use this alongside the designer API.

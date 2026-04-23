@@ -4,7 +4,7 @@
  */
 export const ARTBOARD_PRESETS = [
   {
-    id: 'appstore_iphone_67',
+    id: 'appstore_iphone_portrait',
     /** File: `datasource/display_iphone.json` */
     displayFileSlug: 'iphone',
     label: 'App Store · iPhone 6.7″',
@@ -14,7 +14,7 @@ export const ARTBOARD_PRESETS = [
     formFactor: 'phone' as const,
   },
   {
-    id: 'appstore_ipad_129',
+    id: 'appstore_ipad_portrait',
     /** File: `datasource/display_ipad.json` */
     displayFileSlug: 'ipad',
     label: 'App Store · iPad 12.9″',
@@ -58,7 +58,7 @@ export const ARTBOARD_PRESETS = [
 export type ArtboardPreset = (typeof ARTBOARD_PRESETS)[number]
 export type ArtboardPresetId = ArtboardPreset['id']
 
-export const DEFAULT_ARTBOARD_PRESET_ID: ArtboardPresetId = 'appstore_iphone_67'
+export const DEFAULT_ARTBOARD_PRESET_ID: ArtboardPresetId = 'appstore_iphone_portrait'
 
 /** Same values as {@link DEFAULT_ARTBOARD_PRESET_ID}; kept for callers that only need numbers. */
 export const DEFAULT_ARTBOARD_WIDTH = ARTBOARD_PRESETS[0].width
@@ -83,8 +83,15 @@ export function isArtboardPresetId(s: string): s is ArtboardPresetId {
   return (ARTBOARD_PRESET_IDS as readonly string[]).includes(s)
 }
 
+/** Old preset ids still found in saved display JSON, URLs, cookies, or API calls. */
+export const ARTBOARD_PRESET_ID_LEGACY: Readonly<Partial<Record<string, ArtboardPresetId>>> = {
+  appstore_iphone_67: 'appstore_iphone_portrait',
+  appstore_ipad_129: 'appstore_ipad_portrait',
+}
+
 export function normalizeArtboardPresetId(id: string | undefined): ArtboardPresetId {
   if (id && isArtboardPresetId(id)) return id
+  if (id && ARTBOARD_PRESET_ID_LEGACY[id]) return ARTBOARD_PRESET_ID_LEGACY[id]!
   return DEFAULT_ARTBOARD_PRESET_ID
 }
 

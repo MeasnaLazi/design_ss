@@ -53,7 +53,7 @@ pip install -e "./agent_toolkit"
 python3 -m agent_toolkit layout list-presets
 ```
 
-- Expect JSON listing presets (e.g. `appstore_iphone_67` with width/height). If this fails, fix Python path / install before reporting success.
+- Expect JSON listing presets (e.g. `appstore_iphone_portrait` with width/height). If this fails, fix Python path / install before reporting success.
 
 ---
 

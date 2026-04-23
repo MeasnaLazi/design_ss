@@ -1,4 +1,8 @@
-import { isArtboardPresetId, type ArtboardPresetId } from '../constants/artboardPresets'
+import {
+  ARTBOARD_PRESET_ID_LEGACY,
+  isArtboardPresetId,
+  type ArtboardPresetId,
+} from '../constants/artboardPresets'
 
 /**
  * Mirrors `?artboard=` for GET /__api/screenshot-designer/session: Referer often omits the query
@@ -16,8 +20,8 @@ export function writeArtboardSessionCookie(presetId: ArtboardPresetId): void {
 
 /** Short keys for `?artboard=` on the app URL (same vocabulary as designer session `canvasSize`). */
 const SHORT_TO_PRESET: Record<string, ArtboardPresetId> = {
-  iphone: 'appstore_iphone_67',
-  ipad: 'appstore_ipad_129',
+  iphone: 'appstore_iphone_portrait',
+  ipad: 'appstore_ipad_portrait',
   phone: 'play_phone_portrait',
   tablet: 'play_tablet_portrait',
 }
@@ -32,6 +36,8 @@ export function parseArtboardUrlParam(raw: string | null | undefined): ArtboardP
   const v = raw.trim()
   if (!v) return null
   if (isArtboardPresetId(v)) return v
+  const legacy = ARTBOARD_PRESET_ID_LEGACY[v]
+  if (legacy) return legacy
   return SHORT_TO_PRESET[v.toLowerCase()] ?? null
 }
 

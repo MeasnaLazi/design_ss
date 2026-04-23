@@ -52,7 +52,7 @@ def test_screenshot_designer_handoff_with_session_probe(monkeypatch: pytest.Monk
     )
     inner = MagicMock()
     inner.read.return_value = json.dumps(
-        {"ok": True, "width": 1290, "height": 2796, "presetId": "appstore_iphone_67"},
+        {"ok": True, "width": 1290, "height": 2796, "presetId": "appstore_iphone_portrait"},
     ).encode("utf-8")
     cm = MagicMock()
     cm.__enter__.return_value = inner
@@ -65,7 +65,7 @@ def test_screenshot_designer_handoff_with_session_probe(monkeypatch: pytest.Monk
     assert out["ok"] is True
     assert out["handoff"]["web_ui_status"] == "ready"
     assert out["handoff"]["web_ui_url"] == "http://127.0.0.1:4713"
-    assert out["session"]["presetId"] == "appstore_iphone_67"
+    assert out["session"]["presetId"] == "appstore_iphone_portrait"
 
 
 def test_validate_designer_base_url_ok() -> None:

@@ -66,12 +66,17 @@ def test_align_center_x_canvas() -> None:
 
 def test_resolve_preset_iphone() -> None:
     p = resolve_preset("iphone", None)
-    assert p.preset_id == "appstore_iphone_67"
+    assert p.preset_id == "appstore_iphone_portrait"
     assert p.width == 1290 and p.height == 2796
 
 
 def test_resolve_preset_id_unknown_canvas() -> None:
-    assert resolve_preset_id("unknown", None) == "appstore_iphone_67"
+    assert resolve_preset_id("unknown", None) == "appstore_iphone_portrait"
+
+
+def test_resolve_preset_id_legacy_preset_ids() -> None:
+    assert resolve_preset_id(None, "appstore_iphone_67") == "appstore_iphone_portrait"
+    assert resolve_preset_id(None, "appstore_ipad_129") == "appstore_ipad_portrait"
 
 
 def test_play_tablet_landscape_dimensions() -> None:

@@ -20,7 +20,7 @@ export interface DisplayDesignSnapshot {
  *   "savedAt": "2026-04-07T12:00:00.000Z",
  *   "design": {
  *     "config": {
- *       "artboardPresetId": "appstore_iphone_67",
+ *       "artboardPresetId": "appstore_iphone_portrait",
  *       "screens": 5,
  *       "gap": 40,
  *       "background": "#1a1a1a",

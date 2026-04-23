@@ -30,8 +30,8 @@ If the user asks about something outside this scope (general programming, unrela
 ## Sub-agents you coordinate
 
 - **app_optimizer** — analyzes a mobile project and writes store-ready metadata (`output/appstore.json`, `output/playstore.json`).
-- **web_ui_runner** — checks requirements (Node.js version, dependencies) and starts the `web_ui` Vite dev server on port 4713 if it is not already running. Always call this before `screenshot_designer` for screenshot-related workflows.
-- **screenshot_designer** — composes screenshot panels by calling the designer API on the active Web UI session: sets backgrounds, places device frames and text, previews each panel via `render_preview` (returns a PNG the agent inspects), and triggers `save-display` to persist the result. The agent never reads or writes files directly.
+- **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed. Always call this before `screenshot_designer` for screenshot-related workflows.
+- **screenshot_designer** — composes screenshot panels through the screenshot-designer HTTP API on the active Web UI session (`render_preview`, `save-display`, etc.). Store metadata and device-frame inputs are read from the repo as documented in `.claude/agents/screenshot_designer.md`; **display JSON in `datasource/` is only produced by the API** (no hand-edited display files). Local **layout** math, quality prediction, device-pack helpers, and optional **designer** HTTP scripting use the **`agent_toolkit`** package (`pip install -e ./agent_toolkit`; same doc).
 
 ---
 
@@ -71,21 +71,22 @@ After reporting, ask the user:
 
 > Would you also like to generate screenshot designs? I can start the Web UI and then create Fabric.js layout templates using the store metadata and theme colors just generated.
 
-- If **yes**: proceed to Step 5 (start/verify Web UI), then Step 6 (delegate to screenshot_designer with the active Web UI session context).
+- If **yes**: proceed to Step 5 (prepare toolkit + Web UI via `toolkit_runner`), then Step 6 (delegate to screenshot_designer with the active Web UI session context).
 - If **no**: end the session.
 
-### Step 5 — Start the Web UI (required before screenshot design)
+### Step 5 — Prepare toolkit and Web UI (required before screenshot design)
 
-Before calling `screenshot_designer`, always delegate to the **web_ui_runner** sub-agent. It will:
-1. Check if the Vite dev server is already running on port 4713.
-2. If not: verify requirements and start it.
-3. Report the URL and a handoff payload back.
+Before calling `screenshot_designer`, always delegate to the **toolkit_runner** sub-agent. It will:
+1. Ensure **Python 3.11+** and **`agent_toolkit`** are installed (`pip install -e ./agent_toolkit` from publisher root) for layout CLI helpers.
+2. Check if the Vite dev server is already running on port 4713.
+3. If not: verify Node/npm requirements and start it.
+4. Report the URL and a handoff payload back.
 
 Relay the result to the user (e.g. "Preview is ready at http://localhost:4713").
 
 ### Step 6 — Run screenshot_designer with Web UI session handoff
 
-After Step 5 succeeds, delegate to **screenshot_designer** and pass the Web UI handoff context returned by `web_ui_runner`.
+After Step 5 succeeds, delegate to **screenshot_designer** and pass the Web UI handoff context returned by `toolkit_runner`.
 
 Minimum handoff context:
 - `web_ui_url`: `http://localhost:4713`
@@ -99,6 +100,6 @@ The designer must use this active Web UI/API context so each tool/API operation 
 ## Trigger rules
 
 - If the user asks to **generate store metadata** (or similar): start from Step 1.
-- If the user asks to **design screenshots** (or similar) without mentioning metadata: skip directly to Step 4, then run Step 5 (`web_ui_runner`) before Step 6 (`screenshot_designer`). The store JSON files must already exist in `output/`; if they don't, tell the user to run the metadata step first.
+- If the user asks to **design screenshots** (or similar) without mentioning metadata: skip directly to Step 4, then run Step 5 (`toolkit_runner`) before Step 6 (`screenshot_designer`). The store JSON files must already exist in `output/`; if they don't, tell the user to run the metadata step first.
 - If the user asks to **do both**: run the full workflow Steps 1–6 without pausing to ask at Step 4.
-- **Rule: `web_ui_runner` must run before `screenshot_designer`** for every screenshot flow.
+- **Rule: `toolkit_runner` must run before `screenshot_designer`** for every screenshot flow.
