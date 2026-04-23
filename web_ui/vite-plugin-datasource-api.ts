@@ -7,6 +7,7 @@ import type { Plugin } from 'vite'
 import busboy from 'busboy'
 
 import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
+import { DESIGNER_ARTBOARD_COOKIE } from './src/lib/artboardUrlParam'
 import {
   getScreenshotDesignerSession,
   screenshotDesignerExecuteOperation,
@@ -378,7 +379,41 @@ export function datasourceApiPlugin(): Plugin {
             const url = new URL(req.url ?? '/', 'http://vite.datasource')
             const canvasSize = url.searchParams.get('canvasSize') ?? undefined
             const presetId = url.searchParams.get('presetId') ?? undefined
-            const session = getScreenshotDesignerSession(canvasSize, presetId)
+            const sessionArtboard = url.searchParams.get('artboard') ?? undefined
+            const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined
+            let cookieArtboard: string | undefined
+            if (cookieHeader) {
+              for (const part of cookieHeader.split(';')) {
+                const idx = part.indexOf('=')
+                if (idx === -1) continue
+                if (part.slice(0, idx).trim() !== DESIGNER_ARTBOARD_COOKIE) continue
+                let v = part.slice(idx + 1).trim()
+                if (!v) break
+                try {
+                  v = decodeURIComponent(v)
+                } catch {
+                  /* keep raw */
+                }
+                cookieArtboard = v
+                break
+              }
+            }
+            let refererArtboard: string | undefined
+            const ref = req.headers.referer
+            if (typeof ref === 'string' && ref.length > 0) {
+              try {
+                refererArtboard = new URL(ref).searchParams.get('artboard') ?? undefined
+              } catch {
+                /* ignore malformed Referer */
+              }
+            }
+            const session = getScreenshotDesignerSession(
+              canvasSize,
+              presetId,
+              sessionArtboard,
+              cookieArtboard,
+              refererArtboard,
+            )
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, ...session }))
           } catch (e: unknown) {

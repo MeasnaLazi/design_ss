@@ -211,9 +211,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     ds_ho.set_defaults(handler=_cmd_designer_handoff)
 
-    ds_sess = designer_sub.add_parser("session", help="GET .../session (canvasSize / presetId)")
+    ds_sess = designer_sub.add_parser("session", help="GET .../session (canvasSize / presetId / artboard)")
     ds_sess.add_argument("--canvas-size", default=None)
     ds_sess.add_argument("--preset-id", default=None)
+    ds_sess.add_argument(
+        "--artboard",
+        default=None,
+        help="Same as web_ui ?artboard= (iphone|ipad|phone|tablet or full preset id)",
+    )
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
 
@@ -266,6 +271,7 @@ def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
         resolve_designer_base_url(),
         canvas_size=ns.canvas_size,
         preset_id=ns.preset_id,
+        artboard=ns.artboard,
         timeout=ns.timeout,
     )
     _json_print(out, compact)

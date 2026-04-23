@@ -199,6 +199,7 @@ def designer_session(
     *,
     canvas_size: str | None = None,
     preset_id: str | None = None,
+    artboard: str | None = None,
     timeout: float = 60.0,
 ) -> dict[str, Any]:
     base = validate_designer_base_url(base_url)
@@ -207,6 +208,8 @@ def designer_session(
         q["canvasSize"] = canvas_size
     if preset_id:
         q["presetId"] = preset_id
+    if artboard:
+        q["artboard"] = artboard
     qs = ("?" + urlencode(q)) if q else ""
     url = f"{base}/session{qs}"
     return _json_request("GET", url, timeout=timeout)

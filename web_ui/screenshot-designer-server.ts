@@ -116,6 +116,7 @@ const FONT_MAP: Record<FontToken, string> = {
 }
 
 const DEFAULT_PRESET_ID = 'appstore_iphone_67'
+
 let currentSession: DesignerSession | null = null
 let currentPresetId = DEFAULT_PRESET_ID
 
@@ -335,10 +336,34 @@ function createBlankSession(width: number, height: number): DesignerSession {
   }
 }
 
-function resolvePresetId(canvasSize?: string, presetId?: string): string {
+/** `?artboard=` on the app URL or session URL: short keys (iphone, …) or full preset id. */
+function presetIdFromArtboardUrlParam(raw: string | undefined | null): string | undefined {
+  if (raw == null) return undefined
+  const v = raw.trim()
+  if (!v) return undefined
+  if (PRESET_BY_ID[v]) return v
+  const key = v.toLowerCase()
+  return CANVAS_SIZE_TO_PRESET[key]?.presetId
+}
+
+function resolvePresetId(
+  canvasSize?: string,
+  presetId?: string,
+  sessionArtboard?: string,
+  cookieArtboard?: string,
+  refererArtboard?: string,
+): string {
   if (presetId && PRESET_BY_ID[presetId]) return presetId
-  const key = canvasSize ?? ''
-  return CANVAS_SIZE_TO_PRESET[key]?.presetId ?? DEFAULT_PRESET_ID
+  const sizeKey = canvasSize ?? ''
+  const fromCanvasSize = CANVAS_SIZE_TO_PRESET[sizeKey]?.presetId
+  if (fromCanvasSize) return fromCanvasSize
+  const fromSessionArtboard = presetIdFromArtboardUrlParam(sessionArtboard)
+  if (fromSessionArtboard) return fromSessionArtboard
+  const fromCookie = presetIdFromArtboardUrlParam(cookieArtboard)
+  if (fromCookie) return fromCookie
+  const fromRefererArtboard = presetIdFromArtboardUrlParam(refererArtboard)
+  if (fromRefererArtboard) return fromRefererArtboard
+  return DEFAULT_PRESET_ID
 }
 
 function getCurrentSessionOrThrow(): DesignerSession {
@@ -411,12 +436,24 @@ function qualityChecks(session: DesignerSession): {
   return { ok: errors.length === 0, errors, contrastIssues }
 }
 
-export function getScreenshotDesignerSession(canvasSize?: string, presetId?: string): {
+export function getScreenshotDesignerSession(
+  canvasSize?: string,
+  presetId?: string,
+  sessionArtboard?: string,
+  cookieArtboard?: string,
+  refererArtboard?: string,
+): {
   width: number
   height: number
   presetId: string
 } {
-  const resolvedPresetId = resolvePresetId(canvasSize, presetId)
+  const resolvedPresetId = resolvePresetId(
+    canvasSize,
+    presetId,
+    sessionArtboard,
+    cookieArtboard,
+    refererArtboard,
+  )
   const preset = PRESET_BY_ID[resolvedPresetId]
   if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
 
