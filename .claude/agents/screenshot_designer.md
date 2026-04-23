@@ -42,9 +42,9 @@ All `x` / `y` coordinates must be multiples of 16.
 
 **`add_device_frame`** — returns `{ "layer_id": "<uuid>" }`
 ```json
-{ "operation": "add_device_frame", "args": { "path": "/device-frames/iphone_12_pro/frame/front.svg", "frame": "front", "x": 0, "y": 0, "scale": 1.0 } }
+{ "operation": "add_device_frame", "args": { "path": "/device-frames/iphone_12_pro/frame/front.svg", "frame": "front", "x": 0, "y": 0 } }
 ```
-`path` and `frame` come directly from the `framePath` and `name` fields of the chosen entry in `frame.json`.
+`path` and `frame` come directly from the `framePath` and `name` fields read in Step 0c. The server handles all sizing internally.
 
 **`add_text`** — returns `{ "layer_id": "<uuid>" }`
 ```json
@@ -116,7 +116,7 @@ The server converts all sessions into the full display document and saves it to 
 | Choice | canvasSize | Store JSON | presetId |
 |---|---|---|---|
 | iPhone | `iphone` | `output/appstore.json` | `appstore_iphone_67` |
-| iPad | `ipad` | `output/appstore.json` | `appstore_iphone_67` + `appstore_ipad_129` |
+| iPad | `ipad` | `output/appstore.json` | `appstore_ipad_129` |
 | Phone | `phone` | `output/playstore.json` | `play_phone_portrait` |
 | Tablet | `tablet` | `output/playstore.json` | `play_tablet_portrait` |
 
@@ -126,23 +126,21 @@ If the required store JSON does not exist, stop and tell the user.
 
 Read `web_ui/public/device-frames/index.json`. Each entry has `name`, `type`, and `path`.
 
-Filter by the `type` values matching the chosen platform and present them to the user. Wait for selection. Record the chosen entry's `path`.
+Filter by the `type` values matching the chosen platform and present the `name` of each matching entry to the user. Wait for selection. Once the user selects, record the `path` of that entry — this is what Step 0c uses.
 
 #### Step 0c — Load the device frame config
 
-Read the full `frame.json` by prepending `web_ui/public` to the path (e.g. `/device-frames/iphone_12_pro/frame.json` → `web_ui/public/device-frames/iphone_12_pro/frame.json`).
+Using the `path` recorded from the user's selection in Step 0b, read its `frame.json` by prepending `web_ui/public` (e.g. if the selected pack's path is `/device-frames/iphone_12_pro`, read `web_ui/public/device-frames/iphone_12_pro/frame.json`).
 
-Hold the `frames` array internally. Each entry gives you:
+From the `frames` array, extract only these three fields per entry:
 
 | Field | How you use it |
 |---|---|
-| `name` | The frame style identifier — pass as `frame` arg in `add_device_frame` |
+| `name` | Frame style identifier — pass as `frame` arg in `add_device_frame` |
 | `description` | Visual character of the style — use this to match the frame to each panel's story |
 | `framePath` | Pass as `path` arg in `add_device_frame` |
-| `viewWidth` / `viewHeight` | Understand the device's natural proportions for layout planning |
-| `layoutScale` | Suggested display scale — use as a starting point for the `scale` arg |
 
-Do not ask the user about frame styles. Choose based on each panel's narrative.
+Ignore all other fields. Do not ask the user about frame styles. Choose based on each panel's narrative.
 
 ### Step 1 — Read the store JSON
 
@@ -197,7 +195,7 @@ Save `sessionId`.
 
 **5b — Build**
 1. `set_background`
-2. `add_device_frame` (use `framePath` and `name` from `frame.json`; set initial `x`/`y` near `0, 0`)
+2. `add_device_frame` (use `framePath` and `name` loaded in Step 0c; set initial `x`/`y` near `0, 0`)
 3. `align` device: `center_x` to canvas, then adjust `y` to your intended vertical position (snap to multiple of 16)
 4. `add_text` headline → `align` `center_x` to canvas
 5. `add_text` sub-headline → `align` `center_x` to canvas
@@ -237,7 +235,6 @@ Before calling `save-display`, verify:
 - [ ] Every panel previewed — `checks.ok === true` on the final `render_preview`
 - [ ] Background color/gradient derived from `theme` (not invented)
 - [ ] Headline text derives from `screenshots[].title`
-- [ ] Device frame scale chosen from `layoutScale` in `frame.json` as a baseline
 - [ ] Frame style chosen based on `description` field, not by name guessing
 - [ ] Layout varies meaningfully across panels
 - [ ] New design differs from existing file on at least 2 visual dimensions
