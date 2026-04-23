@@ -164,6 +164,14 @@ done
 
 Optional: confirm the designer API responds (requires `agent_toolkit` and a running server). Ensure **`agent_toolkit/.env`** sets `DESIGNER_API_BASE` to the same URL as the handoff’s `designer_api_base` (or rely on the default); see `agent_toolkit/.env.example`.
 
+Equivalent to session-only check, **`designer handoff`** prints the same three-field **`handoff`** object (plus session payload) for **`screenshot_designer`**:
+
+```bash
+python3 -m agent_toolkit designer handoff
+```
+
+Or probe session directly:
+
 ```bash
 python3 -m agent_toolkit designer session --canvas-size iphone
 ```

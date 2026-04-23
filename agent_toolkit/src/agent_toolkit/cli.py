@@ -23,6 +23,7 @@ from agent_toolkit.designer_client import (
     designer_session as designer_session_http,
     ensure_publisher_dotenv_loaded,
     resolve_designer_base_url,
+    screenshot_designer_handoff,
 )
 from agent_toolkit.paths import publisher_root
 from agent_toolkit.models import SessionCheckInput
@@ -197,6 +198,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     designer_sub = designer.add_subparsers(dest="designer_cmd", required=True)
 
+    ds_ho = designer_sub.add_parser(
+        "handoff",
+        help="Emit web_ui + designer_api handoff JSON (optional GET session probe)",
+    )
+    ds_ho.add_argument("--canvas-size", default="iphone", help="Canvas for session probe (default iphone)")
+    ds_ho.add_argument("--timeout", type=float, default=15.0)
+    ds_ho.add_argument(
+        "--skip-session",
+        action="store_true",
+        help="Only resolve URLs; web_ui_status will be unverified (no GET /session)",
+    )
+    ds_ho.set_defaults(handler=_cmd_designer_handoff)
+
     ds_sess = designer_sub.add_parser("session", help="GET .../session (canvasSize / presetId)")
     ds_sess.add_argument("--canvas-size", default=None)
     ds_sess.add_argument("--preset-id", default=None)
@@ -236,6 +250,15 @@ def main(argv: list[str] | None = None) -> None:
     except (ValueError, OSError, json.JSONDecodeError) as e:
         print(json.dumps({"error": str(e)}, indent=2))
         sys.exit(1)
+
+
+def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
+    out = screenshot_designer_handoff(
+        canvas_size=str(ns.canvas_size or "iphone"),
+        timeout=float(ns.timeout),
+        skip_session=bool(ns.skip_session),
+    )
+    _json_print(out, compact)
 
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:

@@ -77,6 +77,65 @@ class DesignerClientError(Exception):
         }
 
 
+def web_ui_url_from_designer_base(designer_base_url: str) -> str:
+    """
+    Derive the Vite dev server origin (web UI) from the screenshot-designer API base URL.
+    Example: http://localhost:4713/__api/screenshot-designer -> http://localhost:4713
+    """
+    base = validate_designer_base_url(designer_base_url)
+    parsed = urlparse(base)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError("designer base URL must include scheme and host")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def screenshot_designer_handoff(
+    *,
+    designer_base_override: str | None = None,
+    canvas_size: str = "iphone",
+    timeout: float = 15.0,
+    skip_session: bool = False,
+) -> dict[str, Any]:
+    """
+    Build the orchestrator handoff object and optionally verify the live session API.
+
+    Returns a dict: ``{"ok": True, "handoff": {...}, "session": ...}``.
+    ``handoff.web_ui_status`` is ``ready`` after a successful session probe, or
+    ``unverified`` when ``skip_session`` is True (URLs only; caller assumes server is up).
+
+    ``toolkit_runner`` may instead emit ``already_running`` or ``started``; consumers
+    should treat ``ready``, ``started``, and ``already_running`` as Web UI available.
+    """
+    api_base = resolve_designer_base_url(designer_base_override)
+    web = web_ui_url_from_designer_base(api_base)
+    if skip_session:
+        return {
+            "ok": True,
+            "handoff": {
+                "web_ui_url": web,
+                "designer_api_base": api_base,
+                "web_ui_status": "unverified",
+            },
+            "session": None,
+        }
+    sess = designer_session(api_base, canvas_size=canvas_size, timeout=timeout)
+    if not sess.get("ok"):
+        raise DesignerClientError(
+            "session probe did not return ok",
+            body=json.dumps(sess),
+            url=f"{api_base}/session",
+        )
+    return {
+        "ok": True,
+        "handoff": {
+            "web_ui_url": web,
+            "designer_api_base": api_base,
+            "web_ui_status": "ready",
+        },
+        "session": sess,
+    }
+
+
 def validate_designer_base_url(base_url: str) -> str:
     """
     Require http(s) and loopback host only (reduces accidental SSRF from agent prompts).
