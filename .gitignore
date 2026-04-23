@@ -1,5 +1,6 @@
 datasource/screenshots/**
 datasource/display*
+datasource/.screenshot-designer-state.json
 output/**
 
 agent_toolkit/.venv/

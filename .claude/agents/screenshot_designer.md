@@ -14,7 +14,7 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 | **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
 | **Web UI API toolkit** | `python -m agent_toolkit designer …` — same HTTP contract as the running Vite screenshot-designer API (`session`, `execute`, `save-display`) on **loopback only** | **Yes** (port **4713**) |
 
-**Authoritative behavior** for what gets saved and what the browser shows still comes from the **HTTP designer API** on the active Web UI session. Use **`designer execute` / `render_preview`** (via API or the `designer` CLI) for mutations and previews; use the **layout** CLI to plan coordinates, validate JSON before burning preview iterations, and inspect PNGs. You do **not** write `datasource/` display JSON yourself — `save-display` does.
+**Authoritative state** is **`datasource/display_<slug>.json`** (the same document the Fabric canvas loads and saves). The designer **`execute`** operations read that file, apply changes, and write it back; **`render_preview`** reads it and returns a PNG without requiring a separate in-memory session. The open Web UI syncs through **SSE** (`GET /__api/datasource/display-events?slug=…`) or the toolbar **Reload** action — display file changes do **not** trigger a Vite full-page reload. Use **`designer execute` / `render_preview`** for mutations and previews; use the **layout** CLI to plan coordinates, validate JSON before burning preview iterations, and inspect PNGs. You do **not** hand-edit display JSON — use **`save-display`** or mutating **`execute`** ops to persist.
 
 For package layout, env resolution (`DESIGNER_API_BASE`, `agent_toolkit/.env`), and minimal examples, see **`agent_toolkit/README.md`**.
 
@@ -133,13 +133,13 @@ Example `session.json` for `predict-checks`:
 }
 ```
 
-**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between `render_preview` calls so you do not waste the **hard cap of 4 renders per session**.
+**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between `render_preview` calls so you do not waste the **hard cap of 4 `render_preview` calls per on-disk display revision** (tracked in `datasource/.screenshot-designer-state.json`; counter resets when the display file’s modification time changes).
 
 ---
 
 ## Web UI API toolkit (`designer …`)
 
-Requires **`web_ui`** dev server (handoff from `toolkit_runner`). Base URL order: **`DESIGNER_API_BASE`** → **`agent_toolkit/.env`** (copy from `agent_toolkit/.env.example`) → default `http://localhost:4713/__api/screenshot-designer`.
+Requires **`web_ui`** with the datasource API enabled: **`npm run dev`** or a local production-like build via **`npm run prod`** in `web_ui/` (Vite preview on port **4713** exposes the same `/__api` routes). Base URL order: **`DESIGNER_API_BASE`** → **`agent_toolkit/.env`** (copy from `agent_toolkit/.env.example`) → default `http://localhost:4713/__api/screenshot-designer`.
 
 | Goal | Command |
 |------|---------|
@@ -161,10 +161,18 @@ All requests use `Content-Type: application/json`.
 
 ```
 GET http://localhost:4713/__api/screenshot-designer/session?canvasSize=iphone|ipad|phone|tablet
-Response: { "ok": true, "width": <px>, "height": <px>, "presetId": "<id>" }
+Response: { "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "savedAt"?: "<iso>", "displayFile"?: "display_<slug>.json" }
 ```
 
-This API returns the single live session used by the running Web UI. No `sessionId` is used.
+`presetId` / dimensions reflect the resolved preset and, when `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file. No `sessionId` is used.
+
+### Soft reload (browser)
+
+```
+GET http://localhost:4713/__api/datasource/display-events?slug=<display slug>
+```
+
+Server-Sent Events stream: emits `display_updated` when the matching `display_<slug>.json` is written (agent `execute`, `save-display`, or browser **Save**). The SPA reloads the canvas in place.
 
 ### Execute an operation
 
@@ -392,4 +400,4 @@ Before calling `save-display`, verify:
 - [ ] Frame style chosen based on `description` field, not by name guessing
 - [ ] Layout varies meaningfully across panels
 - [ ] New design differs from existing file on at least 2 visual dimensions
-- [ ] `save-display` uses the current live session and matching `presetId`
+- [ ] `save-display` uses the correct `presetId` for the on-disk `display_<slug>.json` you intend to finalize (round-trip refresh of `savedAt`)

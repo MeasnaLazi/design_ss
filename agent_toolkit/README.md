@@ -1,6 +1,6 @@
 # agent-toolkit
 
-**Layout** math and **image** helpers aligned with `web_ui/screenshot-designer-server.ts`, plus a **designer** HTTP client (stdlib) for `GET/POST` to the running Vite screenshot-designer API on **loopback only**.
+**Layout** math and **image** helpers aligned with `web_ui/screenshot-designer-server.ts`, plus a **designer** HTTP client (stdlib) for `GET/POST` to the screenshot-designer API (`npm run dev` or **`npm run prod`** in `web_ui/`) on **loopback only**.
 
 Run from repo root (after `pip install -e ./agent_toolkit` or a venv inside `agent_toolkit/`).
 
@@ -15,7 +15,7 @@ python -m agent_toolkit layout image info --path preview.png
 python -m agent_toolkit layout image match-preset --path preview.png --canvas-size iphone
 ```
 
-**Designer API** (requires `web_ui` dev server). Base URL comes from, in order: environment variable **`DESIGNER_API_BASE`**, then **`agent_toolkit/.env`** (see `agent_toolkit/.env.example`), then default `http://localhost:4713/__api/screenshot-designer`.
+**Designer API** (requires `web_ui` with `/__api` enabled: **`npm run dev`** or **`npm run prod`**). Base URL comes from, in order: environment variable **`DESIGNER_API_BASE`**, then **`agent_toolkit/.env`** (see `agent_toolkit/.env.example`), then default `http://localhost:4713/__api/screenshot-designer`.
 
 ```bash
 cd agent_toolkit && cp .env.example .env   # once

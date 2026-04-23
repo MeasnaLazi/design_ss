@@ -4,7 +4,13 @@ import path from 'node:path'
 
 import sharp from 'sharp'
 
-import { ARTBOARD_PRESET_ID_LEGACY } from './src/constants/artboardPresets'
+import {
+  displayDocumentToSession,
+  displayFilePathForPreset,
+  readDisplayDocumentIfExists,
+  sessionToDisplayDocument,
+} from './display-designer-session'
+import { ARTBOARD_PRESET_ID_LEGACY, normalizeArtboardPresetId } from './src/constants/artboardPresets'
 
 type Anchor = 'center_x' | 'center_y' | 'top' | 'bottom' | 'left' | 'right'
 type FontToken = 'headline' | 'subheadline' | 'body' | 'caption'
@@ -65,7 +71,6 @@ type DesignerSession = {
   height: number
   background: BackgroundConfig
   layers: Layer[]
-  renderCount: number
 }
 
 type ContrastIssue = {
@@ -136,8 +141,23 @@ const FONT_MAP: Record<FontToken, string> = {
 
 const DEFAULT_PRESET_ID = 'appstore_iphone_portrait'
 
-let currentSession: DesignerSession | null = null
-let currentPresetId = DEFAULT_PRESET_ID
+const RENDER_STATE_FILE = '.screenshot-designer-state.json'
+
+export type DesignerExecuteContext = {
+  rootDir: string
+  datasourceDir: string
+  canvasSize?: string
+  presetId?: string
+  sessionArtboard?: string
+  cookieArtboard?: string
+  refererArtboard?: string
+  onDisplayWritten?: (info: { slug: string; savedAt: string }) => void
+}
+
+type RenderStateFile = {
+  v: 1
+  slugs: Record<string, { renderCount: number; displayMtimeMs: number }>
+}
 
 function isHexColor(value: string): boolean {
   return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value.trim())
@@ -351,7 +371,6 @@ function createBlankSession(width: number, height: number): DesignerSession {
     height,
     background: { type: 'color', value: '#101827' },
     layers: [],
-    renderCount: 0,
   }
 }
 
@@ -389,13 +408,140 @@ function resolvePresetId(
   return DEFAULT_PRESET_ID
 }
 
-function getCurrentSessionOrThrow(): DesignerSession {
-  if (!currentSession) {
-    const preset = PRESET_BY_ID[currentPresetId]
-    if (!preset) throw new Error(`Unknown presetId "${currentPresetId}"`)
-    currentSession = createBlankSession(preset.width, preset.height)
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null && !Array.isArray(x)
+}
+
+async function readRenderState(datasourceDir: string): Promise<RenderStateFile> {
+  try {
+    const raw = JSON.parse(
+      await fs.readFile(path.join(datasourceDir, RENDER_STATE_FILE), 'utf8'),
+    ) as unknown
+    if (isRecord(raw) && raw.v === 1 && isRecord(raw.slugs)) {
+      return { v: 1, slugs: raw.slugs as RenderStateFile['slugs'] }
+    }
+  } catch {
+    /* missing or corrupt */
   }
-  return currentSession
+  return { v: 1, slugs: {} }
+}
+
+async function writeRenderState(datasourceDir: string, s: RenderStateFile): Promise<void> {
+  await fs.mkdir(datasourceDir, { recursive: true })
+  await fs.writeFile(path.join(datasourceDir, RENDER_STATE_FILE), JSON.stringify(s, null, 2), 'utf8')
+}
+
+async function bumpRenderPreviewIteration(
+  datasourceDir: string,
+  slug: string,
+  displayFilePath: string,
+): Promise<number> {
+  let st: Awaited<ReturnType<typeof fs.stat>>
+  try {
+    st = await fs.stat(displayFilePath)
+  } catch {
+    throw new Error('display file missing for render_preview')
+  }
+  const mtime = Math.floor(st.mtimeMs)
+  const state = await readRenderState(datasourceDir)
+  const prev = state.slugs[slug]
+  const renderCount =
+    prev !== undefined && prev.displayMtimeMs === mtime ? prev.renderCount + 1 : 1
+  if (renderCount > MAX_ITERATIONS_PER_SCREENSHOT) {
+    throw new Error(`Maximum ${MAX_ITERATIONS_PER_SCREENSHOT} render iterations reached`)
+  }
+  state.slugs[slug] = { renderCount, displayMtimeMs: mtime }
+  await writeRenderState(datasourceDir, state)
+  return renderCount
+}
+
+async function loadDesignerSessionForPreset(
+  rootDir: string,
+  datasourceDir: string,
+  resolvedPresetId: string,
+): Promise<{
+  session: DesignerSession
+  slug: string
+  displayPath: string
+  canvasZoom: number
+  screens: number
+  gap: number
+}> {
+  const preset = PRESET_BY_ID[resolvedPresetId]
+  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
+  const displayPath = displayFilePathForPreset(datasourceDir, resolvedPresetId)
+  const slug = preset.displaySlug
+  const raw = await readDisplayDocumentIfExists(displayPath)
+  if (raw === null) {
+    return {
+      session: createBlankSession(preset.width, preset.height),
+      slug,
+      displayPath,
+      canvasZoom: 0.2,
+      screens: 1,
+      gap: PANEL_GAP,
+    }
+  }
+  const loaded = await displayDocumentToSession(raw, preset.width, preset.height, rootDir)
+  const design = raw.design
+  let canvasZoom = 0.2
+  let screens = 1
+  let gap = PANEL_GAP
+  if (isRecord(design)) {
+    const cz = design.canvasZoom
+    if (typeof cz === 'number' && Number.isFinite(cz)) canvasZoom = cz
+    const cfg = design.config
+    if (isRecord(cfg)) {
+      const sc = cfg.screens
+      const g = cfg.gap
+      if (typeof sc === 'number' && Number.isFinite(sc)) screens = Math.round(sc)
+      if (typeof g === 'number' && Number.isFinite(g)) gap = Math.round(g)
+    }
+  }
+  return {
+    session: {
+      width: loaded.width,
+      height: loaded.height,
+      background: loaded.background as BackgroundConfig,
+      layers: loaded.layers as Layer[],
+    },
+    slug,
+    displayPath,
+    canvasZoom,
+    screens,
+    gap,
+  }
+}
+
+async function persistDesignerSession(
+  ctx: DesignerExecuteContext,
+  resolvedPresetId: string,
+  session: DesignerSession,
+  meta: { canvasZoom: number; screens: number; gap: number },
+): Promise<{ slug: string; savedAt: string }> {
+  const preset = PRESET_BY_ID[resolvedPresetId]
+  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
+  const doc = sessionToDisplayDocument(
+    session,
+    normalizeArtboardPresetId(resolvedPresetId),
+    {
+      placeholderUrl: preset.placeholder,
+      canvasZoom: meta.canvasZoom,
+      screens: meta.screens,
+      gap: meta.gap,
+      buildScreenHolePath,
+    },
+  )
+  const savedAt = String(doc.savedAt)
+  await fs.mkdir(ctx.datasourceDir, { recursive: true })
+  await fs.writeFile(
+    displayFilePathForPreset(ctx.datasourceDir, resolvedPresetId),
+    JSON.stringify(doc, null, 2),
+    'utf8',
+  )
+  const info = { slug: preset.displaySlug, savedAt }
+  ctx.onDisplayWritten?.(info)
+  return info
 }
 
 function qualityChecks(session: DesignerSession): {
@@ -459,41 +605,83 @@ function qualityChecks(session: DesignerSession): {
   return { ok: errors.length === 0, errors, contrastIssues }
 }
 
-export function getScreenshotDesignerSession(
+export async function getScreenshotDesignerSession(
+  datasourceDir: string,
   canvasSize?: string,
   presetId?: string,
   sessionArtboard?: string,
   cookieArtboard?: string,
   refererArtboard?: string,
-): {
+): Promise<{
   width: number
   height: number
   presetId: string
-} {
-  const resolvedPresetId = resolvePresetId(
+  savedAt?: string
+  displayFile?: string
+}> {
+  const urlResolved = resolvePresetId(
     canvasSize,
     presetId,
     sessionArtboard,
     cookieArtboard,
     refererArtboard,
   )
-  const preset = PRESET_BY_ID[resolvedPresetId]
-  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
+  const preset = PRESET_BY_ID[urlResolved]
+  if (!preset) throw new Error(`Unknown presetId "${urlResolved}"`)
 
-  if (!currentSession || currentPresetId !== resolvedPresetId) {
-    currentPresetId = resolvedPresetId
-    currentSession = createBlankSession(preset.width, preset.height)
+  const displayPath = displayFilePathForPreset(datasourceDir, urlResolved)
+  const raw = await readDisplayDocumentIfExists(displayPath)
+  if (raw === null) {
+    return {
+      width: preset.width,
+      height: preset.height,
+      presetId: urlResolved,
+      displayFile: `display_${preset.displaySlug}.json`,
+    }
   }
-
-  return { width: currentSession.width, height: currentSession.height, presetId: currentPresetId }
+  const design = raw.design
+  let filePresetId = urlResolved
+  if (isRecord(design) && isRecord(design.config)) {
+    const ap = design.config.artboardPresetId
+    if (typeof ap === 'string') {
+      const canon = normalizeArtboardPresetId(ap)
+      if (PRESET_BY_ID[canon]) filePresetId = canon
+    }
+  }
+  const dimPreset = PRESET_BY_ID[filePresetId] ?? preset
+  const savedAt = typeof raw.savedAt === 'string' ? raw.savedAt : undefined
+  return {
+    width: dimPreset.width,
+    height: dimPreset.height,
+    presetId: filePresetId,
+    savedAt,
+    displayFile: `display_${dimPreset.displaySlug}.json`,
+  }
 }
 
 export async function screenshotDesignerExecuteOperation(
-  rootDir: string,
+  ctx: DesignerExecuteContext,
   operation: string,
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const session = getCurrentSessionOrThrow()
+  if (operation === 'noop') {
+    return { ok: true }
+  }
+
+  const resolvedPresetId = resolvePresetId(
+    ctx.canvasSize,
+    ctx.presetId,
+    ctx.sessionArtboard,
+    ctx.cookieArtboard,
+    ctx.refererArtboard,
+  )
+  const loaded = await loadDesignerSessionForPreset(
+    ctx.rootDir,
+    ctx.datasourceDir,
+    resolvedPresetId,
+  )
+  const session = loaded.session
+  const meta = { canvasZoom: loaded.canvasZoom, screens: loaded.screens, gap: loaded.gap }
 
   switch (operation) {
     case 'set_background': {
@@ -523,6 +711,7 @@ export async function screenshotDesignerExecuteOperation(
       } else {
         session.background = { type, value: String(args.value ?? '') }
       }
+      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       return { ok: true }
     }
 
@@ -551,7 +740,7 @@ export async function screenshotDesignerExecuteOperation(
       let homography = false
 
       try {
-        const frameJsonPath = path.join(rootDir, 'public', 'device-frames', packId, 'frame.json')
+        const frameJsonPath = path.join(ctx.rootDir, 'public', 'device-frames', packId, 'frame.json')
         const raw = await fs.readFile(frameJsonPath, 'utf8')
         const parsed = JSON.parse(raw) as { frames: Array<{
           name: string; viewWidth: number; viewHeight: number
@@ -571,7 +760,7 @@ export async function screenshotDesignerExecuteOperation(
 
       // Fall back to sharp if frame.json didn't supply dimensions
       if (viewWidth <= 0 || viewHeight <= 0) {
-        const resolved = await resolveImagePath(rootDir, framePath)
+        const resolved = await resolveImagePath(ctx.rootDir, framePath)
         const meta = await sharp(resolved).metadata()
         viewWidth = meta.width ?? 0
         viewHeight = meta.height ?? 0
@@ -602,6 +791,7 @@ export async function screenshotDesignerExecuteOperation(
         zIndex: Z_INDEX.deviceFrame,
       }
       session.layers.push(layer)
+      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       return { ok: true, layer_id: id }
     }
 
@@ -646,6 +836,7 @@ export async function screenshotDesignerExecuteOperation(
         zIndex: Number.isFinite(zIndex) ? zIndex : Z_INDEX.text,
       }
       session.layers.push(layer)
+      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       return { ok: true, layer_id: layer.id }
     }
 
@@ -678,21 +869,28 @@ export async function screenshotDesignerExecuteOperation(
       } else {
         layer.x = Math.round((refRect.x + refRect.width - layer.width) / DESIGN_GRID) * DESIGN_GRID
       }
+      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       return { ok: true, layer_id: layer.id, x: layer.x, y: layer.y }
     }
 
     case 'render_preview': {
-      session.renderCount += 1
-      if (session.renderCount > MAX_ITERATIONS_PER_SCREENSHOT) {
-        throw new Error(`Maximum ${MAX_ITERATIONS_PER_SCREENSHOT} render iterations reached for this session`)
+      try {
+        await fs.stat(loaded.displayPath)
+      } catch {
+        await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       }
-      const png = await renderSessionPng(rootDir, session)
+      const iteration = await bumpRenderPreviewIteration(
+        ctx.datasourceDir,
+        loaded.slug,
+        loaded.displayPath,
+      )
+      const png = await renderSessionPng(ctx.rootDir, session)
       const checks = qualityChecks(session)
       return {
         ok: true,
         image_base64: png.toString('base64'),
         checks,
-        iteration: session.renderCount,
+        iteration,
       }
     }
 
@@ -735,6 +933,7 @@ export async function screenshotDesignerExecuteOperation(
 
     case 'clear_canvas': {
       session.layers = []
+      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
       return { ok: true }
     }
 
@@ -793,140 +992,27 @@ function buildScreenHolePath(
   return cmds
 }
 
-// Convert ordered sessions into a full Fabric.js display document and save it.
+/** Round-trip current on-disk design for a preset (refreshes `savedAt`, notifies SSE). */
 export async function saveDisplayDocument(
   datasourceDir: string,
+  rootDir: string,
   presetId?: string,
+  opts?: { onDisplayWritten?: DesignerExecuteContext['onDisplayWritten'] },
 ): Promise<{ file: string }> {
-  const resolvedPresetId = presetId && PRESET_BY_ID[presetId] ? presetId : currentPresetId
+  const resolvedPresetId =
+    presetId && PRESET_BY_ID[presetId] ? presetId : DEFAULT_PRESET_ID
   const preset = PRESET_BY_ID[resolvedPresetId]
   if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
-  const session = getCurrentSessionOrThrow()
-  const sessionList = [session]
-
-  const first = sessionList[0]!
-  const bg = first.background
-
-  let backgroundMode: string
-  let backgroundHex: string
-  let backgroundGradient: unknown = null
-
-  if (bg.type === 'color') {
-    backgroundMode = 'solid'
-    backgroundHex = bg.value
-  } else if (bg.type === 'gradient') {
-    backgroundMode = 'gradient'
-    backgroundHex = bg.value.stops[0]?.color ?? '#000000'
-    backgroundGradient = { kind: 'linear', angleDeg: bg.value.angleDeg, stops: bg.value.stops }
-  } else {
-    backgroundMode = 'solid'
-    backgroundHex = '#000000'
+  const loaded = await loadDesignerSessionForPreset(rootDir, datasourceDir, resolvedPresetId)
+  const ctx: DesignerExecuteContext = {
+    rootDir,
+    datasourceDir,
+    onDisplayWritten: opts?.onDisplayWritten,
   }
-
-  const designObjects: unknown[] = []
-  const fabricObjects: unknown[] = []
-  let zIdx = 0
-
-  const COMMON = {
-    version: '7.2.0', stroke: null, strokeWidth: 1, strokeDashArray: null,
-    strokeLineCap: 'butt', strokeDashOffset: 0, strokeLineJoin: 'miter',
-    strokeUniform: false, strokeMiterLimit: 4, angle: 0, flipX: false, flipY: false,
-    opacity: 1, shadow: null, visible: true, backgroundColor: '', fillRule: 'nonzero',
-    paintFirst: 'fill', globalCompositeOperation: 'source-over', skewX: 0, skewY: 0,
-  }
-
-  // Text layers first (lower z-index)
-  for (let pi = 0; pi < sessionList.length; pi++) {
-    const offset = pi * (preset.width + PANEL_GAP)
-    for (const layer of sessionList[pi]!.layers) {
-      if (layer.kind !== 'text') continue
-      const uuid = randomUUID()
-      designObjects.push({ id: uuid, kind: 'text', name: `Text · P${pi + 1}`, zIndex: zIdx })
-      fabricObjects.push({
-        ...COMMON,
-        type: 'Textbox', originX: 'center', originY: 'center', scaleX: 1, scaleY: 1,
-        left: Math.round(layer.x + layer.width / 2) + offset,
-        top: Math.round(layer.y + layer.height / 2),
-        width: layer.width, height: layer.height, fill: layer.color,
-        strokeWidth: 1,
-        fontSize: layer.size, fontWeight: layer.weight, fontFamily: layer.font,
-        fontStyle: 'normal', lineHeight: 1.16, text: layer.content, charSpacing: 0,
-        textAlign: layer.align, styles: [], pathStartOffset: 0, pathSide: 'left',
-        pathAlign: 'baseline', underline: false, overline: false, linethrough: false,
-        textBackgroundColor: '', direction: 'ltr',
-        textDecorationThickness: Math.round(layer.size * 0.667 * 100) / 100,
-        minWidth: 20, splitByGrapheme: false, appObjectId: uuid, zIndex: zIdx,
-      })
-      zIdx++
-    }
-  }
-
-  // Device layers on top
-  for (let pi = 0; pi < sessionList.length; pi++) {
-    const offset = pi * (preset.width + PANEL_GAP)
-    for (const layer of sessionList[pi]!.layers) {
-      if (layer.kind !== 'device_frame') continue
-      const uuid = randomUUID()
-      const clipPath = {
-        type: 'Path', version: '7.2.0', originX: 'center', originY: 'center',
-        left: 0, top: 0, absolutePositioned: false, inverted: false,
-        path: buildScreenHolePath(layer.corners, layer.clipRadii, layer.viewWidth, layer.viewHeight),
-      }
-      const screenshotChild = {
-        ...COMMON, strokeWidth: 0, type: 'Image', originX: 'center', originY: 'center',
-        left: 0, top: 0, width: layer.viewWidth, height: layer.viewHeight,
-        fill: 'rgb(0,0,0)', scaleX: 1, scaleY: 1, cropX: 0, cropY: 0,
-        clipPath, src: preset.placeholder, crossOrigin: 'anonymous', filters: [],
-      }
-      const frameChild = {
-        ...COMMON, strokeWidth: 0, type: 'Image', originX: 'left', originY: 'top',
-        left: -(layer.viewWidth / 2), top: -(layer.viewHeight / 2),
-        width: layer.viewWidth, height: layer.viewHeight,
-        fill: 'rgb(0,0,0)', scaleX: 1, scaleY: 1, cropX: 0, cropY: 0,
-        src: `http://localhost:4713${layer.framePath}`, crossOrigin: 'anonymous', filters: [],
-      }
-      designObjects.push({
-        id: uuid, kind: 'device', name: `Device · P${pi + 1}`, zIndex: zIdx,
-        deviceFrameStyleId: layer.frameName, deviceFramePackId: layer.packId,
-      })
-      fabricObjects.push({
-        ...COMMON, strokeWidth: 0, type: 'Group', subTargetCheck: false, interactive: false,
-        originX: 'center', originY: 'center',
-        left: Math.round(layer.x + layer.width / 2) + offset,
-        top: Math.round(layer.y + layer.height / 2),
-        width: layer.viewWidth, height: layer.viewHeight,
-        fill: 'rgb(0,0,0)', scaleX: layer.scale, scaleY: layer.scale,
-        layoutManager: { type: 'layoutManager', strategy: 'fixed' },
-        objects: [screenshotChild, frameChild], appObjectId: uuid, zIndex: zIdx,
-      })
-      zIdx++
-    }
-  }
-
-  fabricObjects.sort((a, b) => (a as { zIndex: number }).zIndex - (b as { zIndex: number }).zIndex)
-
-  const doc = {
-    version: 1,
-    savedAt: new Date().toISOString(),
-    design: {
-      config: {
-        artboardPresetId: resolvedPresetId,
-        screens: sessionList.length,
-        gap: PANEL_GAP,
-        background: backgroundHex,
-        backgroundMode,
-        backgroundGradient,
-        backgroundImageUrl: null,
-        showLayerNames: false,
-      },
-      objects: designObjects,
-      canvasZoom: 0.2,
-    },
-    fabricObjects,
-  }
-
-  const filename = `display_${preset.displaySlug}.json`
-  await fs.mkdir(datasourceDir, { recursive: true })
-  await fs.writeFile(path.join(datasourceDir, filename), JSON.stringify(doc, null, 2), 'utf8')
-  return { file: filename }
+  await persistDesignerSession(ctx, resolvedPresetId, loaded.session, {
+    canvasZoom: loaded.canvasZoom,
+    screens: loaded.screens,
+    gap: loaded.gap,
+  })
+  return { file: `display_${preset.displaySlug}.json` }
 }

@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto'
+import { EventEmitter } from 'node:events'
+import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { Plugin } from 'vite'
+import type { Connect, Plugin, PreviewServer, ViteDevServer } from 'vite'
 import busboy from 'busboy'
 
 import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
-import { DESIGNER_ARTBOARD_COOKIE } from './src/lib/artboardUrlParam'
+
+/** Same as {@link DESIGNER_ARTBOARD_COOKIE} in `src/lib/artboardUrlParam.ts` (avoid DOM imports in Node build). */
+const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 import {
   getScreenshotDesignerSession,
   screenshotDesignerExecuteOperation,
@@ -21,6 +25,47 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
+}
+
+function designerHintsFromRequest(req: IncomingMessage): {
+  canvasSize?: string
+  presetId?: string
+  sessionArtboard?: string
+  cookieArtboard?: string
+  refererArtboard?: string
+} {
+  const u = new URL(req.url ?? '/', 'http://vite.datasource')
+  const canvasSize = u.searchParams.get('canvasSize') ?? undefined
+  const presetId = u.searchParams.get('presetId') ?? undefined
+  const sessionArtboard = u.searchParams.get('artboard') ?? undefined
+  const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined
+  let cookieArtboard: string | undefined
+  if (cookieHeader) {
+    for (const part of cookieHeader.split(';')) {
+      const idx = part.indexOf('=')
+      if (idx === -1) continue
+      if (part.slice(0, idx).trim() !== DESIGNER_ARTBOARD_COOKIE) continue
+      let v = part.slice(idx + 1).trim()
+      if (!v) break
+      try {
+        v = decodeURIComponent(v)
+      } catch {
+        /* keep raw */
+      }
+      cookieArtboard = v
+      break
+    }
+  }
+  let refererArtboard: string | undefined
+  const ref = req.headers.referer
+  if (typeof ref === 'string' && ref.length > 0) {
+    try {
+      refererArtboard = new URL(ref).searchParams.get('artboard') ?? undefined
+    } catch {
+      /* ignore malformed Referer */
+    }
+  }
+  return { canvasSize, presetId, sessionArtboard, cookieArtboard, refererArtboard }
 }
 
 const SCREENSHOTS_PREFIX = '/__api/datasource/screenshots/'
@@ -110,7 +155,7 @@ async function cleanupUnusedScreenshots(
   datasourceDir: string,
   screenshotsDir: string,
 ): Promise<void> {
-  let entries: Awaited<ReturnType<typeof fs.readdir>>
+  let entries: Dirent[]
   try {
     entries = await fs.readdir(screenshotsDir, { withFileTypes: true })
   } catch (e: unknown) {
@@ -152,7 +197,7 @@ async function cleanupUnusedScreenshots(
     if (!entry.isDirectory()) continue
     const bucket = entry.name
     const bucketDir = path.join(screenshotsDir, bucket)
-    let files: Awaited<ReturnType<typeof fs.readdir>>
+    let files: Dirent[]
     try {
       files = await fs.readdir(bucketDir, { withFileTypes: true })
     } catch {
@@ -285,8 +330,8 @@ function contentTypeForScreenshotFilename(filename: string): string {
 }
 
 /**
- * Dev-only HTTP helpers for the repo-root `datasource/` folder (e.g. `display.json`).
- * Not available in production static hosting.
+ * HTTP helpers for the repo-root `datasource/` folder (e.g. `display.json`).
+ * Registered for **`vite dev`** and **`vite preview`** (`npm run prod`); not part of a static-only deploy.
  */
 export function datasourceApiPlugin(): Plugin {
   const datasourceDir = path.resolve(
@@ -296,19 +341,16 @@ export function datasourceApiPlugin(): Plugin {
   const screenshotsDir = path.join(datasourceDir, 'screenshots')
   const templatesDir = path.join(datasourceDir, TEMPLATES_SUBDIR)
   const placeholderDir = path.join(datasourceDir, 'placeholder')
+  const webUiRoot = path.dirname(fileURLToPath(import.meta.url))
+  const displayUpdateEvents = new EventEmitter()
+  displayUpdateEvents.setMaxListeners(200)
 
-  return {
-    name: 'vite-plugin-datasource-api',
-    configureServer(server) {
-      server.watcher.add(datasourceDir)
-      server.watcher.on('change', (file) => {
-        const base = path.basename(file)
-        if (base.startsWith('display_') && base.endsWith('.json')) {
-          server.ws.send({ type: 'full-reload' })
-        }
-      })
+  const notifyDisplayWritten = (slug: string, savedAt: string): void => {
+    displayUpdateEvents.emit('update', { slug, savedAt })
+  }
 
-      void (async () => {
+  const runStartupCleanup = (): void => {
+    void (async () => {
         try {
           await fs.mkdir(datasourceDir, { recursive: true })
           await fs.mkdir(screenshotsDir, { recursive: true })
@@ -316,9 +358,10 @@ export function datasourceApiPlugin(): Plugin {
         } catch (e) {
           console.warn('[datasource-api] startup screenshot cleanup failed', e)
         }
-      })()
+    })()
+  }
 
-      server.middlewares.use(async (req, res, next) => {
+  const datasourceMiddleware: Connect.NextHandleFunction = async (req, res, next) => {
         const pathname = (req.url ?? '').split('?')[0]
         const nodeRes = res as ServerResponse
 
@@ -329,6 +372,41 @@ export function datasourceApiPlugin(): Plugin {
           await fs.mkdir(placeholderDir, { recursive: true })
         } catch {
           /* ignore */
+        }
+
+        if (pathname === '/__api/datasource/display-events' && req.method === 'GET') {
+          const u = new URL(req.url ?? '/', 'http://vite.datasource')
+          const slug = u.searchParams.get('slug') ?? ''
+          if (!isDisplayFileSlug(slug)) {
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: 'invalid_display_slug' }))
+            return
+          }
+          nodeRes.writeHead(200, {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-store, no-transform',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
+          })
+          nodeRes.write(`data: ${JSON.stringify({ type: 'hello', slug })}\n\n`)
+          const listener = (p: { slug: string; savedAt: string }) => {
+            if (p.slug !== slug) return
+            try {
+              nodeRes.write(
+                `data: ${JSON.stringify({ type: 'display_updated', slug: p.slug, savedAt: p.savedAt })}\n\n`,
+              )
+            } catch {
+              /* client disconnected */
+            }
+          }
+          displayUpdateEvents.on('update', listener)
+          const detach = (): void => {
+            displayUpdateEvents.off('update', listener)
+          }
+          req.on('close', detach)
+          res.on('close', detach)
+          return
         }
 
         // GET /__api/datasource/placeholder/<file>
@@ -376,43 +454,14 @@ export function datasourceApiPlugin(): Plugin {
               nodeRes.end('Method not allowed')
               return
             }
-            const url = new URL(req.url ?? '/', 'http://vite.datasource')
-            const canvasSize = url.searchParams.get('canvasSize') ?? undefined
-            const presetId = url.searchParams.get('presetId') ?? undefined
-            const sessionArtboard = url.searchParams.get('artboard') ?? undefined
-            const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : undefined
-            let cookieArtboard: string | undefined
-            if (cookieHeader) {
-              for (const part of cookieHeader.split(';')) {
-                const idx = part.indexOf('=')
-                if (idx === -1) continue
-                if (part.slice(0, idx).trim() !== DESIGNER_ARTBOARD_COOKIE) continue
-                let v = part.slice(idx + 1).trim()
-                if (!v) break
-                try {
-                  v = decodeURIComponent(v)
-                } catch {
-                  /* keep raw */
-                }
-                cookieArtboard = v
-                break
-              }
-            }
-            let refererArtboard: string | undefined
-            const ref = req.headers.referer
-            if (typeof ref === 'string' && ref.length > 0) {
-              try {
-                refererArtboard = new URL(ref).searchParams.get('artboard') ?? undefined
-              } catch {
-                /* ignore malformed Referer */
-              }
-            }
-            const session = getScreenshotDesignerSession(
-              canvasSize,
-              presetId,
-              sessionArtboard,
-              cookieArtboard,
-              refererArtboard,
+            const h = designerHintsFromRequest(req as IncomingMessage)
+            const session = await getScreenshotDesignerSession(
+              datasourceDir,
+              h.canvasSize,
+              h.presetId,
+              h.sessionArtboard,
+              h.cookieArtboard,
+              h.refererArtboard,
             )
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, ...session }))
@@ -439,8 +488,18 @@ export function datasourceApiPlugin(): Plugin {
               typeof parsed.args === 'object' && parsed.args !== null
                 ? (parsed.args as Record<string, unknown>)
                 : {}
+            const h = designerHintsFromRequest(req as IncomingMessage)
             const result = await screenshotDesignerExecuteOperation(
-              path.dirname(fileURLToPath(import.meta.url)),
+              {
+                rootDir: webUiRoot,
+                datasourceDir,
+                canvasSize: h.canvasSize,
+                presetId: h.presetId,
+                sessionArtboard: h.sessionArtboard,
+                cookieArtboard: h.cookieArtboard,
+                refererArtboard: h.refererArtboard,
+                onDisplayWritten: ({ slug, savedAt }) => notifyDisplayWritten(slug, savedAt),
+              },
               operation,
               args,
             )
@@ -465,7 +524,9 @@ export function datasourceApiPlugin(): Plugin {
             const body = await readBody(req as IncomingMessage)
             const parsed = JSON.parse(body) as Record<string, unknown>
             const presetId = typeof parsed.presetId === 'string' ? parsed.presetId : undefined
-            const result = await saveDisplayDocument(datasourceDir, presetId)
+            const result = await saveDisplayDocument(datasourceDir, webUiRoot, presetId, {
+              onDisplayWritten: ({ slug, savedAt }) => notifyDisplayWritten(slug, savedAt),
+            })
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, ...result }))
           } catch (e: unknown) {
@@ -609,7 +670,8 @@ export function datasourceApiPlugin(): Plugin {
 
         if (
           pathname !== '/__api/datasource/display' &&
-          pathname !== '/__api/datasource/list'
+          pathname !== '/__api/datasource/list' &&
+          pathname !== '/__api/datasource/display-events'
         ) {
           next()
           return
@@ -647,8 +709,16 @@ export function datasourceApiPlugin(): Plugin {
               return
             }
             const body = await readBody(req as IncomingMessage)
-            JSON.parse(body)
+            const doc = JSON.parse(body) as { savedAt?: string }
             await fs.writeFile(resolved.filePath, body, 'utf8')
+            const base = path.basename(resolved.filePath)
+            const slugMatch = /^display_(.+)\.json$/.exec(base)
+            const slug = slugMatch?.[1]
+            const savedAt =
+              typeof doc.savedAt === 'string' ? doc.savedAt : new Date().toISOString()
+            if (slug !== undefined && isDisplayFileSlug(slug)) {
+              notifyDisplayWritten(slug, savedAt)
+            }
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true }))
             return
@@ -668,7 +738,18 @@ export function datasourceApiPlugin(): Plugin {
           nodeRes.setHeader('Content-Type', 'application/json')
           nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
         }
-      })
+  }
+
+  return {
+    name: 'vite-plugin-datasource-api',
+    configureServer(server: ViteDevServer) {
+      server.watcher.add(datasourceDir)
+      runStartupCleanup()
+      server.middlewares.use(datasourceMiddleware)
+    },
+    configurePreviewServer(server: PreviewServer) {
+      runStartupCleanup()
+      server.middlewares.use(datasourceMiddleware)
     },
   }
 }

@@ -1,4 +1,4 @@
-import { Download, LayoutTemplate, Redo2, RotateCcw, Save, Undo2 } from 'lucide-react'
+import { Download, LayoutTemplate, Redo2, RefreshCw, RotateCcw, Save, Undo2 } from 'lucide-react'
 import {
   canRedoDesignHistory,
   canUndoDesignHistory,
@@ -16,6 +16,7 @@ import { applyEmptyDesignForPreset } from '../../canvas/loadDisplayDocument'
 import {
   getArtboardDimensionsFromConfig,
 } from '../../constants/artboardPresets'
+import { reloadDisplayFromDatasource } from '../../lib/reloadDisplayFromDatasource'
 import { saveDisplayToDatasource } from '../../lib/saveDisplayToDatasource'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
@@ -118,6 +119,26 @@ export function TopToolbar() {
         >
           <Save className="size-3.5 shrink-0" aria-hidden />
           <span className="hidden sm:inline">Save</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void (async () => {
+              const { showToast } = useToastStore.getState()
+              try {
+                await reloadDisplayFromDatasource()
+                showToast('Reloaded design from datasource.', 'success')
+              } catch (e) {
+                console.error('[TopToolbar] reload from datasource failed', e)
+                showToast('Reload failed — could not read display JSON.', 'error')
+              }
+            })()
+          }}
+          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
+          title="Reload canvas from datasource/display_*.json (same as remote agent updates)"
+        >
+          <RefreshCw className="size-3.5 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Reload</span>
         </button>
         <button
           type="button"

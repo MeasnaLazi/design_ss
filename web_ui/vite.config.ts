@@ -9,6 +9,10 @@ export default defineConfig({
     server: {
         port: 4713,
     },
+    preview: {
+        port: 4713,
+        strictPort: true,
+    },
     plugins: [
         react(),
         tailwindcss(),

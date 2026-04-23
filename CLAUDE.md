@@ -30,8 +30,8 @@ If the user asks about something outside this scope (general programming, unrela
 ## Sub-agents you coordinate
 
 - **app_optimizer** — analyzes a mobile project and writes store-ready metadata (`output/appstore.json`, `output/playstore.json`).
-- **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed. Always call this before `screenshot_designer` for screenshot-related workflows.
-- **screenshot_designer** — composes screenshot panels through the screenshot-designer HTTP API on the active Web UI session (`render_preview`, `save-display`, etc.). Store metadata and device-frame inputs are read from the repo as documented in `.claude/agents/screenshot_designer.md`; **display JSON in `datasource/` is only produced by the API** (no hand-edited display files). Local **layout** math, quality prediction, device-pack helpers, and optional **designer** HTTP scripting use the **`agent_toolkit`** package (`pip install -e ./agent_toolkit`; same doc).
+- **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed (or use **`npm run prod`** in `web_ui` for a built preview with the same `/__api` routes). Always call this before `screenshot_designer` for screenshot-related workflows.
+- **screenshot_designer** — composes screenshot panels through the screenshot-designer HTTP API against **`datasource/display_*.json`** (same source of truth as the Fabric canvas). Mutations persist to disk; an open browser syncs via **SSE** (`/__api/datasource/display-events`) or the in-app **Reload** control — there is no full-page reload on file writes. Store metadata and device-frame inputs are read from the repo as documented in `.claude/agents/screenshot_designer.md`. Local **layout** math, quality prediction, device-pack helpers, and optional **designer** HTTP scripting use the **`agent_toolkit`** package (`pip install -e ./agent_toolkit`; same doc).
 
 ---
 
@@ -93,7 +93,7 @@ Minimum handoff context:
 - `designer_api_base`: `http://localhost:4713/__api/screenshot-designer`
 - `web_ui_status`: `already_running` or `started`
 
-The designer must use this active Web UI/API context so each tool/API operation live-updates the currently running Web UI session.
+The designer must use this active Web UI/API context so each `execute` / `save-display` call updates **`datasource/display_*.json`**; a browser tab on the same origin picks up changes via SSE or **Reload from datasource** without a full refresh.
 
 ---
 
