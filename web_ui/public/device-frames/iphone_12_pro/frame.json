@@ -2,6 +2,7 @@
   "frames": [
     {
       "name": "front",
+      "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
       "framePath": "/device-frames/iphone_12_pro/frame/front.svg",
       "homography": false,
       "viewWidth": 772,
@@ -15,8 +16,9 @@
       }
     },
     {
-      "name": "iso-down-left",
-      "framePath": "/device-frames/iphone_12_pro/frame/iso-down-left.svg",
+      "name": "isometric-left",
+      "description": "A tilted, front-left perspective of a phone. The device leans backward, revealing the blank, front panel alongside the left-side edge with volume buttons, and the bottom ports.",
+      "framePath": "/device-frames/iphone_12_pro/frame/isometric-left.svg",
       "viewWidth": 1282,
       "viewHeight": 1485,
       "layoutScale": 0.75,
@@ -34,8 +36,9 @@
       }
     },
     {
-      "name": "iso-down-right",
-      "framePath": "/device-frames/iphone_12_pro/frame/iso-down-right.svg",
+      "name": "isometric-right",
+      "description": "A tilted, front-right perspective of a phone. The device leans backward, revealing the blank, front panel alongside the right-side edge with volume buttons, and the bottom ports.",
+      "framePath": "/device-frames/iphone_12_pro/frame/isometric-right.svg",
       "viewWidth": 1282,
       "viewHeight": 1485,
       "layoutScale": 0.75,
@@ -53,8 +56,9 @@
       }
     },
     {
-      "name": "iso-up-left",
-      "framePath": "/device-frames/iphone_12_pro/frame/iso-up-left.svg",
+      "name": "tilted-left",
+      "description": "A tilted, front-left perspective of a phone. The device leans backward, revealing the blank, front panel alongside the left-side edge and bottom ports.",
+      "framePath": "/device-frames/iphone_12_pro/frame/tilted-left.svg",
       "viewWidth": 1041,
       "viewHeight": 1418,
       "layoutScale": 0.75,
@@ -72,8 +76,9 @@
       }
     },
     {
-      "name": "iso-up-right",
-      "framePath": "/device-frames/iphone_12_pro/frame/iso-up-right.svg",
+      "name": "tilted-right",
+      "description": "A tilted, front-right perspective of a phone. The device leans backward, revealing the blank, front panel alongside the right-side edge and bottom ports.",
+      "framePath": "/device-frames/iphone_12_pro/frame/tilted-right.svg",
       "viewWidth": 1041,
       "viewHeight": 1418,
       "layoutScale": 0.75,
@@ -91,8 +96,9 @@
       }
     },
     {
-      "name": "perspective-left",
-      "framePath": "/device-frames/iphone_12_pro/frame/perspective-left.svg",
+      "name": "angled-right",
+      "description": "A front-right angled perspective of a phone. The device is rotated slightly on its Y-axis to reveal the blank, front panel alongside the right-side edge and button.",
+      "framePath": "/device-frames/iphone_12_pro/frame/angled-right.svg",
       "viewWidth": 669,
       "viewHeight": 1591,
       "layoutScale": 0.75,
@@ -110,8 +116,9 @@
       }
     },
     {
-      "name": "perspective-right",
-      "framePath": "/device-frames/iphone_12_pro/frame/perspective-right.svg",
+      "name": "angled-left",
+      "description": "A front-left angled perspective of a phone. The device is rotated slightly on its Y-axis to reveal the blank, front panel alongside the left-side edge and button.",
+      "framePath": "/device-frames/iphone_12_pro/frame/angled-left.svg",
       "viewWidth": 669,
       "viewHeight": 1591,
       "layoutScale": 0.75,
@@ -126,6 +133,26 @@
         "TR": [674.0, 49.6],
         "BR": [674.0, 1532.4],
         "BL": [70.1, 1555.7]
+      }
+    },
+    {
+      "name": "tilted-front",
+      "description": "A direct, front-facing perspective of a phone. The device is tilted slightly backward, revealing the full blank, front panel alongside the bottom edge and ports.",
+      "framePath": "/device-frames/iphone_12_pro/frame/tilted-front.svg",
+      "viewWidth": 1282,
+      "viewHeight": 1485,
+      "layoutScale": 0.75,
+      "clipCornerRadiiPx": {
+        "tl": 95,
+        "tr": 95,
+        "br": 95,
+        "bl": 95
+      },
+      "corners": {
+        "TL": [50.1, 23.1],
+        "TR": [732.2, 15.9],
+        "BR": [753.6, 1331.3],
+        "BL": [29.3, 1329.1]
       }
     }
   ]
