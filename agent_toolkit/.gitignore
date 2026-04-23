@@ -1,3 +1,6 @@
+# Local env (`agent_toolkit/.env` — see `.env.example`)
+.env
+
 # Virtual environments
 .venv/
 venv/

@@ -16,9 +16,9 @@ If handoff is missing, stop and ask the orchestrator to run `toolkit_runner` fir
 
 ---
 
-## Layout toolkit (local Python, optional)
+## agent_toolkit (local Python, optional)
 
-The **`agent_toolkit`** package under `agent_toolkit/` mirrors server layout rules (grid 16, safe zones, contrast math, `qualityChecks`-equivalent) and can **read preview PNGs** (paths or base64). Use it from the **publisher repo root** to save `render_preview` iterations and double-check dimensions before calling the API.
+The **`agent_toolkit`** package under `agent_toolkit/` mirrors server layout rules (grid 16, safe zones, contrast math, `qualityChecks`-equivalent), can **read preview PNGs** (paths or base64), and can call the **screenshot-designer HTTP API** on loopback (`designer session` / `designer execute` / `designer save-display`) when `web_ui` is already running. Use it from the **publisher repo root** to plan layouts, validate JSON, or script the same endpoints as `curl` with a shared client.
 
 Setup (once per environment):
 
@@ -41,6 +41,12 @@ Useful commands (run from the same directory as `config.json` / `web_ui/`):
 | Frame metadata for a pack | `python -m agent_toolkit layout load-frame --pack iphone_12_pro` |
 | PNG dimensions + preset match | `python -m agent_toolkit layout image match-preset --path ./preview.png --canvas-size iphone` |
 | Decode `image_base64` to a file | `python -m agent_toolkit layout image from-base64 --input - --out ./preview.png` < `body.json` |
+| GET live session (needs Web UI) | `python -m agent_toolkit designer session --canvas-size iphone` |
+| POST execute operation | `python -m agent_toolkit designer execute --json exec.json` (body: `{ "operation", "args" }`) |
+| POST execute one-liner | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
+| POST save display | `python -m agent_toolkit designer save-display --preset-id appstore_iphone_67` |
+
+`designer` commands resolve the API base from **`DESIGNER_API_BASE`** (environment), then **`agent_toolkit/.env`** (copy from `agent_toolkit/.env.example`), then the same localhost default. URLs must stay on **loopback** only (`localhost` / `127.0.0.1` / `::1`); see `agent_toolkit/designer_client.py`.
 
 `predict-checks` expects JSON with `width`, `height`, `background`, and `layers`. Each layer must include `kind`: `text` or `device_frame`, an `id`, and geometry `x`, `y`, `width`, `height`. Text layers need `content`, `size`, and `color` (hex).
 

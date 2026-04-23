@@ -16,6 +16,15 @@ from agent_toolkit import presets as presets_mod
 from agent_toolkit import quality as quality_mod
 from agent_toolkit import safe as safe_mod
 from agent_toolkit import text_metrics as text_metrics_mod
+from agent_toolkit.designer_client import (
+    DesignerClientError,
+    designer_execute as designer_execute_http,
+    designer_save_display as designer_save_display_http,
+    designer_session as designer_session_http,
+    ensure_publisher_dotenv_loaded,
+    resolve_designer_base_url,
+)
+from agent_toolkit.paths import publisher_root
 from agent_toolkit.models import SessionCheckInput
 
 
@@ -26,22 +35,24 @@ def _json_print(obj: object, compact: bool) -> None:
         print(json.dumps(obj, indent=2, default=str))
 
 
-def default_repo_root() -> Path:
-    cwd = Path.cwd().resolve()
-    for p in [cwd, *cwd.parents]:
-        if (p / "web_ui" / "public" / "device-frames").is_dir():
-            return p
-    return cwd
-
-
 def _read_json_arg(path: str) -> dict:
     raw = Path(path).read_text(encoding="utf-8") if path != "-" else sys.stdin.read()
     return json.loads(raw)
 
 
+def _parse_args_json_payload(s: str) -> dict:
+    t = s.strip()
+    if t.startswith("@"):
+        return json.loads(Path(t[1:]).read_text(encoding="utf-8"))
+    return json.loads(t)
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = argv if argv is not None else sys.argv[1:]
-    parser = argparse.ArgumentParser(prog="agent-toolkit", description="Layout + image helpers for screenshot agents.")
+    parser = argparse.ArgumentParser(
+        prog="agent-toolkit",
+        description="Layout, image, and screenshot-designer HTTP helpers for screenshot agents.",
+    )
     parser.add_argument("--compact", action="store_true", help="One-line JSON output")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -180,16 +191,88 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--path", type=Path, required=True)
     ap.set_defaults(handler=_cmd_assert_png)
 
+    designer = sub.add_parser(
+        "designer",
+        help="Call screenshot-designer HTTP API (loopback URLs only; requires running web_ui)",
+    )
+    designer_sub = designer.add_subparsers(dest="designer_cmd", required=True)
+
+    ds_sess = designer_sub.add_parser("session", help="GET .../session (canvasSize / presetId)")
+    ds_sess.add_argument("--canvas-size", default=None)
+    ds_sess.add_argument("--preset-id", default=None)
+    ds_sess.add_argument("--timeout", type=float, default=60.0)
+    ds_sess.set_defaults(handler=_cmd_designer_session)
+
+    ds_ex = designer_sub.add_parser("execute", help="POST .../execute with JSON body {operation, args}")
+    ds_ex.add_argument("--json", required=True, help="Path to JSON or - for stdin")
+    ds_ex.add_argument("--timeout", type=float, default=120.0)
+    ds_ex.set_defaults(handler=_cmd_designer_execute)
+
+    ds_exo = designer_sub.add_parser(
+        "execute-op",
+        help="POST .../execute with --operation and --args-json (object or @path.json)",
+    )
+    ds_exo.add_argument("--operation", required=True)
+    ds_exo.add_argument("--args-json", default="{}", help='JSON object, e.g. {} or @args.json')
+    ds_exo.add_argument("--timeout", type=float, default=120.0)
+    ds_exo.set_defaults(handler=_cmd_designer_execute_op)
+
+    ds_save = designer_sub.add_parser("save-display", help="POST .../save-display {presetId}")
+    ds_save.add_argument("--preset-id", required=True)
+    ds_save.add_argument("--timeout", type=float, default=120.0)
+    ds_save.set_defaults(handler=_cmd_designer_save_display)
+
     ns = parser.parse_args(argv)
     compact = bool(ns.compact)
+    ensure_publisher_dotenv_loaded()
     try:
         ns.handler(ns, compact)
     except ValidationError as e:
         print(json.dumps({"error": "validation_error", "detail": e.errors()}, indent=2))
         sys.exit(1)
+    except DesignerClientError as e:
+        _json_print(e.to_dict(), compact)
+        sys.exit(1)
     except (ValueError, OSError, json.JSONDecodeError) as e:
         print(json.dumps({"error": str(e)}, indent=2))
         sys.exit(1)
+
+
+def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
+    out = designer_session_http(
+        resolve_designer_base_url(),
+        canvas_size=ns.canvas_size,
+        preset_id=ns.preset_id,
+        timeout=ns.timeout,
+    )
+    _json_print(out, compact)
+
+
+def _cmd_designer_execute(ns: argparse.Namespace, compact: bool) -> None:
+    body = _read_json_arg(ns.json)
+    op = body.get("operation")
+    if not op:
+        raise ValueError('JSON must include string "operation"')
+    args = body.get("args") if "args" in body else {}
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        raise ValueError('"args" must be a JSON object')
+    out = designer_execute_http(resolve_designer_base_url(), str(op), args, timeout=ns.timeout)
+    _json_print(out, compact)
+
+
+def _cmd_designer_execute_op(ns: argparse.Namespace, compact: bool) -> None:
+    args = _parse_args_json_payload(ns.args_json)
+    if not isinstance(args, dict):
+        raise ValueError("--args-json must decode to a JSON object")
+    out = designer_execute_http(resolve_designer_base_url(), ns.operation, args, timeout=ns.timeout)
+    _json_print(out, compact)
+
+
+def _cmd_designer_save_display(ns: argparse.Namespace, compact: bool) -> None:
+    out = designer_save_display_http(resolve_designer_base_url(), ns.preset_id, timeout=ns.timeout)
+    _json_print(out, compact)
 
 
 def _cmd_list_presets(_ns: argparse.Namespace, compact: bool) -> None:
@@ -275,13 +358,13 @@ def _cmd_preview_budget(ns: argparse.Namespace, compact: bool) -> None:
 
 
 def _cmd_device_packs(ns: argparse.Namespace, compact: bool) -> None:
-    root = ns.repo_root or default_repo_root()
+    root = ns.repo_root or publisher_root()
     rows = devices_mod.list_device_packs(root, ns.type)
     _json_print(rows, compact)
 
 
 def _cmd_load_frame(ns: argparse.Namespace, compact: bool) -> None:
-    root = ns.repo_root or default_repo_root()
+    root = ns.repo_root or publisher_root()
     data = devices_mod.load_frame_pack(root, ns.pack)
     _json_print({"pack": ns.pack, "frames": devices_mod.normalize_frames(data)}, compact)
 

@@ -5,12 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-toolkit"
 version = "0.1.0"
-description = "Layout and image helpers for screenshot designer agents (parity with web_ui screenshot-designer-server)."
+description = "Layout, image, and screenshot-designer HTTP client for screenshot agents (parity with web_ui screenshot-designer-server)."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.5",
   "pillow>=10.2",
+  "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

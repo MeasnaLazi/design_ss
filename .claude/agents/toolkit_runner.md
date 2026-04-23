@@ -16,12 +16,12 @@ The publisher root is the working directory (same level as `config.json`, `web_u
 
 | Piece | Purpose | When it matters |
 |-------|---------|-----------------|
-| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI: `predict-checks`, `layout image …`, presets, safe zones — see `.claude/agents/screenshot_designer.md` |
+| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`), optional **designer HTTP** CLI (`designer session|execute|save-display` on loopback) — see `.claude/agents/screenshot_designer.md` |
 | **`pip install -e ./agent_toolkit`** | Installs the layout toolkit from the repo | Same as above; run once per venv, or after `pyproject.toml` / deps change |
 | **Node.js** (see `web_ui/.nvmrc`) | Builds and runs `web_ui` | **Required** for live designer API and `render_preview` |
 | **`web_ui/node_modules`** | Vite and frontend deps | **Required** before `npm run dev` |
 
-The designer HTTP API **does not** require Python; Python is for **local** parity helpers. Still verify/install `agent_toolkit` whenever the orchestrator will use layout tooling or agents are instructed to run `python -m agent_toolkit …`.
+The designer HTTP API is served by **Node/Vite**; Python is optional for **scripted** calls via `python -m agent_toolkit designer …` (same JSON as `curl`) and for layout parity helpers. Still verify/install `agent_toolkit` whenever the orchestrator will use those commands.
 
 ---
 
@@ -162,6 +162,14 @@ done
 
 ## Step 4 — Report to the orchestrator (with handoff)
 
+Optional: confirm the designer API responds (requires `agent_toolkit` and a running server). Ensure **`agent_toolkit/.env`** sets `DESIGNER_API_BASE` to the same URL as the handoff’s `designer_api_base` (or rely on the default); see `agent_toolkit/.env.example`.
+
+```bash
+python3 -m agent_toolkit designer session --canvas-size iphone
+```
+
+Expect JSON with `ok`, `width`, `height`, `presetId`. If this fails while `curl` to port 4713 succeeded, investigate API path, `DESIGNER_API_BASE` / `.env`, or Python environment.
+
 Reply with exactly one of:
 
 - **Already running:** "Web UI is already running at http://localhost:4713 | handoff: {\"web_ui_url\":\"http://localhost:4713\",\"designer_api_base\":\"http://localhost:4713/__api/screenshot-designer\",\"web_ui_status\":\"already_running\"}"
@@ -175,4 +183,4 @@ When reporting success, briefly note whether **`agent_toolkit`** was verified or
 ## Notes
 
 - **`web_ui_runner`** was renamed to **`toolkit_runner`** to reflect the broader scope (Python toolkit + Web UI).
-- Layout CLI details and command tables live in **`.claude/agents/screenshot_designer.md`** under "Layout toolkit".
+- Layout and **designer HTTP** CLI details live in **`.claude/agents/screenshot_designer.md`** under **agent_toolkit**.
