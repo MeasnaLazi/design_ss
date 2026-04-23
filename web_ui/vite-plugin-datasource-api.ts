@@ -7,6 +7,10 @@ import type { Plugin } from 'vite'
 import busboy from 'busboy'
 
 import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
+import {
+  createScreenshotDesignerSession,
+  screenshotDesignerExecuteOperation,
+} from './screenshot-designer-server'
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -360,6 +364,60 @@ export function datasourceApiPlugin(): Plugin {
         // POST /__api/datasource/screenshots
         if (req.method === 'POST' && pathname === '/__api/datasource/screenshots') {
           await handleScreenshotUpload(req, nodeRes, screenshotsDir, req.url)
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/session') {
+          try {
+            if (req.method !== 'POST') {
+              nodeRes.statusCode = 405
+              nodeRes.end('Method not allowed')
+              return
+            }
+            const body = await readBody(req as IncomingMessage)
+            const parsed = body.trim() === '' ? {} : (JSON.parse(body) as Record<string, unknown>)
+            const canvasSize = typeof parsed.canvasSize === 'string' ? parsed.canvasSize : undefined
+            const session = createScreenshotDesignerSession(canvasSize)
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, ...session }))
+          } catch (e: unknown) {
+            const err = e as Error
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/execute') {
+          try {
+            if (req.method !== 'POST') {
+              nodeRes.statusCode = 405
+              nodeRes.end('Method not allowed')
+              return
+            }
+            const body = await readBody(req as IncomingMessage)
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            const sessionId = String(parsed.sessionId ?? '')
+            const operation = String(parsed.operation ?? '')
+            const args =
+              typeof parsed.args === 'object' && parsed.args !== null
+                ? (parsed.args as Record<string, unknown>)
+                : {}
+            const result = await screenshotDesignerExecuteOperation(
+              path.dirname(fileURLToPath(import.meta.url)),
+              sessionId,
+              operation,
+              args,
+            )
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify(result))
+          } catch (e: unknown) {
+            const err = e as Error
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
           return
         }
 
