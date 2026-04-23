@@ -9,6 +9,7 @@ import agent_toolkit.designer_client as designer_client_mod
 from agent_toolkit.designer_client import (
     DesignerClientError,
     ENV_DESIGNER_API_BASE,
+    datasource_display_events_probe,
     designer_execute,
     designer_session,
     resolve_designer_base_url,
@@ -96,6 +97,25 @@ def test_designer_session_mocked() -> None:
         out = designer_session("http://127.0.0.1:4713/__api/screenshot-designer")
     assert out["ok"] is True
     assert out["width"] == 100
+
+
+def test_datasource_display_events_probe_mocked() -> None:
+    inner = MagicMock()
+    inner.read.side_effect = [b"event: ping\ndata: {}\n\n", b""]
+    cm = MagicMock()
+    cm.__enter__.return_value = inner
+    cm.__exit__.return_value = None
+    with patch("agent_toolkit.designer_client.urlopen", return_value=cm):
+        out = datasource_display_events_probe(
+            "http://127.0.0.1:4713/__api/screenshot-designer",
+            "iphone",
+            timeout=3.0,
+            max_bytes=4096,
+        )
+    assert out["ok"] is True
+    assert out["bytesRead"] > 0
+    assert "display-events" in out["url"]
+    assert "slug=iphone" in out["url"]
 
 
 def test_resolve_designer_base_url_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

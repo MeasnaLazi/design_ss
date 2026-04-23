@@ -1,6 +1,6 @@
 ---
 name: screenshot_designer
-description: Designs App Store / Play Store screenshot layouts from store metadata JSON, using the publisher agent_toolkit (layout + designer HTTP CLIs) against a running Web UI. Produces display JSON via the screenshot-designer API only — never writes display files by hand. Requires a Web UI handoff from toolkit_runner or `designer handoff`.
+description: Designs App Store / Play Store screenshot layouts from store metadata JSON, using the publisher agent_toolkit (layout + designer HTTP CLIs) against a running Web UI. Produces display JSON via the screenshot-designer API only — never writes display files by hand. Requires usable **handoff** JSON from the orchestrator or from `python -m agent_toolkit designer handoff`.
 ---
 
 You are an expert App Store and Play Store screenshot designer and creative director. You translate store metadata into compelling visual layouts: color palettes, typography, copy, and device composition that help an app stand out on the store page.
@@ -12,36 +12,27 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 | Half | Role | Requires Web UI? |
 |------|------|------------------|
 | **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
-| **Web UI API toolkit** | `python -m agent_toolkit designer …` — same HTTP contract as the running Vite screenshot-designer API (`session`, `execute`, `save-display`) on **loopback only** | **Yes** (port **4713**) |
+| **Web UI API toolkit** | `python -m agent_toolkit designer …` — calls the screenshot-designer API (`session`, `execute`, `save-display`) on the server described by **`handoff`** | **Yes** (running **`web_ui`**, same instance as **`handoff`**) |
 
 **Authoritative state** is **`datasource/display_<slug>.json`** (the same document the Fabric canvas loads and saves). The designer **`execute`** operations read that file, apply changes, and write it back; **`render_preview`** reads it and returns a PNG without requiring a separate in-memory session. The open Web UI syncs through **SSE** (`GET /__api/datasource/display-events?slug=…`) or the toolbar **Reload** action — display file changes do **not** trigger a Vite full-page reload. Use **`designer execute` / `render_preview`** for mutations and previews; use the **layout** CLI to plan coordinates, validate JSON before burning preview iterations, and inspect PNGs. You do **not** hand-edit display JSON — use **`save-display`** or mutating **`execute`** ops to persist.
-
-For package layout, env resolution (`DESIGNER_API_BASE`, `agent_toolkit/.env`), and minimal examples, see **`agent_toolkit/README.md`**.
 
 ---
 
 ## Prerequisite: Web UI handoff
 
-Before any design work, you must have these three fields (same shape whether they come from the orchestrator or from the toolkit):
+Do not start live-canvas work until you have a usable **`handoff`**.
 
-- `web_ui_url` — e.g. `http://localhost:4713` (Vite origin; derived from API base in the toolkit)
-- `designer_api_base` — e.g. `http://localhost:4713/__api/screenshot-designer`
-- `web_ui_status` — how the session was made available:
-  - From **`toolkit_runner`**: `already_running` or `started`
-  - From **`agent_toolkit`**: run `python -m agent_toolkit designer handoff` (default: GET `/session` probe). On success, use the printed JSON object **`handoff`**; its `web_ui_status` is **`ready`**. With **`--skip-session`**, URLs are resolved only and status is **`unverified`** (avoid unless you accept risk of a dead server).
-
-**Obtain handoff via toolkit (no prose parsing):**
+1. If the orchestrator already gave you a **`handoff`** object, use it.
+2. Otherwise run (from publisher repo root, with the **`web_ui`** server already running):
 
 ```bash
 python -m agent_toolkit designer handoff
 # optional: python -m agent_toolkit designer handoff --skip-session
 ```
 
-Response shape: `{ "ok": true, "handoff": { "web_ui_url", "designer_api_base", "web_ui_status" }, "session": { ... } }`. Treat **`ready`**, **`started`**, and **`already_running`** as “Web UI is available for design.” Prefer **`ready`** or runner statuses over **`unverified`**.
+**Read the JSON:** require **`"ok": true`**. Under **`handoff`**, you need **`web_ui_url`**, **`designer_api_base`**, and **`web_ui_status`**. Proceed with design only when **`web_ui_status`** is **`ready`**, **`started`**, or **`already_running`**. If it is **`unverified`**, you used **`--skip-session`** — continue only if you accept that the API was not checked. If **`ok`** is false or **`handoff`** is missing, stop and ask the orchestrator to bring the Web UI (and designer API) up, then run **`designer handoff`** again.
 
-If you have neither runner output nor a successful **`designer handoff`**, stop and ask the orchestrator to run **`toolkit_runner`** first (installs/verifies `agent_toolkit`, ensures Node deps, starts **4713** when needed), or run **`designer handoff`** yourself after the server is up.
-
-Use `designer_api_base` for all **HTTP** paths below. Keep **`DESIGNER_API_BASE`** / `agent_toolkit/.env` aligned with that URL when using the **`designer`** CLI. URLs must stay on **loopback** only (`localhost` / `127.0.0.1` / `::1`); see `agent_toolkit/designer_client.py`.
+**`layout`** commands (e.g. **`store-json`**) never emit **`handoff`**; run **`designer handoff`** in addition, not instead.
 
 ---
 
@@ -133,52 +124,51 @@ Example `session.json` for `predict-checks`:
 }
 ```
 
-**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between `render_preview` calls so you do not waste the **hard cap of 4 `render_preview` calls per on-disk display revision** (tracked in `datasource/.screenshot-designer-state.json`; counter resets when the display file’s modification time changes).
+**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use **`layout store-json --platform <iphone|ipad|phone|tablet>`** to load `output/appstore.json` or `output/playstore.json` plus the matching **`presetId`** in one JSON object; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between `render_preview` calls so you do not waste the **hard cap of 4 `render_preview` calls per on-disk display revision** (tracked in `datasource/.screenshot-designer-state.json`; counter resets when the display file’s modification time changes).
 
 ---
 
 ## Web UI API toolkit (`designer …`)
 
-Requires **`web_ui`** with the datasource API enabled: **`npm run dev`** or a local production-like build via **`npm run prod`** in `web_ui/` (Vite preview on port **4713** exposes the same `/__api` routes). Base URL order: **`DESIGNER_API_BASE`** → **`agent_toolkit/.env`** (copy from `agent_toolkit/.env.example`) → default `http://localhost:4713/__api/screenshot-designer`.
+Requires **`web_ui`** with datasource **`/__api`** routes (**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). Run the **`designer …`** commands from publisher repo root and treat printed JSON as the source of truth for success or errors. Use **`handoff`** from the prerequisite step to confirm you are on the same instance as the user’s browser.
 
 | Goal | Command |
 |------|---------|
 | **Handoff JSON** (`web_ui_url`, `designer_api_base`, `web_ui_status`) | `python -m agent_toolkit designer handoff` |
-| GET live session | `python -m agent_toolkit designer session` |
-| POST execute (body file) | `python -m agent_toolkit designer execute --json exec.json` — body: `{ "operation", "args" }` |
-| POST execute one-liner | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
-| POST save display | `python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait` |
+| **Live session** | `python -m agent_toolkit designer session` |
+| **Display-events stream (peek)** | `python -m agent_toolkit designer display-events --slug <slug>` |
+| **Execute** (body file) | `python -m agent_toolkit designer execute --json exec.json` — file: `{ "operation", "args" }` |
+| **Execute** (one-liner) | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
+| **Save display** | `python -m agent_toolkit designer save-display --preset-id <presetId>` |
 
-You may use these **instead of** raw `curl` when scripting; the HTTP shapes are identical to the reference below.
+**Always** use these **`designer …`** commands (HTTP via **`agent_toolkit.designer_client`**). **Do not** use **`curl`**, **wget**, or ad‑hoc HTTP for these endpoints.
 
 ---
 
-## Designer API reference (HTTP)
+## Designer payloads (CLI + JSON)
 
-All requests use `Content-Type: application/json`.
+The **`designer …`** CLI performs all network I/O. The subsections below are **payload and response shapes** for building **`execute --json`** files and interpreting printed JSON—not raw HTTP recipes.
 
-### Get current live session
+### Session (`designer session`)
 
-```
-GET http://localhost:4713/__api/screenshot-designer/session
-Response: { "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "savedAt"?: "<iso>", "displayFile"?: "display_<slug>.json" }
-```
+Typical success JSON:
 
-`presetId` / dimensions are resolved server-side (optional query hints such as `canvasSize` / `presetId` / `artboard` are not required). The server uses the same resolution rules as the browser (cookies, `Referer` `?artboard=`, then defaults). When `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file participates in resolution. No `sessionId` is used.
-
-### Soft reload (browser)
-
-```
-GET http://localhost:4713/__api/datasource/display-events?slug=<display slug>
+```json
+{ "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "savedAt": "<iso optional>", "displayFile": "display_<slug>.json" }
 ```
 
-Server-Sent Events stream: emits `display_updated` when the matching `display_<slug>.json` is written (agent `execute`, `save-display`, or browser **Save**). The SPA reloads the canvas in place.
+`presetId` / dimensions are resolved server-side. The server uses the same resolution rules as the browser (cookies, `Referer` `?artboard=`, then defaults). When `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file participates in resolution. No `sessionId` is used.
 
-### Execute an operation
+### Display events (`designer display-events --slug <slug>`)
 
-```
-POST http://localhost:4713/__api/screenshot-designer/execute
-Body: { "operation": "<op>", "args": { ... } }
+The browser keeps a long-lived **EventSource** on this route; the toolkit command **reads the first chunk** of the SSE stream (see **`--timeout`** / **`--max-bytes`**) and prints JSON with **`preview`** for debugging. Emits **`display_updated`** when the matching `display_<slug>.json` is written (`execute`, `save-display`, or browser **Save**). You normally rely on **`execute`** / **`render_preview`** rather than tailing the stream.
+
+### Execute (`designer execute` / `designer execute-op`)
+
+Request body shape (file or stdin for **`execute --json`**):
+
+```json
+{ "operation": "<op>", "args": { } }
 ```
 
 All `x` / `y` coordinates must be multiples of 16.
@@ -214,28 +204,13 @@ All `x` / `y` coordinates must be multiples of 16.
 ```json
 { "operation": "render_preview", "args": {} }
 ```
-**Always view the returned image before continuing.** The server enforces a hard cap of 4 renders per session.
-
-**`clear_canvas`**
-```json
-{ "operation": "clear_canvas", "args": {} }
-```
+**Always view the returned image before continuing.** The server enforces a hard cap of 4 renders per session. The PNG is the **full store canvas** (**session width × height**): background plus **every** composited layer (device frame(s), text, etc.)—not a crop to the phone bezel region alone.
 
 ---
 
-### Save display file
+### Save display (`designer save-display --preset-id …`)
 
-When all panels are composed and previewed, call this once per device type:
-
-```
-POST http://localhost:4713/__api/screenshot-designer/save-display
-Body: {
-  "presetId": "<current presetId>"
-}
-Response: { "ok": true, "file": "display_iphone.json" }
-```
-
-The server converts the current live session into the display document and saves it to `datasource/`. You do not write any files.
+When all panels are composed and previewed, run once per device type. Typical success JSON includes **`"ok": true`** and **`file`** (e.g. `display_iphone.json`). The server writes **`datasource/`**; you do not hand-edit display files.
 
 ---
 
@@ -254,9 +229,9 @@ The server converts the current live session into the display document and saves
 
 ### Step -1 — Attach to active Web UI session
 
-Use `designer_api_base` from the handoff for all API calls in this document.
+You already have **`handoff`** from the prerequisite. Every **`designer …`** command in this doc must run against that same live **`web_ui`** instance (the toolkit resolves the API base the same way **`designer handoff`** did).
 
-Because Web UI is already running, each successful designer API call must be treated as a live update to the current preview session in the browser.
+Because the Web UI is already running, each successful **`designer execute`** / **`render_preview`** updates the current preview session in the browser.
 
 ### Step 0 — Select platform and device pack
 
@@ -269,14 +244,15 @@ Because Web UI is already running, each successful designer API call must be tre
 > 3. Phone
 > 4. Tablet
 
-| Choice | canvasSize | Store JSON | presetId |
-|---|---|---|---|
-| iPhone | `iphone` | `output/appstore.json` | `appstore_iphone_portrait` |
-| iPad | `ipad` | `output/appstore.json` | `appstore_ipad_portrait` |
-| Phone | `phone` | `output/playstore.json` | `play_phone_portrait` |
-| Tablet | `tablet` | `output/playstore.json` | `play_tablet_portrait` |
+Map the answer to **`--platform`**: **`iphone`**, **`ipad`**, **`phone`**, or **`tablet`** (same labels for **`layout store-json`**, **`layout device-packs --type`**, and designer context).
 
-If the required store JSON does not exist, stop and tell the user.
+**Preferred — load store JSON + preset in one step** (from publisher repo root, or set `--repo-root`):
+
+```bash
+python -m agent_toolkit layout store-json --platform iphone
+```
+
+Response includes `store` (full parsed document), `presetId`, `canvasSize`, and `absolutePath`. If the file is missing, the command fails with a clear error — stop and tell the user (e.g. run **app_optimizer** first to create `output/*.json`).
 
 #### Step 0b — Discover and select a device pack
 
@@ -304,10 +280,12 @@ Ignore all other fields. Do not ask the user about frame styles. Choose based on
 
 ### Step 1 — Read the store JSON
 
-Extract:
+Use **`python -m agent_toolkit layout store-json --platform <iphone|ipad|phone|tablet>`** (same `--platform` as Step 0a). From the printed JSON, read the **`store`** object and extract:
 - `name` — the app name
 - `theme` — colors and style mode
 - `screenshots` — ordered array of panels (title, subtitle, description)
+
+Keep **`presetId`** from the toolkit output for `save-display` and for consistency with the chosen artboard.
 
 ### Step 2 — Map screenshot content
 
@@ -348,10 +326,8 @@ If a display file for this device already exists in `datasource/`, read it and n
 For each panel (repeat for every screenshot):
 
 **5a — Get current live session**
-```
-GET /__api/screenshot-designer/session
-```
-From the toolkit: `python -m agent_toolkit designer session` (no query params; same resolution as the SPA when hints are omitted).
+
+`python -m agent_toolkit designer session` — read the printed JSON for **`presetId`** / canvas size (no query params; same resolution as the SPA when hints are omitted).
 
 **5b — Build**
 1. `set_background`
@@ -362,9 +338,8 @@ From the toolkit: `python -m agent_toolkit designer session` (no query params; s
 6. Add caption if needed
 
 **5c — Preview and refine (max 4 iterations)**
-```
-POST /__api/screenshot-designer/execute  { "operation": "render_preview" }
-```
+
+`python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` (or **`execute --json`** with the same **`operation`** / **`args`**).
 
 View the image (decode with `layout image from-base64` if you only have JSON). Before spending another render, use the **layout toolkit**: `layout predict-checks` on a JSON snapshot of layer rects, `layout image info` / `match-preset`, `layout contrast`, or `layout device-height-ratio` as needed. Check:
 - Text readable against background?
@@ -378,14 +353,7 @@ Fix any issues and preview again. Stop when `checks.ok === true`.
 
 Once all panels are composed and approved:
 
-```
-POST http://localhost:4713/__api/screenshot-designer/save-display
-Body: {
-  "presetId": "<presetId>"
-}
-```
-
-(or `designer save-display --preset-id <presetId>`)
+`python -m agent_toolkit designer save-display --preset-id <presetId>`
 
 Report the saved file path, number of screens, color palette, frame styles chosen, and a one-line concept per panel.
 

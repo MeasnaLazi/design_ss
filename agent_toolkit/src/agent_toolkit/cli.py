@@ -15,9 +15,11 @@ from agent_toolkit import image_io
 from agent_toolkit import presets as presets_mod
 from agent_toolkit import quality as quality_mod
 from agent_toolkit import safe as safe_mod
+from agent_toolkit import store_listing as store_listing_mod
 from agent_toolkit import text_metrics as text_metrics_mod
 from agent_toolkit.designer_client import (
     DesignerClientError,
+    datasource_display_events_probe,
     designer_execute as designer_execute_http,
     designer_save_display as designer_save_display_http,
     designer_session as designer_session_http,
@@ -126,6 +128,19 @@ def main(argv: list[str] | None = None) -> None:
     lf.add_argument("--repo-root", type=Path, default=None)
     lf.set_defaults(handler=_cmd_load_frame)
 
+    sl = layout_sub.add_parser(
+        "store-json",
+        help="Load output/appstore.json or output/playstore.json (Step 0a platform → presetId)",
+    )
+    sl.add_argument(
+        "--platform",
+        required=True,
+        choices=store_listing_mod.listing_platform_choices(),
+        help="iphone|ipad → appstore.json; phone|tablet → playstore.json",
+    )
+    sl.add_argument("--repo-root", type=Path, default=None)
+    sl.set_defaults(handler=_cmd_store_json)
+
     cr = layout_sub.add_parser("contrast", help="WCAG contrast ratio between two hex colors")
     cr.add_argument("--a", required=True)
     cr.add_argument("--b", required=True)
@@ -217,6 +232,15 @@ def main(argv: list[str] | None = None) -> None:
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
 
+    ds_ev = designer_sub.add_parser(
+        "display-events",
+        help="GET .../datasource/display-events?slug= (SSE; read initial bytes only)",
+    )
+    ds_ev.add_argument("--slug", required=True, help="Display slug, e.g. iphone from display_iphone.json")
+    ds_ev.add_argument("--timeout", type=float, default=8.0)
+    ds_ev.add_argument("--max-bytes", type=int, default=65536)
+    ds_ev.set_defaults(handler=_cmd_designer_display_events)
+
     ds_ex = designer_sub.add_parser("execute", help="POST .../execute with JSON body {operation, args}")
     ds_ex.add_argument("--json", required=True, help="Path to JSON or - for stdin")
     ds_ex.add_argument("--timeout", type=float, default=120.0)
@@ -262,6 +286,16 @@ def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_session_http(resolve_designer_base_url(), timeout=ns.timeout)
+    _json_print(out, compact)
+
+
+def _cmd_designer_display_events(ns: argparse.Namespace, compact: bool) -> None:
+    out = datasource_display_events_probe(
+        resolve_designer_base_url(),
+        ns.slug,
+        timeout=float(ns.timeout),
+        max_bytes=int(ns.max_bytes),
+    )
     _json_print(out, compact)
 
 
@@ -384,6 +418,12 @@ def _cmd_load_frame(ns: argparse.Namespace, compact: bool) -> None:
     root = ns.repo_root or publisher_root()
     data = devices_mod.load_frame_pack(root, ns.pack)
     _json_print({"pack": ns.pack, "frames": devices_mod.normalize_frames(data)}, compact)
+
+
+def _cmd_store_json(ns: argparse.Namespace, compact: bool) -> None:
+    root = ns.repo_root or publisher_root()
+    out = store_listing_mod.load_store_listing(root, ns.platform)
+    _json_print(out, compact)
 
 
 def _cmd_contrast(ns: argparse.Namespace, compact: bool) -> None:

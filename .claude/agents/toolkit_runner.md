@@ -21,7 +21,7 @@ The publisher root is the working directory (same level as `config.json`, `web_u
 | **Node.js** (see `web_ui/.nvmrc`) | Builds and runs `web_ui` | **Required** for live designer API and `render_preview` |
 | **`web_ui/node_modules`** | Vite and frontend deps | **Required** before `npm run dev` |
 
-The designer HTTP API is served by **Node/Vite**; Python is optional for **scripted** calls via `python -m agent_toolkit designer …` (same JSON as `curl`) and for layout parity helpers. Still verify/install `agent_toolkit` whenever the orchestrator will use those commands.
+The designer HTTP API is served by **Node/Vite**; use **`python -m agent_toolkit designer …`** for any scripted screenshot-designer traffic (HTTP via **`agent_toolkit.designer_client`**—do not use **`curl`** for those endpoints). Still verify/install `agent_toolkit` whenever the orchestrator will use those commands.
 
 ---
 
@@ -176,7 +176,7 @@ Or probe session directly:
 python3 -m agent_toolkit designer session
 ```
 
-Expect JSON with `ok`, `width`, `height`, `presetId`. If this fails while `curl` to port 4713 succeeded, investigate API path, `DESIGNER_API_BASE` / `.env`, or Python environment.
+Expect JSON with `ok`, `width`, `height`, `presetId`. If **`designer session`** fails while the Web UI answers on TCP (e.g. Step 3’s wait loop), investigate the **`/__api/screenshot-designer`** path, **`DESIGNER_API_BASE`** / **`agent_toolkit/.env`** vs the URL you expect, or the Python **`agent_toolkit`** install.
 
 Reply with exactly one of:
 
