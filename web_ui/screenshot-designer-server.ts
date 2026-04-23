@@ -931,12 +931,6 @@ export async function screenshotDesignerExecuteOperation(
       return { ok: true, json }
     }
 
-    case 'clear_canvas': {
-      session.layers = []
-      await persistDesignerSession(ctx, resolvedPresetId, session, meta)
-      return { ok: true }
-    }
-
     default:
       throw new Error(`Unknown operation "${operation}"`)
   }
