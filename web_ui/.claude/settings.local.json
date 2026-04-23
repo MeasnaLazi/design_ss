@@ -5,7 +5,8 @@
       "Bash(npx tsc:*)",
       "Bash(xxd \"/Users/measna/Documents/Personal Project/Bio App/apps_publisher/web_ui/src/constants/deviceFrame.ts\")",
       "Bash(python3 -c ':*)",
-      "Bash(node)"
+      "Bash(node)",
+      "Bash(curl *)"
     ]
   }
 }

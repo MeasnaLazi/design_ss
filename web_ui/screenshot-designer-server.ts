@@ -59,7 +59,6 @@ type TextLayer = BaseLayer & {
 type Layer = DeviceFrameLayer | TextLayer
 
 type DesignerSession = {
-  id: string
   width: number
   height: number
   background: BackgroundConfig
@@ -86,13 +85,6 @@ const Z_INDEX = {
   screenshotContent: 3,
   text: 4,
 } as const
-
-const CANVAS_SIZES: Record<string, { width: number; height: number }> = {
-  iphone: { width: 1290, height: 2796 },
-  ipad: { width: 2048, height: 2732 },
-  phone: { width: 1080, height: 1920 },
-  tablet: { width: 1600, height: 2560 },
-}
 
 const PANEL_GAP = 40
 
@@ -123,9 +115,9 @@ const FONT_MAP: Record<FontToken, string> = {
   caption: 'Inter',
 }
 
-const DEFAULT_SESSION_SIZE = CANVAS_SIZES.iphone
-
-const sessions = new Map<string, DesignerSession>()
+const DEFAULT_PRESET_ID = 'appstore_iphone_67'
+let currentSession: DesignerSession | null = null
+let currentPresetId = DEFAULT_PRESET_ID
 
 function isHexColor(value: string): boolean {
   return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value.trim())
@@ -218,11 +210,6 @@ function buildGradientBackgroundSvg(width: number, height: number, gradient: Gra
     `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#g)" />`,
     '</svg>',
   ].join('')
-}
-
-function resolveCanvasSize(canvasSize: string | undefined): { width: number; height: number } {
-  if (!canvasSize) return DEFAULT_SESSION_SIZE
-  return CANVAS_SIZES[canvasSize] ?? DEFAULT_SESSION_SIZE
 }
 
 async function resolveImagePath(rootDir: string, imagePath: string): Promise<string> {
@@ -338,10 +325,29 @@ async function renderSessionPng(rootDir: string, session: DesignerSession): Prom
   return base.composite(composites).png().toBuffer()
 }
 
-function getSessionOrThrow(sessionId: string): DesignerSession {
-  const session = sessions.get(sessionId)
-  if (!session) throw new Error(`Unknown session "${sessionId}"`)
-  return session
+function createBlankSession(width: number, height: number): DesignerSession {
+  return {
+    width,
+    height,
+    background: { type: 'color', value: '#101827' },
+    layers: [],
+    renderCount: 0,
+  }
+}
+
+function resolvePresetId(canvasSize?: string, presetId?: string): string {
+  if (presetId && PRESET_BY_ID[presetId]) return presetId
+  const key = canvasSize ?? ''
+  return CANVAS_SIZE_TO_PRESET[key]?.presetId ?? DEFAULT_PRESET_ID
+}
+
+function getCurrentSessionOrThrow(): DesignerSession {
+  if (!currentSession) {
+    const preset = PRESET_BY_ID[currentPresetId]
+    if (!preset) throw new Error(`Unknown presetId "${currentPresetId}"`)
+    currentSession = createBlankSession(preset.width, preset.height)
+  }
+  return currentSession
 }
 
 function qualityChecks(session: DesignerSession): {
@@ -405,34 +411,29 @@ function qualityChecks(session: DesignerSession): {
   return { ok: errors.length === 0, errors, contrastIssues }
 }
 
-export function createScreenshotDesignerSession(canvasSize?: string): {
-  sessionId: string
+export function getScreenshotDesignerSession(canvasSize?: string, presetId?: string): {
   width: number
   height: number
   presetId: string
 } {
-  const { width, height } = resolveCanvasSize(canvasSize)
-  const key = canvasSize ?? ''
-  const presetId = CANVAS_SIZE_TO_PRESET[key]?.presetId ?? 'appstore_iphone_67'
-  const id = randomUUID()
-  sessions.set(id, {
-    id,
-    width,
-    height,
-    background: { type: 'color', value: '#101827' },
-    layers: [],
-    renderCount: 0,
-  })
-  return { sessionId: id, width, height, presetId }
+  const resolvedPresetId = resolvePresetId(canvasSize, presetId)
+  const preset = PRESET_BY_ID[resolvedPresetId]
+  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
+
+  if (!currentSession || currentPresetId !== resolvedPresetId) {
+    currentPresetId = resolvedPresetId
+    currentSession = createBlankSession(preset.width, preset.height)
+  }
+
+  return { width: currentSession.width, height: currentSession.height, presetId: currentPresetId }
 }
 
 export async function screenshotDesignerExecuteOperation(
   rootDir: string,
-  sessionId: string,
   operation: string,
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const session = getSessionOrThrow(sessionId)
+  const session = getCurrentSessionOrThrow()
 
   switch (operation) {
     case 'set_background': {
@@ -735,17 +736,13 @@ function buildScreenHolePath(
 // Convert ordered sessions into a full Fabric.js display document and save it.
 export async function saveDisplayDocument(
   datasourceDir: string,
-  presetId: string,
-  sessionIds: string[],
+  presetId?: string,
 ): Promise<{ file: string }> {
-  const preset = PRESET_BY_ID[presetId]
-  if (!preset) throw new Error(`Unknown presetId "${presetId}"`)
-
-  const sessionList = sessionIds.map((id) => {
-    const s = sessions.get(id)
-    if (!s) throw new Error(`Session "${id}" not found`)
-    return s
-  })
+  const resolvedPresetId = presetId && PRESET_BY_ID[presetId] ? presetId : currentPresetId
+  const preset = PRESET_BY_ID[resolvedPresetId]
+  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
+  const session = getCurrentSessionOrThrow()
+  const sessionList = [session]
 
   const first = sessionList[0]!
   const bg = first.background
@@ -853,7 +850,7 @@ export async function saveDisplayDocument(
     savedAt: new Date().toISOString(),
     design: {
       config: {
-        artboardPresetId: presetId,
+        artboardPresetId: resolvedPresetId,
         screens: sessionList.length,
         gap: PANEL_GAP,
         background: backgroundHex,

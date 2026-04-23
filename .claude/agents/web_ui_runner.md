@@ -1,12 +1,12 @@
 ---
 name: web_ui_runner
-description: Checks requirements and starts the web_ui dev server (Vite on port 4713) if it is not already running. Call this agent after screenshot_designer completes — whether triggered by the full workflow or a standalone screenshot re-generation.
+description: Checks requirements and starts the web_ui dev server (Vite on port 4713) if it is not already running. Call this agent before screenshot_designer so screenshot operations can live-update an active Web UI session.
 tools:
   - Bash
   - Read
 ---
 
-You are a dev environment agent. Your sole job is to ensure the `web_ui` project is running so the user can preview screenshot designs in the browser.
+You are a dev environment agent. Your sole job is to ensure the `web_ui` project is running before screenshot generation so the designer can live-update previews in the browser.
 
 The `web_ui` directory is located at `web_ui/` relative to the publisher's working directory (same level as `config.json`).
 
@@ -119,10 +119,10 @@ done
 
 ---
 
-## Step 4 — Report to the orchestrator
+## Step 4 — Report to the orchestrator (with handoff)
 
 Reply with exactly one of:
 
-- **Already running:** "Web UI is already running at http://localhost:4713"
-- **Just started:** "Web UI started at http://localhost:4713"
+- **Already running:** "Web UI is already running at http://localhost:4713 | handoff: {\"web_ui_url\":\"http://localhost:4713\",\"designer_api_base\":\"http://localhost:4713/__api/screenshot-designer\",\"web_ui_status\":\"already_running\"}"
+- **Just started:** "Web UI started at http://localhost:4713 | handoff: {\"web_ui_url\":\"http://localhost:4713\",\"designer_api_base\":\"http://localhost:4713/__api/screenshot-designer\",\"web_ui_status\":\"started\"}"
 - **Failed:** describe what went wrong and what the user should do next.

@@ -8,7 +8,7 @@ import busboy from 'busboy'
 
 import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
 import {
-  createScreenshotDesignerSession,
+  getScreenshotDesignerSession,
   screenshotDesignerExecuteOperation,
   saveDisplayDocument,
 } from './screenshot-designer-server'
@@ -370,15 +370,15 @@ export function datasourceApiPlugin(): Plugin {
 
         if (pathname === '/__api/screenshot-designer/session') {
           try {
-            if (req.method !== 'POST') {
+            if (req.method !== 'GET') {
               nodeRes.statusCode = 405
               nodeRes.end('Method not allowed')
               return
             }
-            const body = await readBody(req as IncomingMessage)
-            const parsed = body.trim() === '' ? {} : (JSON.parse(body) as Record<string, unknown>)
-            const canvasSize = typeof parsed.canvasSize === 'string' ? parsed.canvasSize : undefined
-            const session = createScreenshotDesignerSession(canvasSize)
+            const url = new URL(req.url ?? '/', 'http://vite.datasource')
+            const canvasSize = url.searchParams.get('canvasSize') ?? undefined
+            const presetId = url.searchParams.get('presetId') ?? undefined
+            const session = getScreenshotDesignerSession(canvasSize, presetId)
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, ...session }))
           } catch (e: unknown) {
@@ -399,7 +399,6 @@ export function datasourceApiPlugin(): Plugin {
             }
             const body = await readBody(req as IncomingMessage)
             const parsed = JSON.parse(body) as Record<string, unknown>
-            const sessionId = String(parsed.sessionId ?? '')
             const operation = String(parsed.operation ?? '')
             const args =
               typeof parsed.args === 'object' && parsed.args !== null
@@ -407,7 +406,6 @@ export function datasourceApiPlugin(): Plugin {
                 : {}
             const result = await screenshotDesignerExecuteOperation(
               path.dirname(fileURLToPath(import.meta.url)),
-              sessionId,
               operation,
               args,
             )
@@ -431,13 +429,8 @@ export function datasourceApiPlugin(): Plugin {
             }
             const body = await readBody(req as IncomingMessage)
             const parsed = JSON.parse(body) as Record<string, unknown>
-            const presetId = String(parsed.presetId ?? '')
-            const sessionIds = Array.isArray(parsed.sessionIds)
-              ? parsed.sessionIds.map(String)
-              : []
-            if (!presetId) throw new Error('presetId is required')
-            if (sessionIds.length === 0) throw new Error('sessionIds must be a non-empty array')
-            const result = await saveDisplayDocument(datasourceDir, presetId, sessionIds)
+            const presetId = typeof parsed.presetId === 'string' ? parsed.presetId : undefined
+            const result = await saveDisplayDocument(datasourceDir, presetId)
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, ...result }))
           } catch (e: unknown) {
