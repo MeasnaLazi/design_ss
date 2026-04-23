@@ -1,3 +1,5 @@
 datasource/screenshots/**
 datasource/display*
 output/**
+
+agent_toolkit/.venv/
