@@ -10,6 +10,7 @@ import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboard
 import {
   createScreenshotDesignerSession,
   screenshotDesignerExecuteOperation,
+  saveDisplayDocument,
 } from './screenshot-designer-server'
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -412,6 +413,33 @@ export function datasourceApiPlugin(): Plugin {
             )
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify(result))
+          } catch (e: unknown) {
+            const err = e as Error
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/save-display') {
+          try {
+            if (req.method !== 'POST') {
+              nodeRes.statusCode = 405
+              nodeRes.end('Method not allowed')
+              return
+            }
+            const body = await readBody(req as IncomingMessage)
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            const presetId = String(parsed.presetId ?? '')
+            const sessionIds = Array.isArray(parsed.sessionIds)
+              ? parsed.sessionIds.map(String)
+              : []
+            if (!presetId) throw new Error('presetId is required')
+            if (sessionIds.length === 0) throw new Error('sessionIds must be a non-empty array')
+            const result = await saveDisplayDocument(datasourceDir, presetId, sessionIds)
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, ...result }))
           } catch (e: unknown) {
             const err = e as Error
             nodeRes.statusCode = 400

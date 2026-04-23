@@ -29,11 +29,21 @@ type BaseLayer = {
   zIndex: number
 }
 
+type CornerPoint = [number, number]
+type CornerData = { TL: CornerPoint; TR: CornerPoint; BR: CornerPoint; BL: CornerPoint }
+type RadiiData = { tl: number; tr: number; br: number; bl: number }
+
 type DeviceFrameLayer = BaseLayer & {
   kind: 'device_frame'
   framePath: string
   frameName: string
+  packId: string
   scale: number
+  viewWidth: number
+  viewHeight: number
+  corners: CornerData
+  clipRadii: RadiiData | null
+  homography: boolean
 }
 
 type TextLayer = BaseLayer & {
@@ -82,6 +92,25 @@ const CANVAS_SIZES: Record<string, { width: number; height: number }> = {
   ipad: { width: 2048, height: 2732 },
   phone: { width: 1080, height: 1920 },
   tablet: { width: 1600, height: 2560 },
+}
+
+const PANEL_GAP = 40
+
+type PresetInfo = { presetId: string; displaySlug: string; placeholder: string }
+
+const CANVAS_SIZE_TO_PRESET: Record<string, PresetInfo> = {
+  iphone: { presetId: 'appstore_iphone_67', displaySlug: 'iphone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg' },
+  ipad: { presetId: 'appstore_ipad_129', displaySlug: 'ipad', placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg' },
+  phone: { presetId: 'play_phone_portrait', displaySlug: 'play_phone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg' },
+  tablet: { presetId: 'play_tablet_portrait', displaySlug: 'play_tablet_portrait', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg' },
+}
+
+const PRESET_BY_ID: Record<string, PresetInfo & { width: number; height: number }> = {
+  appstore_iphone_67: { presetId: 'appstore_iphone_67', displaySlug: 'iphone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/iphone.jpg', width: 1290, height: 2796 },
+  appstore_ipad_129: { presetId: 'appstore_ipad_129', displaySlug: 'ipad', placeholder: 'http://localhost:4713/__api/datasource/placeholder/ipad.jpg', width: 2048, height: 2732 },
+  play_phone_portrait: { presetId: 'play_phone_portrait', displaySlug: 'play_phone', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 1080, height: 1920 },
+  play_tablet_portrait: { presetId: 'play_tablet_portrait', displaySlug: 'play_tablet_portrait', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 1600, height: 2560 },
+  play_tablet_landscape: { presetId: 'play_tablet_landscape', displaySlug: 'play_tablet_landscape', placeholder: 'http://localhost:4713/__api/datasource/placeholder/phone.jpg', width: 2560, height: 1600 },
 }
 
 // FONT_MAP stores clean font family tokens. The full CSS font-family stack is
@@ -380,8 +409,11 @@ export function createScreenshotDesignerSession(canvasSize?: string): {
   sessionId: string
   width: number
   height: number
+  presetId: string
 } {
   const { width, height } = resolveCanvasSize(canvasSize)
+  const key = canvasSize ?? ''
+  const presetId = CANVAS_SIZE_TO_PRESET[key]?.presetId ?? 'appstore_iphone_67'
   const id = randomUUID()
   sessions.set(id, {
     id,
@@ -391,7 +423,7 @@ export function createScreenshotDesignerSession(canvasSize?: string): {
     layers: [],
     renderCount: 0,
   })
-  return { sessionId: id, width, height }
+  return { sessionId: id, width, height, presetId }
 }
 
 export async function screenshotDesignerExecuteOperation(
@@ -445,26 +477,67 @@ export async function screenshotDesignerExecuteOperation(
       if (!Number.isFinite(scale) || scale <= 0) {
         throw new Error('scale must be a positive number')
       }
-      const resolved = await resolveImagePath(rootDir, framePath)
-      const meta = await sharp(resolved).metadata()
-      const sourceWidth = meta.width ?? 0
-      const sourceHeight = meta.height ?? 0
-      if (sourceWidth <= 0 || sourceHeight <= 0) {
-        throw new Error('Unable to read frame dimensions')
+
+      // Extract packId from framePath: /device-frames/<packId>/frame/<style>.svg
+      const pathParts = framePath.split('/').filter(Boolean)
+      const packId = pathParts[1] ?? ''
+
+      // Read frame.json to get viewWidth/viewHeight, corners, clipRadii, homography
+      let viewWidth = 0
+      let viewHeight = 0
+      let corners: CornerData = { TL: [0, 0], TR: [0, 0], BR: [0, 0], BL: [0, 0] }
+      let clipRadii: RadiiData | null = null
+      let homography = false
+
+      try {
+        const frameJsonPath = path.join(rootDir, 'public', 'device-frames', packId, 'frame.json')
+        const raw = await fs.readFile(frameJsonPath, 'utf8')
+        const parsed = JSON.parse(raw) as { frames: Array<{
+          name: string; viewWidth: number; viewHeight: number
+          corners: CornerData; clipCornerRadiiPx?: RadiiData; homography?: boolean
+        }> }
+        const entry = parsed.frames.find((f) => f.name === frameName)
+        if (entry) {
+          viewWidth = entry.viewWidth
+          viewHeight = entry.viewHeight
+          corners = entry.corners
+          clipRadii = entry.clipCornerRadiiPx ?? null
+          homography = entry.homography ?? false
+        }
+      } catch {
+        // fall back to sharp dimensions if frame.json is unreadable
       }
+
+      // Fall back to sharp if frame.json didn't supply dimensions
+      if (viewWidth <= 0 || viewHeight <= 0) {
+        const resolved = await resolveImagePath(rootDir, framePath)
+        const meta = await sharp(resolved).metadata()
+        viewWidth = meta.width ?? 0
+        viewHeight = meta.height ?? 0
+        if (viewWidth <= 0 || viewHeight <= 0) {
+          throw new Error('Unable to read frame dimensions')
+        }
+      }
+
       const id = randomUUID()
-      const width = Math.round(sourceWidth * scale)
-      const height = Math.round(sourceHeight * scale)
+      const width = Math.round(viewWidth * scale)
+      const height = Math.round(viewHeight * scale)
       const layer: DeviceFrameLayer = {
         id,
         kind: 'device_frame',
         framePath,
         frameName,
+        packId,
         x,
         y,
         width,
         height,
         scale,
+        viewWidth,
+        viewHeight,
+        corners,
+        clipRadii,
+        homography,
         zIndex: Z_INDEX.deviceFrame,
       }
       session.layers.push(layer)
@@ -607,4 +680,196 @@ export async function screenshotDesignerExecuteOperation(
     default:
       throw new Error(`Unknown operation "${operation}"`)
   }
+}
+
+// Build SVG path commands for the screen hole.
+// Corners are in frame SVG space (origin = top-left of SVG).
+// Output is in image-local space (origin = center of image).
+function buildScreenHolePath(
+  corners: CornerData,
+  radii: RadiiData | null,
+  viewWidth: number,
+  viewHeight: number,
+): unknown[][] {
+  const hw = viewWidth / 2
+  const hh = viewHeight / 2
+  const pts: [number, number][] = [
+    [corners.TL[0] - hw, corners.TL[1] - hh],
+    [corners.TR[0] - hw, corners.TR[1] - hh],
+    [corners.BR[0] - hw, corners.BR[1] - hh],
+    [corners.BL[0] - hw, corners.BL[1] - hh],
+  ]
+  const r = radii ? [radii.tl, radii.tr, radii.br, radii.bl] : [0, 0, 0, 0]
+  const n = 4
+  const cmds: unknown[][] = []
+
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n]!
+    const curr = pts[i]!
+    const next = pts[(i + 1) % n]!
+    const ri = r[i] ?? 0
+
+    if (ri <= 0) {
+      cmds.push(i === 0 ? ['M', curr[0], curr[1]] : ['L', curr[0], curr[1]])
+      continue
+    }
+
+    const dx1 = curr[0] - prev[0], dy1 = curr[1] - prev[1]
+    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1)
+    const dx2 = next[0] - curr[0], dy2 = next[1] - curr[1]
+    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
+
+    const inX = curr[0] - (dx1 / len1) * ri
+    const inY = curr[1] - (dy1 / len1) * ri
+    const outX = curr[0] + (dx2 / len2) * ri
+    const outY = curr[1] + (dy2 / len2) * ri
+
+    cmds.push(i === 0 ? ['M', inX, inY] : ['L', inX, inY])
+    cmds.push(['Q', curr[0], curr[1], outX, outY])
+  }
+
+  cmds.push(['Z'])
+  return cmds
+}
+
+// Convert ordered sessions into a full Fabric.js display document and save it.
+export async function saveDisplayDocument(
+  datasourceDir: string,
+  presetId: string,
+  sessionIds: string[],
+): Promise<{ file: string }> {
+  const preset = PRESET_BY_ID[presetId]
+  if (!preset) throw new Error(`Unknown presetId "${presetId}"`)
+
+  const sessionList = sessionIds.map((id) => {
+    const s = sessions.get(id)
+    if (!s) throw new Error(`Session "${id}" not found`)
+    return s
+  })
+
+  const first = sessionList[0]!
+  const bg = first.background
+
+  let backgroundMode: string
+  let backgroundHex: string
+  let backgroundGradient: unknown = null
+
+  if (bg.type === 'color') {
+    backgroundMode = 'solid'
+    backgroundHex = bg.value
+  } else if (bg.type === 'gradient') {
+    backgroundMode = 'gradient'
+    backgroundHex = bg.value.stops[0]?.color ?? '#000000'
+    backgroundGradient = { kind: 'linear', angleDeg: bg.value.angleDeg, stops: bg.value.stops }
+  } else {
+    backgroundMode = 'solid'
+    backgroundHex = '#000000'
+  }
+
+  const designObjects: unknown[] = []
+  const fabricObjects: unknown[] = []
+  let zIdx = 0
+
+  const COMMON = {
+    version: '7.2.0', stroke: null, strokeWidth: 1, strokeDashArray: null,
+    strokeLineCap: 'butt', strokeDashOffset: 0, strokeLineJoin: 'miter',
+    strokeUniform: false, strokeMiterLimit: 4, angle: 0, flipX: false, flipY: false,
+    opacity: 1, shadow: null, visible: true, backgroundColor: '', fillRule: 'nonzero',
+    paintFirst: 'fill', globalCompositeOperation: 'source-over', skewX: 0, skewY: 0,
+  }
+
+  // Text layers first (lower z-index)
+  for (let pi = 0; pi < sessionList.length; pi++) {
+    const offset = pi * (preset.width + PANEL_GAP)
+    for (const layer of sessionList[pi]!.layers) {
+      if (layer.kind !== 'text') continue
+      const uuid = randomUUID()
+      designObjects.push({ id: uuid, kind: 'text', name: `Text · P${pi + 1}`, zIndex: zIdx })
+      fabricObjects.push({
+        ...COMMON,
+        type: 'Textbox', originX: 'center', originY: 'center', scaleX: 1, scaleY: 1,
+        left: Math.round(layer.x + layer.width / 2) + offset,
+        top: Math.round(layer.y + layer.height / 2),
+        width: layer.width, height: layer.height, fill: layer.color,
+        strokeWidth: 1,
+        fontSize: layer.size, fontWeight: layer.weight, fontFamily: layer.font,
+        fontStyle: 'normal', lineHeight: 1.16, text: layer.content, charSpacing: 0,
+        textAlign: layer.align, styles: [], pathStartOffset: 0, pathSide: 'left',
+        pathAlign: 'baseline', underline: false, overline: false, linethrough: false,
+        textBackgroundColor: '', direction: 'ltr',
+        textDecorationThickness: Math.round(layer.size * 0.667 * 100) / 100,
+        minWidth: 20, splitByGrapheme: false, appObjectId: uuid, zIndex: zIdx,
+      })
+      zIdx++
+    }
+  }
+
+  // Device layers on top
+  for (let pi = 0; pi < sessionList.length; pi++) {
+    const offset = pi * (preset.width + PANEL_GAP)
+    for (const layer of sessionList[pi]!.layers) {
+      if (layer.kind !== 'device_frame') continue
+      const uuid = randomUUID()
+      const clipPath = {
+        type: 'Path', version: '7.2.0', originX: 'center', originY: 'center',
+        left: 0, top: 0, absolutePositioned: false, inverted: false,
+        path: buildScreenHolePath(layer.corners, layer.clipRadii, layer.viewWidth, layer.viewHeight),
+      }
+      const screenshotChild = {
+        ...COMMON, strokeWidth: 0, type: 'Image', originX: 'center', originY: 'center',
+        left: 0, top: 0, width: layer.viewWidth, height: layer.viewHeight,
+        fill: 'rgb(0,0,0)', scaleX: 1, scaleY: 1, cropX: 0, cropY: 0,
+        clipPath, src: preset.placeholder, crossOrigin: 'anonymous', filters: [],
+      }
+      const frameChild = {
+        ...COMMON, strokeWidth: 0, type: 'Image', originX: 'left', originY: 'top',
+        left: -(layer.viewWidth / 2), top: -(layer.viewHeight / 2),
+        width: layer.viewWidth, height: layer.viewHeight,
+        fill: 'rgb(0,0,0)', scaleX: 1, scaleY: 1, cropX: 0, cropY: 0,
+        src: `http://localhost:4713${layer.framePath}`, crossOrigin: 'anonymous', filters: [],
+      }
+      designObjects.push({
+        id: uuid, kind: 'device', name: `Device · P${pi + 1}`, zIndex: zIdx,
+        deviceFrameStyleId: layer.frameName, deviceFramePackId: layer.packId,
+      })
+      fabricObjects.push({
+        ...COMMON, strokeWidth: 0, type: 'Group', subTargetCheck: false, interactive: false,
+        originX: 'center', originY: 'center',
+        left: Math.round(layer.x + layer.width / 2) + offset,
+        top: Math.round(layer.y + layer.height / 2),
+        width: layer.viewWidth, height: layer.viewHeight,
+        fill: 'rgb(0,0,0)', scaleX: layer.scale, scaleY: layer.scale,
+        layoutManager: { type: 'layoutManager', strategy: 'fixed' },
+        objects: [screenshotChild, frameChild], appObjectId: uuid, zIndex: zIdx,
+      })
+      zIdx++
+    }
+  }
+
+  fabricObjects.sort((a, b) => (a as { zIndex: number }).zIndex - (b as { zIndex: number }).zIndex)
+
+  const doc = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    design: {
+      config: {
+        artboardPresetId: presetId,
+        screens: sessionList.length,
+        gap: PANEL_GAP,
+        background: backgroundHex,
+        backgroundMode,
+        backgroundGradient,
+        backgroundImageUrl: null,
+        showLayerNames: false,
+      },
+      objects: designObjects,
+      canvasZoom: 0.2,
+    },
+    fabricObjects,
+  }
+
+  const filename = `display_${preset.displaySlug}.json`
+  await fs.mkdir(datasourceDir, { recursive: true })
+  await fs.writeFile(path.join(datasourceDir, filename), JSON.stringify(doc, null, 2), 'utf8')
+  return { file: filename }
 }
