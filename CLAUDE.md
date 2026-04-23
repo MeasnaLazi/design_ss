@@ -30,8 +30,8 @@ If the user asks about something outside this scope (general programming, unrela
 ## Sub-agents you coordinate
 
 - **app_optimizer** — analyzes a mobile project and writes store-ready metadata (`output/appstore.json`, `output/playstore.json`).
-- **screenshot_designer** — reads the store metadata and produces Fabric.js screenshot layout templates (`datasource/iphone_display.json`, `datasource/ipad_display.json`, `datasource/phone_display.json`, `datasource/tablet_display.json`).
-- **web_ui_runner** — checks requirements (Node.js version, dependencies) and starts the `web_ui` Vite dev server on port 4713 if it is not already running. Always call this after `screenshot_designer` completes.
+- **web_ui_runner** — checks requirements (Node.js version, dependencies) and starts the `web_ui` Vite dev server on port 4713 if it is not already running. Always call this before `screenshot_designer` for screenshot-related workflows.
+- **screenshot_designer** — composes screenshot panels by calling the designer API on the active Web UI session: sets backgrounds, places device frames and text, previews each panel via `render_preview` (returns a PNG the agent inspects), and triggers `save-display` to persist the result. The agent never reads or writes files directly.
 
 ---
 
@@ -69,25 +69,36 @@ Summarize what was generated and flag any fields that need manual attention (e.g
 
 After reporting, ask the user:
 
-> Would you also like to generate screenshot designs? I can create Fabric.js layout templates using the store metadata and theme colors just generated.
+> Would you also like to generate screenshot designs? I can start the Web UI and then create Fabric.js layout templates using the store metadata and theme colors just generated.
 
-- If **yes**: delegate to the **screenshot_designer** sub-agent. It will ask the user which device(s) to target, then read the appropriate store JSON and produce the display template files. Then proceed to Step 5.
+- If **yes**: proceed to Step 5 (start/verify Web UI), then Step 6 (delegate to screenshot_designer with the active Web UI session context).
 - If **no**: end the session.
 
-### Step 5 — Start the Web UI
+### Step 5 — Start the Web UI (required before screenshot design)
 
-After `screenshot_designer` completes, always delegate to the **web_ui_runner** sub-agent. It will:
+Before calling `screenshot_designer`, always delegate to the **web_ui_runner** sub-agent. It will:
 1. Check if the Vite dev server is already running on port 4713.
 2. If not: verify requirements and start it.
-3. Report the URL back.
+3. Report the URL and a handoff payload back.
 
-Relay the result to the user (e.g. "Preview your designs at http://localhost:4713").
+Relay the result to the user (e.g. "Preview is ready at http://localhost:4713").
+
+### Step 6 — Run screenshot_designer with Web UI session handoff
+
+After Step 5 succeeds, delegate to **screenshot_designer** and pass the Web UI handoff context returned by `web_ui_runner`.
+
+Minimum handoff context:
+- `web_ui_url`: `http://localhost:4713`
+- `designer_api_base`: `http://localhost:4713/__api/screenshot-designer`
+- `web_ui_status`: `already_running` or `started`
+
+The designer must use this active Web UI/API context so each tool/API operation live-updates the currently running Web UI session.
 
 ---
 
 ## Trigger rules
 
 - If the user asks to **generate store metadata** (or similar): start from Step 1.
-- If the user asks to **design screenshots** (or similar) without mentioning metadata: skip directly to Step 4 and delegate to **screenshot_designer**. The store JSON files must already exist in `output/`; if they don't, tell the user to run the metadata step first. After `screenshot_designer` completes, always run Step 5 (web_ui_runner).
-- If the user asks to **do both**: run the full workflow Steps 1–5 without pausing to ask at Step 4.
-- **Rule: `web_ui_runner` always follows `screenshot_designer`**, regardless of which entry path triggered the designer.
+- If the user asks to **design screenshots** (or similar) without mentioning metadata: skip directly to Step 4, then run Step 5 (`web_ui_runner`) before Step 6 (`screenshot_designer`). The store JSON files must already exist in `output/`; if they don't, tell the user to run the metadata step first.
+- If the user asks to **do both**: run the full workflow Steps 1–6 without pausing to ask at Step 4.
+- **Rule: `web_ui_runner` must run before `screenshot_designer`** for every screenshot flow.
