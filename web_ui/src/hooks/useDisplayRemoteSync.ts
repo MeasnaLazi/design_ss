@@ -5,7 +5,8 @@ import { reloadDisplayFromDatasource } from '../lib/reloadDisplayFromDatasource'
 import { useDesignStore } from '../store/useDesignStore'
 
 /**
- * Subscribes to server push when `display_<slug>.json` is updated (agent execute, save-display, or PUT).
+ * Subscribes to server push when `display_<slug>.json` is updated (save-display, PUT, or legacy writes).
+ * Client-authoritative agent edits use {@link useAgentCommandSync} and do not touch disk until Save.
  * Reloads the canvas in-place without a full page refresh.
  */
 export function useDisplayRemoteSync(): void {

@@ -16,20 +16,44 @@ import { useDesignStore } from '../store/useDesignStore'
 import { useToastStore } from '../store/useToastStore'
 import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 
+export type AddDeviceFrameToCanvasOptions = {
+  /** Pack folder id under `public/device-frames/<id>/`. Defaults to sidebar selection. */
+  packId?: string
+}
+
 /**
  * Adds a phone-style frame (SVG with transparent screen) as a {@link Group} so a screenshot can be inserted behind it later.
+ *
+ * @param styleIdOrOpts - Frame style id (e.g. `front`) or options object when omitting positional style id.
  */
 export async function addDeviceFrameToCanvas(
   canvas: Canvas,
-  styleId: string = DEFAULT_DEVICE_FRAME_STYLE_ID,
+  styleIdOrOpts?: string | AddDeviceFrameToCanvasOptions,
+  maybeOpts?: AddDeviceFrameToCanvasOptions,
 ): Promise<void> {
+  let styleId: string = DEFAULT_DEVICE_FRAME_STYLE_ID
+  let opts: AddDeviceFrameToCanvasOptions | undefined
+  if (typeof styleIdOrOpts === 'string') {
+    styleId = styleIdOrOpts
+    opts = maybeOpts
+  } else if (styleIdOrOpts != null) {
+    opts = styleIdOrOpts
+  }
+
   const packState = useDeviceFramePackStore.getState()
-  const packId = packState.selectedPackId
+  const packId = opts?.packId ?? packState.selectedPackId
   if (!packId || packState.status !== 'ready') {
     useToastStore
       .getState()
       .showToast('Device frames are still loading or no device is selected. Try again in a moment.', 'warning')
     console.warn('[addDeviceFrameToCanvas] device registry not ready or no pack selected')
+    return
+  }
+  if (!packState.devices.some((d) => d.id === packId)) {
+    useToastStore
+      .getState()
+      .showToast(`Unknown device pack "${packId}". Check device-frames index.`, 'warning')
+    console.warn('[addDeviceFrameToCanvas] pack not in registry', packId)
     return
   }
   const styles = activePackStyles(packState.devices, packId)

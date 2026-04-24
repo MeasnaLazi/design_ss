@@ -260,6 +260,58 @@ def designer_execute(
     return _json_request("POST", url, body=body, timeout=timeout)
 
 
+def designer_enqueue_command(
+    base_url: str,
+    operation: str,
+    args: dict[str, Any] | None = None,
+    *,
+    request_id: str | None = None,
+    timeout: float = 120.0,
+) -> dict[str, Any]:
+    """POST ``{base}/enqueue-command`` — delivers to the browser via SSE (client-authoritative ops)."""
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/enqueue-command"
+    body: dict[str, Any] = {"operation": operation, "args": args or {}}
+    if request_id is not None:
+        body["requestId"] = request_id
+    return _json_request("POST", url, body=body, timeout=timeout)
+
+
+def designer_pull_agent_preview(
+    base_url: str,
+    *,
+    timeout: float = 60.0,
+) -> bytes:
+    """GET ``{base}/agent-preview`` — last PNG pushed from the browser (404 if none)."""
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/agent-preview"
+    req = Request(url, headers={"Accept": "image/png,*/*"}, method="GET")
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+        raise DesignerClientError(
+            str(e.reason or e),
+            status_code=e.code,
+            body=err_body,
+            url=url,
+        ) from e
+    except URLError as e:
+        raise DesignerClientError(str(e.reason or e), url=url) from e
+
+
+def designer_pull_agent_export(
+    base_url: str,
+    *,
+    timeout: float = 60.0,
+) -> dict[str, Any]:
+    """GET ``{base}/agent-export`` — last display JSON pushed from the browser (404 if none)."""
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/agent-export"
+    return _json_request("GET", url, timeout=timeout)
+
+
 def designer_save_display(
     base_url: str,
     preset_id: str,

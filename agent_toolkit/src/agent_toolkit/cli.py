@@ -20,7 +20,10 @@ from agent_toolkit import text_metrics as text_metrics_mod
 from agent_toolkit.designer_client import (
     DesignerClientError,
     datasource_display_events_probe,
+    designer_enqueue_command as designer_enqueue_command_http,
     designer_execute as designer_execute_http,
+    designer_pull_agent_export as designer_pull_agent_export_http,
+    designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_save_display as designer_save_display_http,
     designer_session as designer_session_http,
     ensure_publisher_dotenv_loaded,
@@ -255,6 +258,31 @@ def main(argv: list[str] | None = None) -> None:
     ds_exo.add_argument("--timeout", type=float, default=120.0)
     ds_exo.set_defaults(handler=_cmd_designer_execute_op)
 
+    ds_enq = designer_sub.add_parser(
+        "enqueue-op",
+        help="POST .../enqueue-command (runs in open Web UI tab via SSE; same args as execute-op)",
+    )
+    ds_enq.add_argument("--operation", required=True)
+    ds_enq.add_argument("--args-json", default="{}", help='JSON object, e.g. {} or @args.json')
+    ds_enq.add_argument("--request-id", default=None, help="Optional id echoed in SSE payload")
+    ds_enq.add_argument("--timeout", type=float, default=120.0)
+    ds_enq.set_defaults(handler=_cmd_designer_enqueue_op)
+
+    ds_pv = designer_sub.add_parser(
+        "pull-preview",
+        help="GET .../agent-preview (PNG bytes last pushed from browser; optional --out path)",
+    )
+    ds_pv.add_argument("--out", type=Path, default=None, help="Write PNG to this path")
+    ds_pv.add_argument("--timeout", type=float, default=60.0)
+    ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
+
+    ds_expt = designer_sub.add_parser(
+        "pull-export",
+        help="GET .../agent-export (JSON last pushed from browser after export_json command)",
+    )
+    ds_expt.add_argument("--timeout", type=float, default=60.0)
+    ds_expt.set_defaults(handler=_cmd_designer_pull_export)
+
     ds_save = designer_sub.add_parser("save-display", help="POST .../save-display {presetId}")
     ds_save.add_argument("--preset-id", required=True)
     ds_save.add_argument("--timeout", type=float, default=120.0)
@@ -318,6 +346,34 @@ def _cmd_designer_execute_op(ns: argparse.Namespace, compact: bool) -> None:
     if not isinstance(args, dict):
         raise ValueError("--args-json must decode to a JSON object")
     out = designer_execute_http(resolve_designer_base_url(), ns.operation, args, timeout=ns.timeout)
+    _json_print(out, compact)
+
+
+def _cmd_designer_enqueue_op(ns: argparse.Namespace, compact: bool) -> None:
+    args = _parse_args_json_payload(ns.args_json)
+    if not isinstance(args, dict):
+        raise ValueError("--args-json must decode to a JSON object")
+    out = designer_enqueue_command_http(
+        resolve_designer_base_url(),
+        ns.operation,
+        args,
+        request_id=ns.request_id,
+        timeout=ns.timeout,
+    )
+    _json_print(out, compact)
+
+
+def _cmd_designer_pull_preview(ns: argparse.Namespace, _compact: bool) -> None:
+    data = designer_pull_agent_preview_http(resolve_designer_base_url(), timeout=ns.timeout)
+    if ns.out is not None:
+        ns.out.write_bytes(data)
+        print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
+    else:
+        sys.stdout.buffer.write(data)
+
+
+def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:
+    out = designer_pull_agent_export_http(resolve_designer_base_url(), timeout=ns.timeout)
     _json_print(out, compact)
 
 

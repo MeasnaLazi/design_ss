@@ -23,9 +23,11 @@ cd agent_toolkit && cp .env.example .env   # once
 python -m agent_toolkit designer handoff                    # { ok, handoff { web_ui_url, designer_api_base, web_ui_status }, session }
 python -m agent_toolkit designer session
 python -m agent_toolkit designer display-events --slug iphone
-python -m agent_toolkit designer execute --json execute.json
-python -m agent_toolkit designer execute-op --operation render_workspace_preview --args-json "{}"
+python -m agent_toolkit designer execute --json execute.json          # noop only; layout ops use enqueue-op
 python -m agent_toolkit designer execute-op --operation noop --args-json "{}"
+python -m agent_toolkit designer enqueue-op --operation add_device_frame --args-json '{"path":"/device-frames/iphone_12_pro/frame/front.svg","frame":"front"}'
+python -m agent_toolkit designer pull-preview --out /tmp/agent.png    # after Web UI “Agent PNG” or enqueue render_preview
+python -m agent_toolkit designer pull-export                        # after Web UI “Agent JSON” or enqueue export_json
 python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait
 ```
 

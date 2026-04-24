@@ -14,9 +14,15 @@ import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboard
 const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 import {
   getScreenshotDesignerSession,
+  resolveDesignerDisplaySlugFromHints,
   screenshotDesignerExecuteOperation,
   saveDisplayDocument,
 } from './screenshot-designer-server'
+
+const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
+const AGENT_EXPORT_FILENAME = '.agent_last_export.json'
+const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
+const MAX_AGENT_EXPORT_BYTES = 12 * 1024 * 1024
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -344,6 +350,8 @@ export function datasourceApiPlugin(): Plugin {
   const webUiRoot = path.dirname(fileURLToPath(import.meta.url))
   const displayUpdateEvents = new EventEmitter()
   displayUpdateEvents.setMaxListeners(200)
+  const commandUpdateEvents = new EventEmitter()
+  commandUpdateEvents.setMaxListeners(200)
 
   const notifyDisplayWritten = (slug: string, savedAt: string): void => {
     displayUpdateEvents.emit('update', { slug, savedAt })
@@ -532,6 +540,187 @@ export function datasourceApiPlugin(): Plugin {
           } catch (e: unknown) {
             const err = e as Error
             nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/command-events' && req.method === 'GET') {
+          const u = new URL(req.url ?? '/', 'http://vite.datasource')
+          const slug = u.searchParams.get('slug') ?? ''
+          if (!isDisplayFileSlug(slug)) {
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: 'invalid_display_slug' }))
+            return
+          }
+          nodeRes.writeHead(200, {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-store, no-transform',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
+          })
+          nodeRes.write(`data: ${JSON.stringify({ type: 'hello', slug })}\n\n`)
+          const listener = (payload: {
+            operation: string
+            args: Record<string, unknown>
+            requestId?: string
+          }) => {
+            try {
+              nodeRes.write(
+                `data: ${JSON.stringify({
+                  type: 'agent_command',
+                  slug,
+                  operation: payload.operation,
+                  args: payload.args,
+                  requestId: payload.requestId,
+                })}\n\n`,
+              )
+            } catch {
+              /* client disconnected */
+            }
+          }
+          commandUpdateEvents.on(slug, listener)
+          const detach = (): void => {
+            commandUpdateEvents.off(slug, listener)
+          }
+          req.on('close', detach)
+          res.on('close', detach)
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/enqueue-command' && req.method === 'POST') {
+          try {
+            const body = await readBody(req as IncomingMessage)
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            const operation = String(parsed.operation ?? '')
+            const args =
+              typeof parsed.args === 'object' && parsed.args !== null
+                ? (parsed.args as Record<string, unknown>)
+                : {}
+            const requestId = typeof parsed.requestId === 'string' ? parsed.requestId : undefined
+            if (!operation) {
+              nodeRes.statusCode = 400
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'missing_operation' }))
+              return
+            }
+            const h = designerHintsFromRequest(req as IncomingMessage)
+            const slug = resolveDesignerDisplaySlugFromHints(h)
+            if (commandUpdateEvents.listenerCount(slug) === 0) {
+              nodeRes.statusCode = 503
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(
+                JSON.stringify({
+                  ok: false,
+                  error: 'no_subscribers',
+                  slug,
+                  message:
+                    'No browser tab is listening for this display slug. Open the Web UI with the matching artboard preset.',
+                }),
+              )
+              return
+            }
+            commandUpdateEvents.emit(slug, { operation, args, requestId })
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, slug, operation, requestId: requestId ?? null }))
+          } catch (e: unknown) {
+            const err = e as Error
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        const agentPreviewPath = path.join(datasourceDir, AGENT_PREVIEW_FILENAME)
+        const agentExportPath = path.join(datasourceDir, AGENT_EXPORT_FILENAME)
+
+        if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'POST') {
+          try {
+            const chunks: Buffer[] = []
+            await new Promise<void>((resolve, reject) => {
+              req.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
+              req.on('end', () => resolve())
+              req.on('error', reject)
+            })
+            const buf = Buffer.concat(chunks)
+            if (buf.length === 0 || buf.length > MAX_AGENT_PREVIEW_BYTES) {
+              sendJson(nodeRes, 400, { error: 'invalid_body_size' })
+              return
+            }
+            if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
+              sendJson(nodeRes, 400, { error: 'expected_png_magic' })
+              return
+            }
+            await fs.writeFile(agentPreviewPath, buf)
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, bytes: buf.length }))
+          } catch (e: unknown) {
+            const err = e as Error
+            sendJson(nodeRes, 500, { error: String(err?.message ?? e) })
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'GET') {
+          try {
+            const buf = await fs.readFile(agentPreviewPath)
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'image/png')
+            nodeRes.setHeader('Cache-Control', 'no-store')
+            nodeRes.end(buf)
+          } catch (e: unknown) {
+            const err = e as NodeJS.ErrnoException
+            if (err.code === 'ENOENT') {
+              nodeRes.statusCode = 404
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'no_preview_yet' }))
+              return
+            }
+            nodeRes.statusCode = 500
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/agent-export' && req.method === 'POST') {
+          try {
+            const body = await readBody(req as IncomingMessage)
+            if (body.length > MAX_AGENT_EXPORT_BYTES) {
+              sendJson(nodeRes, 400, { error: 'body_too_large' })
+              return
+            }
+            JSON.parse(body)
+            await fs.writeFile(agentExportPath, body, 'utf8')
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, bytes: Buffer.byteLength(body, 'utf8') }))
+          } catch (e: unknown) {
+            const err = e as Error
+            sendJson(nodeRes, 400, { error: String(err?.message ?? e) })
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/agent-export' && req.method === 'GET') {
+          try {
+            const text = await fs.readFile(agentExportPath, 'utf8')
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(text)
+          } catch (e: unknown) {
+            const err = e as NodeJS.ErrnoException
+            if (err.code === 'ENOENT') {
+              nodeRes.statusCode = 404
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'no_export_yet' }))
+              return
+            }
+            nodeRes.statusCode = 500
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
           }

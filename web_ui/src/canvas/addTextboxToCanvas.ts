@@ -18,6 +18,10 @@ export type AddTextboxToCanvasOptions = {
   top?: number
   fontSize?: number
   width?: number
+  /** Text fill (hex). */
+  fill?: string
+  /** CSS font family (e.g. Inter). */
+  fontFamily?: string
   /** Apply text style quick presets (layer name, size, weight, width, sample copy). */
   preset?: TextStylePresetId
   /** Overrides preset when set explicitly */
@@ -54,8 +58,8 @@ export function addTextboxToCanvas(
     top,
     width,
     fontSize,
-    fill: '#f4f4f5',
-    fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+    fill: options?.fill ?? '#f4f4f5',
+    fontFamily: options?.fontFamily ?? DEFAULT_TEXT_FONT_FAMILY,
     fontWeight,
     fontStyle,
     textAlign,

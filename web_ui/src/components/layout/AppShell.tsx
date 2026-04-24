@@ -4,6 +4,7 @@ import { useArrowNudgeLayerHotkeys } from '../../hooks/useArrowNudgeLayerHotkeys
 import { useCustomFontStore } from '../../store/useCustomFontStore'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
+import { useAgentCommandSync } from '../../hooks/useAgentCommandSync'
 import { useDisplayRemoteSync } from '../../hooks/useDisplayRemoteSync'
 import { useArtboardUrlQuerySync } from '../../hooks/useArtboardUrlQuerySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
@@ -35,6 +36,7 @@ export function AppShell() {
   useDesignHistoryRecorder()
   useArtboardPresetDisplaySync()
   useDisplayRemoteSync()
+  useAgentCommandSync()
   useArtboardUrlQuerySync()
 
   return (
