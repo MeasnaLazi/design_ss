@@ -23,7 +23,7 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 | **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
 | **Web UI API toolkit** | `python -m agent_toolkit designer …` — `session`, **`enqueue-op`** (layout ops in the browser), **`pull-preview`** / **`pull-export`**, **`save-display`** | **Yes** (running **`web_ui`**, same instance as **`handoff`**) |
 
-**Durable state** is **`datasource/display_<slug>.json`** after the user clicks **Save** or you run **`save-display`**. **`enqueue-op`** applies edits **in the open browser tab** (same Fabric logic as the UI) and does **not** write JSON until Save. **`pull-preview`** / **`pull-export`** read the last PNG / display JSON the browser pushed for the agent. The Web UI reloads from disk via **SSE** `display_updated` (`GET /__api/datasource/display-events?slug=…`) or toolbar **Reload** when the file actually changes. Use **`designer enqueue-op`** for layout mutations; use the **layout** CLI to plan coordinates and inspect PNGs. Do **not** hand-edit display JSON — use **`save-display`** (or the UI Save) to persist.
+**Durable state** is **`datasource/display_<slug>.json`** after the user clicks **Save** or you run **`save-display`**. **`enqueue-op`** applies edits **in the open browser tab** (same Fabric logic as the UI) and does **not** write JSON until Save. **`pull-preview`** / **`pull-export`** read the last PNG / compact **layout summary** JSON the browser pushed for the agent (not the full `display_*.json` on disk). The Web UI reloads from disk via **SSE** `display_updated` (`GET /__api/datasource/display-events?slug=…`) or toolbar **Reload** when the file actually changes. Use **`designer enqueue-op`** for layout mutations; use the **layout** CLI to plan coordinates and inspect PNGs. Do **not** hand-edit display JSON — use **`save-display`** (or the UI Save) to persist.
 
 ---
 
@@ -149,7 +149,7 @@ Requires **`web_ui`(**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). R
 | **Enqueue layout op** (runs in open Web UI tab via SSE) | `python -m agent_toolkit designer enqueue-op --operation <op> --args-json '{…}'` |
 | **Execute** (noop / legacy) | `python -m agent_toolkit designer execute-op --operation noop --args-json "{}"` |
 | **Pull last agent PNG** (after toolbar “Agent PNG” or `enqueue-op render_preview`) | `python -m agent_toolkit designer pull-preview --out preview.png` |
-| **Pull last agent JSON** (after toolbar “Agent JSON” or `enqueue-op export_json`) | `python -m agent_toolkit designer pull-export` |
+| **Pull last layout summary** (after `enqueue-op export_json`) | `python -m agent_toolkit designer pull-export` |
 | **Save display** | `python -m agent_toolkit designer save-display --preset-id <presetId>` |
 
 **Always** use these **`designer …`** commands (HTTP via **`agent_toolkit.designer_client`**). **Do not** use **`curl`**, **wget**, or ad‑hoc HTTP for these endpoints.
@@ -196,13 +196,13 @@ All `x` / `y` coordinates must be multiples of 16.
 { "operation": "set_background", "args": { "type": "gradient", "value": { "angleDeg": 135, "stops": [{ "offset": 0, "color": "#0c1a2e" }, { "offset": 1, "color": "#2b5c8a" }] } } }
 ```
 
-**`add_device_frame`** — applied in-browser; response is `{ "ok": true, "slug", "operation" }` from enqueue (no `layer_id`; use **Agent JSON** export if you need ids).
+**`add_device_frame`** — applied in-browser; response is `{ "ok": true, "slug", "operation" }` from enqueue (no `layer_id` in the response; run **`export_json`** then **`pull-export`** to read `layer_id` / `layer_name` from the layout summary).
 ```json
 { "operation": "add_device_frame", "args": { "path": "/device-frames/iphone_12_pro/frame/front.svg", "frame": "front" } }
 ```
 `path` (for pack id) and `frame` come from Step 0c. Sizing matches the interactive **Add device** action (centered, `deviceFrameTargetWidth`).
 
-**`add_text`** — returns `{ "layer_id": "<uuid>" }`
+**`add_text`** — enqueue does not return ids; run **`export_json`** then **`pull-export`** to read the new text layer’s **`layer_id`** / **`layer_name`** from the layout summary.
 ```json
 { "operation": "add_text", "args": { "content": "Stay Focused", "x": 64, "y": 128, "font": "headline", "size": 96, "color": "#ffffff", "align": "center", "weight": "700" } }
 ```
@@ -215,7 +215,7 @@ All `x` / `y` coordinates must be multiples of 16.
 `anchor`: `center_x` | `center_y` | `top` | `bottom` | `left` | `right`
 `reference`: `"canvas"` or another `layer_id`
 
-**Text layer tweaks** (Fabric `Textbox`; use **`export_json`** / **Agent JSON** for `layer_id` values)
+**Text layer tweaks** (Fabric `Textbox`; use **`export_json`** + **`pull-export`** for `layer_id` / `layer_name` in the layout summary)
 
 **`text_font_size_delta`** — add pixels to current size (clamped 8–400, same range as the text toolbar).
 ```json
@@ -238,7 +238,7 @@ All `x` / `y` coordinates must be multiples of 16.
 { "operation": "text_set_color", "args": { "layer_id": "<uuid>", "color": "#ffffff" } }
 ```
 
-**Device frame layer tweaks** (device `Group` from **`add_device_frame`**; resolve `layer_id` from **Agent JSON**)
+**Device frame layer tweaks** (device `Group` from **`add_device_frame`**; resolve `layer_id` from the layout summary via **`export_json`** + **`pull-export`**)
 
 **`device_size_delta`** — grow or shrink uniformly by changing scaled width by `delta_px` px (aspect preserved; min width 80px; max ≈ 3× artboard width). Alias: `delta`.
 ```json
@@ -268,7 +268,7 @@ All `x` / `y` coordinates must be multiples of 16.
 
 Then: **`python -m agent_toolkit designer pull-preview --out preview.png`**. Prefer toolbar **Agent PNG** when driving the UI manually.
 
-**`export_json`** — pushes the current display document JSON for **`designer pull-export`** (toolbar **Agent JSON**).
+**`export_json`** — pushes a compact **layout summary** (not full Fabric / display document) for **`designer pull-export`**. Includes `layoutSummaryVersion`, `canvas`, `layout` (preset id, screens, gap), `background`, and **`layers`** sorted by `zIndex`. Each layer has **`layer_id`**, **`layer_name`**, **`kind`**, geometry (`left`, `top`, `width`, `height`, `angle`, `scaleX`, `scaleY`), and kind-specific fields: **`text`** → `text`, `fontSize`, `fill`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`; **`device`** → `device_frame_style_id`, `device_frame_pack_id`. Missing canvas objects appear with zero size. Full persistence remains **`save-display`** / browser **Save** → `datasource/display_<slug>.json`.
 
 ```json
 { "operation": "export_json", "args": {} }
@@ -406,7 +406,7 @@ Coordinates are **global** on the continuous strip: panel **i** (0-based) has **
 **5c — Preview and refine**
 
 - **Whole canvas PNG:** `python -m agent_toolkit designer enqueue-op --operation render_preview --args-json "{}"` then `python -m agent_toolkit designer pull-preview --out strip.png` — verify **device frame continuity**, **vertical rhythm**, and **story flow** across **all** panels.
-- **Quality heuristics:** run **`layout predict-checks`** on a JSON snapshot from **`pull-export`** (or export session JSON via layout tools), plus **`layout image info`**, **`layout contrast`**, etc.
+- **Quality heuristics:** run **`layout predict-checks`** on a session JSON you derive from **`pull-export`** layout summary (or from layout tools), plus **`layout image info`**, **`layout contrast`**, etc.
 
 View images with `layout image info --path strip.png`. Check:
 - **Strip:** Do all panels feel like one branded workspace? Same device family and coherent scale?

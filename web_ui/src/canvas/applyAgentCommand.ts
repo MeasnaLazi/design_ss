@@ -3,7 +3,7 @@ import { ActiveSelection, Group, Textbox } from 'fabric'
 
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
-import { buildDisplayDocumentFromCanvas } from './serializeDisplayDocument'
+import { buildAgentLayoutSummaryFromCanvas } from './buildAgentLayoutSummary'
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { pushAgentExportJson, pushLiveCanvasPreview } from '../lib/agentContextApi'
@@ -404,9 +404,9 @@ export async function applyAgentCommand(
     }
 
     case 'export_json': {
-      const doc = buildDisplayDocumentFromCanvas(canvas)
-      await pushAgentExportJson(doc)
-      useToastStore.getState().showToast('Design JSON pushed for agent (pull-export).', 'success')
+      const summary = buildAgentLayoutSummaryFromCanvas(canvas)
+      await pushAgentExportJson(summary)
+      useToastStore.getState().showToast('Layout summary pushed for agent (pull-export).', 'success')
       return
     }
 

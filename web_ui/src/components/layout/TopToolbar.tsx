@@ -1,7 +1,6 @@
 import {
   Camera,
   Download,
-  FileJson,
   LayoutTemplate,
   Redo2,
   RefreshCw,
@@ -27,8 +26,7 @@ import {
   getArtboardDimensionsFromConfig,
 } from '../../constants/artboardPresets'
 import { reloadDisplayFromDatasource } from '../../lib/reloadDisplayFromDatasource'
-import { pushAgentExportJson, pushLiveCanvasPreview } from '../../lib/agentContextApi'
-import { buildDisplayDocumentFromCanvas } from '../../canvas/serializeDisplayDocument'
+import { pushLiveCanvasPreview } from '../../lib/agentContextApi'
 import { saveDisplayToDatasource } from '../../lib/saveDisplayToDatasource'
 import { useDesignStore } from '../../store/useDesignStore'
 import { useToastStore } from '../../store/useToastStore'
@@ -51,23 +49,6 @@ export function TopToolbar() {
     } catch (e) {
       console.error('[TopToolbar] agent preview push failed', e)
       showToast('Could not push preview — is the dev server running?', 'error')
-    }
-  }
-
-  const handlePushAgentExport = async () => {
-    const canvas = useDesignStore.getState().fabricCanvas
-    const { showToast } = useToastStore.getState()
-    if (!canvas) {
-      showToast('Canvas not ready.', 'warning')
-      return
-    }
-    try {
-      const doc = buildDisplayDocumentFromCanvas(canvas)
-      await pushAgentExportJson(doc)
-      showToast('Display JSON pushed for agent (designer pull-export).', 'success')
-    } catch (e) {
-      console.error('[TopToolbar] agent export push failed', e)
-      showToast('Could not push export JSON.', 'error')
     }
   }
 
@@ -211,15 +192,6 @@ export function TopToolbar() {
         >
           <Camera className="size-3.5 shrink-0" aria-hidden />
           <span className="hidden lg:inline">Agent PNG</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => void handlePushAgentExport()}
-          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
-          title="Push display JSON for the agent (GET pull-export)"
-        >
-          <FileJson className="size-3.5 shrink-0" aria-hidden />
-          <span className="hidden lg:inline">Agent JSON</span>
         </button>
       </div>
     </header>

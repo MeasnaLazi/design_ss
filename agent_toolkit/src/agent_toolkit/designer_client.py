@@ -306,7 +306,7 @@ def designer_pull_agent_export(
     *,
     timeout: float = 60.0,
 ) -> dict[str, Any]:
-    """GET ``{base}/agent-export`` — last display JSON pushed from the browser (404 if none)."""
+    """GET ``{base}/agent-export`` — last layout summary JSON pushed from the browser (404 if none)."""
     base = validate_designer_base_url(base_url)
     url = f"{base}/agent-export"
     return _json_request("GET", url, timeout=timeout)

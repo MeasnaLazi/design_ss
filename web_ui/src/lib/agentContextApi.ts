@@ -34,11 +34,12 @@ export async function pushLiveCanvasPreview(
   await pushAgentPreviewBlob(blob)
 }
 
-export async function pushAgentExportJson(doc: unknown): Promise<void> {
+/** POST latest compact layout summary for agent pull-export (see `buildAgentLayoutSummaryFromCanvas`). */
+export async function pushAgentExportJson(payload: unknown): Promise<void> {
   const res = await fetch(AGENT_EXPORT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(doc),
+    body: JSON.stringify(payload),
   })
   const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
   if (!res.ok) {

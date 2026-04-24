@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> None:
 
     ds_expt = designer_sub.add_parser(
         "pull-export",
-        help="GET .../agent-export (JSON last pushed from browser after export_json command)",
+        help="GET .../agent-export (layout summary JSON last pushed after export_json)",
     )
     ds_expt.add_argument("--timeout", type=float, default=60.0)
     ds_expt.set_defaults(handler=_cmd_designer_pull_export)
