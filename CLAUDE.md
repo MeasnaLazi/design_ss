@@ -30,8 +30,8 @@ If the user asks about something outside this scope (general programming, unrela
 ## Sub-agents you coordinate
 
 - **app_optimizer** — analyzes a mobile project and writes store-ready metadata (`output/appstore.json`, `output/playstore.json`).
-- **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed (or use **`npm run prod`** in `web_ui` for a built preview with the same `/__api` routes). Always call this before `screenshot_designer` for screenshot-related workflows.
-- **screenshot_designer** — composes screenshot panels through the screenshot-designer HTTP API against **`datasource/display_*.json`** (same source of truth as the Fabric canvas). Mutations persist to disk; an open browser syncs via **SSE** (`/__api/datasource/display-events`) or the in-app **Reload** control — there is no full-page reload on file writes. Store metadata and device-frame inputs are read from the repo as documented in `.claude/agents/screenshot_designer.md`. Local **layout** math, quality prediction, device-pack helpers, and optional **designer** HTTP scripting use the **`agent_toolkit`** package (`pip install -e ./agent_toolkit`; same doc).
+- **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed (or use **`npm run prod`** in `web_ui` for a built preview that still hosts the Web UI the toolkit talks to). Always call this before `screenshot_designer` for screenshot-related workflows.
+- **screenshot_designer** — composes **multi-panel** screenshot workspaces (horizontal Fabric storyboard strip) using the **`agent_toolkit`** CLIs (**`layout`** for grid, store JSON, device packs, previews-as-data helpers; **`designer`** for `handoff`, `session`, `execute`, `save-display`, and preview ops) while **`web_ui`** is running. It works **workspace-first** (whole-strip rhythm, one device pack and consistent framing across panels), then refines each panel; when store metadata has enough entries, target **at least five** side-by-side panels (if the strip is still single-column, have the user raise **Screens / panel count** in the Web UI before deep layout work). Use **`pip install -e ./agent_toolkit`**; full workflow, persistence, and refresh behavior are in **`.claude/agents/screenshot_designer.md`**.
 
 ---
 
@@ -80,20 +80,13 @@ Before calling `screenshot_designer`, always delegate to the **toolkit_runner** 
 1. Ensure **Python 3.11+** and **`agent_toolkit`** are installed (`pip install -e ./agent_toolkit` from publisher root) for layout CLI helpers.
 2. Check if the Vite dev server is already running on port 4713.
 3. If not: verify Node/npm requirements and start it.
-4. Report the URL and a handoff payload back.
+4. Report the Web UI URL and confirm **`agent_toolkit`** is usable (the **`screenshot_designer`** sub-agent will run **`python -m agent_toolkit designer handoff`** against the same running **`web_ui`**).
 
 Relay the result to the user (e.g. "Preview is ready at http://localhost:4713").
 
-### Step 6 — Run screenshot_designer with Web UI session handoff
+### Step 6 — Run screenshot_designer with toolkit + Web UI
 
-After Step 5 succeeds, delegate to **screenshot_designer** and pass the Web UI handoff context returned by `toolkit_runner`.
-
-Minimum handoff context:
-- `web_ui_url`: `http://localhost:4713`
-- `designer_api_base`: `http://localhost:4713/__api/screenshot-designer`
-- `web_ui_status`: `already_running` or `started`
-
-The designer must use this active Web UI/API context so each `execute` / `save-display` call updates **`datasource/display_*.json`**; a browser tab on the same origin picks up changes via SSE or **Reload from datasource** without a full refresh.
+After Step 5 succeeds, delegate to **screenshot_designer** with the same **`web_ui`** instance **`toolkit_runner`** started (or verified). The sub-agent follows **`.claude/agents/screenshot_designer.md`**, using **`python -m agent_toolkit designer handoff`** and then **`designer session`**, **`designer execute`**, **`designer save-display`**, and the preview commands the doc lists. Tell the user to keep the Web UI open on the reported origin so they can see updates and use **Reload** when the doc says to.
 
 ---
 
