@@ -215,6 +215,51 @@ All `x` / `y` coordinates must be multiples of 16.
 `anchor`: `center_x` | `center_y` | `top` | `bottom` | `left` | `right`
 `reference`: `"canvas"` or another `layer_id`
 
+**Text layer tweaks** (Fabric `Textbox`; use **`export_json`** / **Agent JSON** for `layer_id` values)
+
+**`text_font_size_delta`** — add pixels to current size (clamped 8–400, same range as the text toolbar).
+```json
+{ "operation": "text_font_size_delta", "args": { "layer_id": "<uuid>", "delta": -4 } }
+```
+
+**`text_set_font_size`** — absolute font size in px (clamped 8–400).
+```json
+{ "operation": "text_set_font_size", "args": { "layer_id": "<uuid>", "size": 96 } }
+```
+
+**`text_set_font_style`** — matches the text toolbar presets.
+```json
+{ "operation": "text_set_font_style", "args": { "layer_id": "<uuid>", "variant": "regular" } }
+```
+`variant`: `regular` | `bold` | `italic` | `bold_italic`
+
+**`text_set_color`** — hex fill.
+```json
+{ "operation": "text_set_color", "args": { "layer_id": "<uuid>", "color": "#ffffff" } }
+```
+
+**Device frame layer tweaks** (device `Group` from **`add_device_frame`**; resolve `layer_id` from **Agent JSON**)
+
+**`device_size_delta`** — grow or shrink uniformly by changing scaled width by `delta_px` px (aspect preserved; min width 80px; max ≈ 3× artboard width). Alias: `delta`.
+```json
+{ "operation": "device_size_delta", "args": { "layer_id": "<uuid>", "delta_px": 32 } }
+```
+
+**`device_set_position`** — absolute `left` / `top` (snapped to the 16px grid like **`align`**).
+```json
+{ "operation": "device_set_position", "args": { "layer_id": "<uuid>", "x": 400, "y": 1200 } }
+```
+
+**`device_move_delta`** — offset from current position (result snapped to grid).
+```json
+{ "operation": "device_move_delta", "args": { "layer_id": "<uuid>", "dx": 32, "dy": 0 } }
+```
+
+**`device_set_angle`** — rotation in degrees (Fabric `angle`).
+```json
+{ "operation": "device_set_angle", "args": { "layer_id": "<uuid>", "angle": -6 } }
+```
+
 **`render_preview`** / **`render_workspace_preview`** — push a **PNG** of the **live Fabric canvas** for the agent (`pull-preview`). Same in-browser capture for both (full canvas at 2× multiplier).
 
 ```json

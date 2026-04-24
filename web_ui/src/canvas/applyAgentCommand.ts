@@ -1,5 +1,5 @@
-import type { Canvas } from 'fabric'
-import { ActiveSelection } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric'
+import { ActiveSelection, Group, Textbox } from 'fabric'
 
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
@@ -14,6 +14,10 @@ import { useToastStore } from '../store/useToastStore'
 
 const DESIGN_GRID = 16
 
+const TEXT_FONT_SIZE_MIN = 8
+const TEXT_FONT_SIZE_MAX = 400
+const DEVICE_SIZE_MIN_PX = 80
+
 type FontToken = 'headline' | 'subheadline' | 'body' | 'caption'
 
 const FONT_MAP: Record<FontToken, string> = {
@@ -25,6 +29,35 @@ const FONT_MAP: Record<FontToken, string> = {
 
 function snapGrid(n: number): number {
   return Math.round(n / DESIGN_GRID) * DESIGN_GRID
+}
+
+function clampTextFontSize(n: number): number {
+  return Math.min(TEXT_FONT_SIZE_MAX, Math.max(TEXT_FONT_SIZE_MIN, Math.round(n)))
+}
+
+function getTextboxForLayer(canvas: Canvas, layerId: string): Textbox | null {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (rec?.kind !== 'text') return null
+  const obj = findObjectOnCanvasByAppId(canvas, layerId)
+  return obj instanceof Textbox ? obj : null
+}
+
+function getDeviceGroupForLayer(canvas: Canvas, layerId: string): Group | null {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (rec?.kind !== 'device') return null
+  const obj = findObjectOnCanvasByAppId(canvas, layerId)
+  return obj instanceof Group ? obj : null
+}
+
+function fireObjectModified(canvas: Canvas, target: FabricObject) {
+  canvas.fire('object:modified', { target })
+  canvas.requestRenderAll()
+}
+
+function patchTextbox(canvas: Canvas, text: Textbox, patch: Record<string, unknown>) {
+  text.set(patch)
+  text.set('dirty', true)
+  fireObjectModified(canvas, text)
 }
 
 function isHexColor(value: string): boolean {
@@ -197,6 +230,176 @@ export async function applyAgentCommand(
         fontWeight: weight,
         layerName: 'Text',
       })
+      return
+    }
+
+    case 'text_font_size_delta': {
+      const layerId = String(args.layer_id ?? '')
+      const delta = Number(args.delta)
+      if (!layerId || !Number.isFinite(delta)) {
+        useToastStore.getState().showToast('text_font_size_delta: need layer_id and numeric delta.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_font_size_delta: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const cur = text.fontSize ?? 32
+      patchTextbox(canvas, text, { fontSize: clampTextFontSize(cur + delta) })
+      return
+    }
+
+    case 'text_set_font_size': {
+      const layerId = String(args.layer_id ?? '')
+      const size = Number(args.size)
+      if (!layerId || !Number.isFinite(size)) {
+        useToastStore.getState().showToast('text_set_font_size: need layer_id and numeric size.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_set_font_size: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      patchTextbox(canvas, text, { fontSize: clampTextFontSize(size) })
+      return
+    }
+
+    case 'text_set_font_style': {
+      const layerId = String(args.layer_id ?? '')
+      const variant = String(args.variant ?? '')
+      if (!layerId) {
+        useToastStore.getState().showToast('text_set_font_style: missing layer_id.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_set_font_style: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const allowed = ['regular', 'bold', 'italic', 'bold_italic'] as const
+      if (!(allowed as readonly string[]).includes(variant)) {
+        useToastStore.getState().showToast('text_set_font_style: variant must be regular | bold | italic | bold_italic.', 'warning')
+        return
+      }
+      if (variant === 'regular') {
+        patchTextbox(canvas, text, { fontWeight: 'normal', fontStyle: 'normal' })
+      } else if (variant === 'bold') {
+        patchTextbox(canvas, text, { fontWeight: 'bold', fontStyle: 'normal' })
+      } else if (variant === 'italic') {
+        patchTextbox(canvas, text, { fontWeight: 'normal', fontStyle: 'italic' })
+      } else {
+        patchTextbox(canvas, text, { fontWeight: 'bold', fontStyle: 'italic' })
+      }
+      return
+    }
+
+    case 'text_set_color': {
+      const layerId = String(args.layer_id ?? '')
+      const color = String(args.color ?? '').trim()
+      if (!layerId) {
+        useToastStore.getState().showToast('text_set_color: missing layer_id.', 'warning')
+        return
+      }
+      if (!isHexColor(color)) {
+        useToastStore.getState().showToast('text_set_color: color must be hex (#rrggbb).', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_set_color: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      patchTextbox(canvas, text, { fill: color })
+      return
+    }
+
+    case 'device_size_delta': {
+      const layerId = String(args.layer_id ?? '')
+      const rawDelta = args.delta_px ?? args.delta
+      const delta = Number(rawDelta)
+      if (!layerId || !Number.isFinite(delta)) {
+        useToastStore.getState().showToast('device_size_delta: need layer_id and numeric delta_px (or delta).', 'warning')
+        return
+      }
+      const target = getDeviceGroupForLayer(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`device_size_delta: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const cw = target.getScaledWidth()
+      if (cw < 1e-6) return
+      const panelWidth = getArtboardDimensionsFromConfig(useDesignStore.getState().config).width
+      const maxPx = Math.round(panelWidth * 3)
+      let newW = cw + delta
+      if (newW < DEVICE_SIZE_MIN_PX) newW = DEVICE_SIZE_MIN_PX
+      if (newW > maxPx) newW = maxPx
+      const factor = newW / cw
+      const sx = (target.scaleX ?? 1) * factor
+      const sy = (target.scaleY ?? 1) * factor
+      target.set({ scaleX: sx, scaleY: sy })
+      target.setCoords()
+      fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'device_set_position': {
+      const layerId = String(args.layer_id ?? '')
+      const x = Number(args.x)
+      const y = Number(args.y)
+      if (!layerId || !Number.isFinite(x) || !Number.isFinite(y)) {
+        useToastStore.getState().showToast('device_set_position: need layer_id, x, and y.', 'warning')
+        return
+      }
+      const target = getDeviceGroupForLayer(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`device_set_position: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      target.set({ left: snapGrid(x), top: snapGrid(y) })
+      target.setCoords()
+      fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'device_move_delta': {
+      const layerId = String(args.layer_id ?? '')
+      const dx = Number(args.dx)
+      const dy = Number(args.dy)
+      if (!layerId || !Number.isFinite(dx) || !Number.isFinite(dy)) {
+        useToastStore.getState().showToast('device_move_delta: need layer_id, dx, and dy.', 'warning')
+        return
+      }
+      const target = getDeviceGroupForLayer(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`device_move_delta: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      target.set({
+        left: snapGrid((target.left ?? 0) + dx),
+        top: snapGrid((target.top ?? 0) + dy),
+      })
+      target.setCoords()
+      fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'device_set_angle': {
+      const layerId = String(args.layer_id ?? '')
+      const angle = Number(args.angle)
+      if (!layerId || !Number.isFinite(angle)) {
+        useToastStore.getState().showToast('device_set_angle: need layer_id and numeric angle (degrees).', 'warning')
+        return
+      }
+      const target = getDeviceGroupForLayer(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`device_set_angle: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      target.set({ angle })
+      target.setCoords()
+      fireObjectModified(canvas, target)
       return
     }
 
