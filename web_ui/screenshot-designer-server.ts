@@ -154,9 +154,26 @@ export type DesignerExecuteContext = {
   onDisplayWritten?: (info: { slug: string; savedAt: string }) => void
 }
 
+type SlugRenderState = {
+  renderCount: number
+  /** Iterations for `render_workspace_preview` (separate cap from `render_preview`). */
+  workspaceRenderCount: number
+  displayMtimeMs: number
+}
+
 type RenderStateFile = {
   v: 1
-  slugs: Record<string, { renderCount: number; displayMtimeMs: number }>
+  slugs: Record<string, SlugRenderState>
+}
+
+function normalizeSlugRenderState(raw: unknown): SlugRenderState | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const o = raw as Record<string, unknown>
+  const renderCount = typeof o.renderCount === 'number' ? o.renderCount : 0
+  const workspaceRenderCount =
+    typeof o.workspaceRenderCount === 'number' ? o.workspaceRenderCount : 0
+  const displayMtimeMs = typeof o.displayMtimeMs === 'number' ? o.displayMtimeMs : -1
+  return { renderCount, workspaceRenderCount, displayMtimeMs }
 }
 
 function isHexColor(value: string): boolean {
@@ -284,11 +301,17 @@ async function loadFontAsBase64(rootDir: string, fontToken: FontToken): Promise<
   }
 }
 
-async function renderSessionPng(rootDir: string, session: DesignerSession): Promise<Buffer> {
+/** Rasterize session layers onto a bitmap of size `canvasWidth` × `canvasHeight` (preset panel or multi-panel strip). */
+async function renderSessionPngAtSize(
+  rootDir: string,
+  session: DesignerSession,
+  canvasWidth: number,
+  canvasHeight: number,
+): Promise<Buffer> {
   let base = sharp({
     create: {
-      width: session.width,
-      height: session.height,
+      width: canvasWidth,
+      height: canvasHeight,
       channels: 4,
       background: '#000000',
     },
@@ -297,19 +320,19 @@ async function renderSessionPng(rootDir: string, session: DesignerSession): Prom
   if (session.background.type === 'color') {
     base = sharp({
       create: {
-        width: session.width,
-        height: session.height,
+        width: canvasWidth,
+        height: canvasHeight,
         channels: 4,
         background: session.background.value,
       },
     })
   } else if (session.background.type === 'gradient') {
-    const svg = buildGradientBackgroundSvg(session.width, session.height, session.background.value)
+    const svg = buildGradientBackgroundSvg(canvasWidth, canvasHeight, session.background.value)
     base = sharp(Buffer.from(svg))
   } else if (session.background.type === 'image') {
     const full = await resolveImagePath(rootDir, session.background.value)
     const raw = await fs.readFile(full)
-    base = sharp(raw).resize(session.width, session.height, { fit: 'cover' })
+    base = sharp(raw).resize(canvasWidth, canvasHeight, { fit: 'cover' })
   }
 
   const composites: sharp.OverlayOptions[] = []
@@ -363,6 +386,10 @@ async function renderSessionPng(rootDir: string, session: DesignerSession): Prom
   }
 
   return base.composite(composites).png().toBuffer()
+}
+
+async function renderSessionPng(rootDir: string, session: DesignerSession): Promise<Buffer> {
+  return renderSessionPngAtSize(rootDir, session, session.width, session.height)
 }
 
 function createBlankSession(width: number, height: number): DesignerSession {
@@ -431,6 +458,18 @@ async function writeRenderState(datasourceDir: string, s: RenderStateFile): Prom
   await fs.writeFile(path.join(datasourceDir, RENDER_STATE_FILE), JSON.stringify(s, null, 2), 'utf8')
 }
 
+function workspaceStripPixelSize(
+  panelWidth: number,
+  panelHeight: number,
+  screens: number,
+  gap: number,
+): { width: number; height: number } {
+  const s = Math.max(1, Math.floor(screens))
+  const g = Math.max(0, Math.floor(gap))
+  const width = s * panelWidth + Math.max(0, s - 1) * g
+  return { width, height: panelHeight }
+}
+
 async function bumpRenderPreviewIteration(
   datasourceDir: string,
   slug: string,
@@ -444,15 +483,43 @@ async function bumpRenderPreviewIteration(
   }
   const mtime = Math.floor(st.mtimeMs)
   const state = await readRenderState(datasourceDir)
-  const prev = state.slugs[slug]
+  const prevN = normalizeSlugRenderState(state.slugs[slug])
   const renderCount =
-    prev !== undefined && prev.displayMtimeMs === mtime ? prev.renderCount + 1 : 1
+    prevN !== undefined && prevN.displayMtimeMs === mtime ? prevN.renderCount + 1 : 1
   if (renderCount > MAX_ITERATIONS_PER_SCREENSHOT) {
     throw new Error(`Maximum ${MAX_ITERATIONS_PER_SCREENSHOT} render iterations reached`)
   }
-  state.slugs[slug] = { renderCount, displayMtimeMs: mtime }
+  const workspaceRenderCount =
+    prevN !== undefined && prevN.displayMtimeMs === mtime ? prevN.workspaceRenderCount : 0
+  state.slugs[slug] = { renderCount, displayMtimeMs: mtime, workspaceRenderCount }
   await writeRenderState(datasourceDir, state)
   return renderCount
+}
+
+async function bumpWorkspaceRenderPreviewIteration(
+  datasourceDir: string,
+  slug: string,
+  displayFilePath: string,
+): Promise<number> {
+  let st: Awaited<ReturnType<typeof fs.stat>>
+  try {
+    st = await fs.stat(displayFilePath)
+  } catch {
+    throw new Error('display file missing for render_workspace_preview')
+  }
+  const mtime = Math.floor(st.mtimeMs)
+  const state = await readRenderState(datasourceDir)
+  const prevN = normalizeSlugRenderState(state.slugs[slug])
+  const workspaceRenderCount =
+    prevN !== undefined && prevN.displayMtimeMs === mtime ? prevN.workspaceRenderCount + 1 : 1
+  if (workspaceRenderCount > MAX_ITERATIONS_PER_SCREENSHOT) {
+    throw new Error(`Maximum ${MAX_ITERATIONS_PER_SCREENSHOT} workspace render iterations reached`)
+  }
+  const renderCount =
+    prevN !== undefined && prevN.displayMtimeMs === mtime ? prevN.renderCount : 0
+  state.slugs[slug] = { renderCount, displayMtimeMs: mtime, workspaceRenderCount }
+  await writeRenderState(datasourceDir, state)
+  return workspaceRenderCount
 }
 
 async function loadDesignerSessionForPreset(
@@ -891,6 +958,43 @@ export async function screenshotDesignerExecuteOperation(
         image_base64: png.toString('base64'),
         checks,
         iteration,
+      }
+    }
+
+    case 'render_workspace_preview': {
+      try {
+        await fs.stat(loaded.displayPath)
+      } catch {
+        await persistDesignerSession(ctx, resolvedPresetId, session, meta)
+      }
+      const iteration = await bumpWorkspaceRenderPreviewIteration(
+        ctx.datasourceDir,
+        loaded.slug,
+        loaded.displayPath,
+      )
+      const { width: wsW, height: wsH } = workspaceStripPixelSize(
+        session.width,
+        session.height,
+        loaded.screens,
+        loaded.gap,
+      )
+      const png = await renderSessionPngAtSize(ctx.rootDir, session, wsW, wsH)
+      return {
+        ok: true,
+        image_base64: png.toString('base64'),
+        checks: {
+          ok: true,
+          errors: [] as string[],
+          contrastIssues: [] as ContrastIssue[],
+          workspacePreview: true,
+        },
+        iteration,
+        workspaceWidth: wsW,
+        workspaceHeight: wsH,
+        panelWidth: session.width,
+        panelHeight: session.height,
+        screens: loaded.screens,
+        gap: loaded.gap,
       }
     }
 

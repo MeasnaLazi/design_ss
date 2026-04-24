@@ -24,6 +24,7 @@ python -m agent_toolkit designer handoff                    # { ok, handoff { we
 python -m agent_toolkit designer session
 python -m agent_toolkit designer display-events --slug iphone
 python -m agent_toolkit designer execute --json execute.json
+python -m agent_toolkit designer execute-op --operation render_workspace_preview --args-json "{}"
 python -m agent_toolkit designer execute-op --operation noop --args-json "{}"
 python -m agent_toolkit designer save-display --preset-id appstore_iphone_portrait
 ```

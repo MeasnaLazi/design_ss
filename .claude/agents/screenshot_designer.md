@@ -14,7 +14,7 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 | **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
 | **Web UI API toolkit** | `python -m agent_toolkit designer …` — calls the screenshot-designer API (`session`, `execute`, `save-display`) on the server described by **`handoff`** | **Yes** (running **`web_ui`**, same instance as **`handoff`**) |
 
-**Authoritative state** is **`datasource/display_<slug>.json`** (the same document the Fabric canvas loads and saves). The designer **`execute`** operations read that file, apply changes, and write it back; **`render_preview`** reads it and returns a PNG without requiring a separate in-memory session. The open Web UI syncs through **SSE** (`GET /__api/datasource/display-events?slug=…`) or the toolbar **Reload** action — display file changes do **not** trigger a Vite full-page reload. Use **`designer execute` / `render_preview`** for mutations and previews; use the **layout** CLI to plan coordinates, validate JSON before burning preview iterations, and inspect PNGs. You do **not** hand-edit display JSON — use **`save-display`** or mutating **`execute`** ops to persist.
+**Authoritative state** is **`datasource/display_<slug>.json`** (the same document the Fabric canvas loads and saves). The designer **`execute`** operations read that file, apply changes, and write it back; **`render_preview`** returns a **single-preset** PNG; **`render_workspace_preview`** returns the **full horizontal strip** (`screens` × panel width + gaps) so you can see every storyboard panel in one image. The open Web UI syncs through **SSE** (`GET /__api/datasource/display-events?slug=…`) or the toolbar **Reload** action — display file changes do **not** trigger a Vite full-page reload. Use **`designer execute`** for mutations; use **`render_workspace_preview`** for whole-canvas composition checks and **`render_preview`** before save for store-sized quality gates; use the **layout** CLI to plan coordinates and inspect PNGs. You do **not** hand-edit display JSON — use **`save-display`** or mutating **`execute`** ops to persist.
 
 ---
 
@@ -124,7 +124,7 @@ Example `session.json` for `predict-checks`:
 }
 ```
 
-**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use **`layout store-json --platform <iphone|ipad|phone|tablet>`** to load `output/appstore.json` or `output/playstore.json` plus the matching **`presetId`** in one JSON object; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between `render_preview` calls so you do not waste the **hard cap of 4 `render_preview` calls per on-disk display revision** (tracked in `datasource/.screenshot-designer-state.json`; counter resets when the display file’s modification time changes).
+**When to prefer layout CLI:** before calling `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use **`layout store-json --platform <iphone|ipad|phone|tablet>`** to load `output/appstore.json` or `output/playstore.json` plus the matching **`presetId`** in one JSON object; use `device-packs` + `load-frame` as an alternative to manually reading `web_ui/public/...`; use `predict-checks` and `layout image …` between preview calls. **`render_preview`** and **`render_workspace_preview`** each enforce **4** uses per display-file **mtime** (separate counters in **`datasource/.screenshot-designer-state.json`**); counters reset when that file’s modification time changes.
 
 ---
 
@@ -139,6 +139,7 @@ Requires **`web_ui`** with datasource **`/__api`** routes (**`npm run dev`** or 
 | **Display-events stream (peek)** | `python -m agent_toolkit designer display-events --slug <slug>` |
 | **Execute** (body file) | `python -m agent_toolkit designer execute --json exec.json` — file: `{ "operation", "args" }` |
 | **Execute** (one-liner) | `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` |
+| **Whole workspace PNG** (all `screens` × panel + gaps) | `python -m agent_toolkit designer execute-op --operation render_workspace_preview --args-json "{}"` |
 | **Save display** | `python -m agent_toolkit designer save-display --preset-id <presetId>` |
 
 **Always** use these **`designer …`** commands (HTTP via **`agent_toolkit.designer_client`**). **Do not** use **`curl`**, **wget**, or ad‑hoc HTTP for these endpoints.
@@ -161,7 +162,7 @@ Typical success JSON:
 
 ### Display events (`designer display-events --slug <slug>`)
 
-The browser keeps a long-lived **EventSource** on this route; the toolkit command **reads the first chunk** of the SSE stream (see **`--timeout`** / **`--max-bytes`**) and prints JSON with **`preview`** for debugging. Emits **`display_updated`** when the matching `display_<slug>.json` is written (`execute`, `save-display`, or browser **Save**). You normally rely on **`execute`** / **`render_preview`** rather than tailing the stream.
+The browser keeps a long-lived **EventSource** on this route; the toolkit command **reads the first chunk** of the SSE stream (see **`--timeout`** / **`--max-bytes`**) and prints JSON with **`preview`** for debugging. Emits **`display_updated`** when the matching `display_<slug>.json` is written (`execute`, `save-display`, or browser **Save**). You normally rely on **`execute`** / **`render_workspace_preview`** / **`render_preview`** rather than tailing the stream.
 
 ### Execute (`designer execute` / `designer execute-op`)
 
@@ -200,11 +201,21 @@ All `x` / `y` coordinates must be multiples of 16.
 `anchor`: `center_x` | `center_y` | `top` | `bottom` | `left` | `right`
 `reference`: `"canvas"` or another `layer_id`
 
-**`render_preview`** — returns `{ "image_base64": "<png>", "checks": { "ok": bool, "errors": [], "contrastIssues": [] }, "iteration": <n> }`
+**`render_preview`** — single **preset** bitmap (store slot size). Returns `{ "image_base64", "checks", "iteration" }` with full **qualityChecks** (safe zones, contrast, device ratio, overlaps).
+
 ```json
 { "operation": "render_preview", "args": {} }
 ```
-**Always view the returned image before continuing.** The server enforces a hard cap of 4 renders per session. The PNG is the **full store canvas** (**session width × height**): background plus **every** composited layer (device frame(s), text, etc.)—not a crop to the phone bezel region alone.
+
+**Always view the returned image before continuing.** Hard cap **4** per display revision (see state file). The PNG is **session width × height**: one panel, all layers in that rectangle.
+
+**`render_workspace_preview`** — **multi-panel Fabric strip** matching `design.config.screens` and `gap`: width = `screens × panelWidth + (screens − 1) × gap`, height = panel height. Same Sharp compositing of **all** layers at their Fabric **x/y** on that wider bitmap. Response adds **`workspaceWidth`**, **`workspaceHeight`**, **`screens`**, **`gap`**, **`panelWidth`**, **`panelHeight`**. **`checks`** is a placeholder (`workspacePreview: true`; server quality gates apply to **`render_preview`** only). Hard cap **4** per display revision, **independent** of **`render_preview`**.
+
+```json
+{ "operation": "render_workspace_preview", "args": {} }
+```
+
+Use **`render_workspace_preview`** when you need to **see every storyboard column** (devices/text across panels); use **`render_preview`** before **`save-display`** to validate the single-slot composition.
 
 ---
 
@@ -215,6 +226,8 @@ When all panels are composed and previewed, run once per device type. Typical su
 ---
 
 ### Quality gates (enforced server-side before save)
+
+These apply to **`render_preview`** and to **`save-display`**. **`render_workspace_preview`** does not run them (it is for visualizing the multi-panel strip only).
 
 - No text overlaps any device frame
 - Text contrast ratio ≥ 4.5:1 against background
@@ -231,7 +244,7 @@ When all panels are composed and previewed, run once per device type. Typical su
 
 You already have **`handoff`** from the prerequisite. Every **`designer …`** command in this doc must run against that same live **`web_ui`** instance (the toolkit resolves the API base the same way **`designer handoff`** did).
 
-Because the Web UI is already running, each successful **`designer execute`** / **`render_preview`** updates the current preview session in the browser.
+Because the Web UI is already running, each successful **`designer execute`** (and preview ops **`render_preview`** / **`render_workspace_preview`**) reflects the current preview session in the browser.
 
 ### Step 0 — Select platform and device pack
 
@@ -329,6 +342,10 @@ For each panel (repeat for every screenshot):
 
 `python -m agent_toolkit designer session` — read the printed JSON for **`presetId`** / canvas size (no query params; same resolution as the SPA when hints are omitted).
 
+**5a′ — Optional whole storyboard (multi-panel)**
+
+After placing elements across **several** horizontal panels, run **`render_workspace_preview`** to fetch one PNG of the **entire strip** (uses `design.config.screens` and `gap` from the display file). Prefer this over inferring layout from **`render_preview`** alone when **`screens` > 1**.
+
 **5b — Build**
 1. `set_background`
 2. `add_device_frame` (use `framePath` and `name` loaded in Step 0c; set initial `x`/`y` near `0, 0`)
@@ -337,17 +354,18 @@ For each panel (repeat for every screenshot):
 5. `add_text` sub-headline → `align` `center_x` to canvas
 6. Add caption if needed
 
-**5c — Preview and refine (max 4 iterations)**
+**5c — Preview and refine**
 
-`python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` (or **`execute --json`** with the same **`operation`** / **`args`**).
+- **Whole workspace:** `python -m agent_toolkit designer execute-op --operation render_workspace_preview --args-json "{}"` — decode **`image_base64`** to verify rhythm across **all** panels (separate **4-call** budget per display revision).
+- **Single slot (quality gates):** `python -m agent_toolkit designer execute-op --operation render_preview --args-json "{}"` (or **`execute --json`**) — use for **`checks`** (safe zones, contrast, device ratio) on the **preset-sized** frame before iterating further.
 
-View the image (decode with `layout image from-base64` if you only have JSON). Before spending another render, use the **layout toolkit**: `layout predict-checks` on a JSON snapshot of layer rects, `layout image info` / `match-preset`, `layout contrast`, or `layout device-height-ratio` as needed. Check:
+View images with `layout image from-base64` when you only have JSON. Before spending another **`render_preview`**, use the **layout toolkit**: `layout predict-checks` on a JSON snapshot of layer rects, `layout image info` / `match-preset`, `layout contrast`, or `layout device-height-ratio` as needed. Check:
 - Text readable against background?
 - Device frame well-proportioned and positioned?
 - Visual hierarchy clear (headline → device → supporting text)?
 - `checks.errors` empty?
 
-Fix any issues and preview again. Stop when `checks.ok === true`.
+Fix any issues and preview again. For **`render_preview`**, stop when **`checks.ok === true`** (workspace preview does not populate real gate **`checks`**).
 
 ### Step 6 — Save
 
@@ -362,7 +380,8 @@ Report the saved file path, number of screens, color palette, frame styles chose
 ## Design quality checklist
 
 Before calling `save-display`, verify:
-- [ ] Every panel previewed — `checks.ok === true` on the final `render_preview`
+- [ ] Storyboard sanity — optional **`render_workspace_preview`** when **`screens` > 1**
+- [ ] Final single-slot gate — `checks.ok === true` on the final **`render_preview`**
 - [ ] Background color/gradient derived from `theme` (not invented)
 - [ ] Headline text derives from `screenshots[].title`
 - [ ] Frame style chosen based on `description` field, not by name guessing
