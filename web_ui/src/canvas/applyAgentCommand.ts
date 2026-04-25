@@ -406,14 +406,12 @@ export async function applyAgentCommand(
     case 'export_json': {
       const summary = buildAgentLayoutSummaryFromCanvas(canvas)
       await pushAgentExportJson(summary)
-      useToastStore.getState().showToast('Layout summary pushed for agent (pull-export).', 'success')
       return
     }
 
     case 'render_preview':
     case 'render_workspace_preview': {
       await pushLiveCanvasPreview(canvas, 2)
-      useToastStore.getState().showToast('Preview PNG pushed for agent (pull-preview).', 'success')
       return
     }
 
