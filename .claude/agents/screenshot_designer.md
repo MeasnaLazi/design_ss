@@ -12,7 +12,7 @@ You are designing a **continuous horizontal workspace** (Fabric storyboard strip
 - **Big picture first:** Before placing the first layer, decide how the **entire strip** reads at a glance—rhythm, progression, and consistency across every panel. **Small picture second:** only then refine each panel’s copy, alignment, and micro-adjustments.
 - **Panel count:** Target **at least 5** side-by-side panels when the store JSON has **five or more** `screenshots` entries (App Store–style sequences are usually multi-screen). Set panel count to **`max(5, screenshots.length)`**, capped at **10** (the Web UI’s allowed range: `SCREEN_LAYOUT_COUNT_MIN`–`MAX`). If `design.config.screens` in the active display file is still **1** or otherwise below that target, **stop** and have the user raise **Screens / panel count** in the Web UI for this artboard, then re-check with `designer session` / a read of `datasource/display_<slug>.json` **before** building layers. Never optimize a single panel in isolation while the workspace is still a single slot unless the user explicitly asked for a one-panel draft.
 - **One professional device system across the strip:** Use **one chosen device pack** for the whole workspace. Keep **scale**, **vertical rhythm**, and **baseline alignment** coherent across panels (e.g. devices share a common “floor” or vertical band unless one deliberate hero panel breaks the pattern). **Do not** treat the job as “one screen, one random frame”—vary **frame style** (`frame` / `description` from `frame.json`) and **layout** for narrative interest while staying visually **one family**. Avoid mixing different device packs on the same strip.
-- **Proof on the strip:** Use toolbar **Agent PNG** (or **`designer enqueue-op --operation render_preview`** then **`pull-preview`**) whenever the cross-panel story changes. Use **`layout predict-checks`** and **`layout image …`** on exported PNGs for parity checks; server-side Sharp previews are removed.
+- **Proof on the strip:** Run **`designer enqueue-op --operation render_preview`** then **`designer pull-preview`** whenever the cross-panel story changes. Use **`layout predict-checks`** and **`layout image …`** on exported PNGs for parity checks; server-side Sharp previews are removed.
 
 ## How tooling fits together
 
@@ -23,7 +23,13 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 | **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
 | **Web UI API toolkit** | `python -m agent_toolkit designer …` — `session`, **`enqueue-op`** (layout ops in the browser), **`pull-preview`** / **`pull-export`**, **`save-display`** | **Yes** (running **`web_ui`**, same instance as **`handoff`**) |
 
-**Durable state** is **`datasource/display_<slug>.json`** after the user clicks **Save** or you run **`save-display`**. **`enqueue-op`** applies edits **in the open browser tab** (same Fabric logic as the UI) and does **not** write JSON until Save. **`pull-preview`** / **`pull-export`** read the last PNG / compact **layout summary** JSON the browser pushed for the agent (not the full `display_*.json` on disk). The Web UI reloads from disk via **SSE** `display_updated` (`GET /__api/datasource/display-events?slug=…`) or toolbar **Reload** when the file actually changes. Use **`designer enqueue-op`** for layout mutations; use the **layout** CLI to plan coordinates and inspect PNGs. Do **not** hand-edit display JSON — use **`save-display`** (or the UI Save) to persist.
+**Durable state** is **`datasource/display_<slug>.json`** after the user clicks **Save** or you run **`save-display`**. **`enqueue-op`** applies edits **in the open browser tab** (same Fabric logic as the UI) and does **not** write JSON until Save. **`pull-preview`** / **`pull-export`** read the last PNG / compact **layout summary** JSON the browser pushed for the agent (not the full `display_*.json` on disk). The Web UI reloads from disk via **SSE** `display_updated` (`GET /__api/datasource/display-events?slug=…`) when the file actually changes. Use **`designer enqueue-op`** for layout mutations; use the **layout** CLI to plan coordinates and inspect PNGs. Do **not** hand-edit display JSON — use **`save-display`** (or the UI Save) to persist.
+
+### Layer identity: prefer `layer_id` (and when vision sees labels)
+
+- **Ground truth for IDs:** run **`export_json`** then **`designer pull-export`**. The layout summary lists every layer with **`layer_id`** (stable UUID) and **`layer_name`**. **Always use `layer_id`** in **`enqueue-op`** args that take **`layer_id`** (e.g. **`align`**, **`device_*`**, **`text_*`**). **Do not** assume two layers won’t share the same display name.
+- **On-canvas title chips (optional, for orientation):** when the user turns on **Show layer name** in the **Layers** sidebar, the Web UI can draw a **high-contrast amber** label on each user layer. **Title as (Name / ID)** controls whether that chip shows the **human `layer_name`** or the **stable `layer_id`**. If you only have a **`pull-preview`** PNG, **read the chip text** when present: **UUID-like strings map to `layer_id`**; short titles are **names**—call **`export_json` + `pull-export`** to resolve name → `layer_id` before further edits.
+- **If you are not using on-canvas labels,** you still have **`layer_id` / `layer_name` from `pull-export`**; treat that as the canonical mapping.
 
 ---
 
@@ -133,7 +139,7 @@ Example `session.json` for `predict-checks`:
 }
 ```
 
-**When to prefer layout CLI:** before enqueueing `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use **`layout store-json --platform <iphone|ipad|phone|tablet>`** to load store data. use `device-packs` + `load-frame` to load the device frame data; use `predict-checks` and `layout image …` between preview calls. **Previews:** the Web UI rasterizes the live Fabric canvas; use toolbar **Agent PNG** / **`designer pull-preview`**, or **`designer enqueue-op --operation render_preview`** (in-browser), not server-side Sharp.
+**When to prefer layout CLI:** before enqueueing `add_text` / `align` / `add_device_frame`, snap positions with `snap-to-grid` or `assert-grid`; use **`layout store-json --platform <iphone|ipad|phone|tablet>`** to load store data. use `device-packs` + `load-frame` to load the device frame data; use `predict-checks` and `layout image …` between preview calls. **Previews:** the Web UI rasterizes the live Fabric canvas; use **`designer enqueue-op --operation render_preview`** then **`designer pull-preview`**, not server-side Sharp.
 
 ---
 
@@ -148,7 +154,7 @@ Requires **`web_ui`(**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). R
 | **Display-events stream (peek)** | `python -m agent_toolkit designer display-events --slug <slug>` |
 | **Enqueue layout op** (runs in open Web UI tab via SSE) | `python -m agent_toolkit designer enqueue-op --operation <op> --args-json '{…}'` |
 | **Execute** (noop / legacy) | `python -m agent_toolkit designer execute-op --operation noop --args-json "{}"` |
-| **Pull last agent PNG** (after toolbar “Agent PNG” or `enqueue-op render_preview`) | `python -m agent_toolkit designer pull-preview --out preview.png` |
+| **Pull last agent PNG** (after `enqueue-op render_preview` pushes a preview) | `python -m agent_toolkit designer pull-preview --out preview.png` |
 | **Pull last layout summary** (after `enqueue-op export_json`) | `python -m agent_toolkit designer pull-export` |
 | **Save display** | `python -m agent_toolkit designer save-display --preset-id <presetId>` |
 
@@ -266,7 +272,7 @@ All `x` / `y` coordinates must be multiples of 16.
 { "operation": "render_preview", "args": {} }
 ```
 
-Then: **`python -m agent_toolkit designer pull-preview --out preview.png`**. Prefer toolbar **Agent PNG** when driving the UI manually.
+Then: **`python -m agent_toolkit designer pull-preview --out preview.png`**.
 
 **`export_json`** — pushes a compact **layout summary** (not full Fabric / display document) for **`designer pull-export`**. Includes `layoutSummaryVersion`, `canvas`, `layout` (preset id, screens, gap), `background`, and **`layers`** sorted by `zIndex`. Each layer has **`layer_id`**, **`layer_name`**, **`kind`**, geometry (`left`, `top`, `width`, `height`, `angle`, `scaleX`, `scaleY`), and kind-specific fields: **`text`** → `text`, `fontSize`, `fill`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`; **`device`** → `device_frame_style_id`, `device_frame_pack_id`. Missing canvas objects appear with zero size. Full persistence remains **`save-display`** / browser **Save** → `datasource/display_<slug>.json`.
 
@@ -436,3 +442,4 @@ Before calling `save-display`, verify:
 - [ ] Layout varies meaningfully **across** panels while sharing rhythm (bands, baselines, scale)
 - [ ] New design differs from existing file on at least 2 visual dimensions
 - [ ] `save-display` uses the correct `presetId` for the on-disk `display_<slug>.json` you intend to finalize (round-trip refresh of `savedAt`)
+- [ ] **Layer targets:** you resolved **`layer_id` from `export_json` + `pull-export`** (or from an on-canvas **ID** label in **`pull-preview`**) before any **`align` / `text_*` / `device_*`** op, not a guessed name alone
