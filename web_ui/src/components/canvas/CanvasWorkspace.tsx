@@ -408,6 +408,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const backgroundImageUrl = useDesignStore((s) => s.config.backgroundImageUrl)
   const canvasZoom = useDesignStore((s) => s.canvasZoom)
   const showLayerNames = useDesignStore((s) => s.config.showLayerNames)
+  const layerTitleMode = useDesignStore((s) => s.config.layerTitleMode)
   const objects = useDesignStore((s) => s.objects)
 
   useEffect(() => {
@@ -666,7 +667,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
     let rafId = 0
     const syncNow = () => {
       try {
-        syncLayerNameOverlays(canvas, layerNameOverlaysRef, objects)
+        syncLayerNameOverlays(canvas, layerNameOverlaysRef, objects, layerTitleMode)
         canvas.requestRenderAll()
       } catch (e) {
         console.error('[CanvasWorkspace] layer name overlay sync failed', e)
@@ -703,7 +704,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       canvas.off('object:added', onCanvasObjectChanged)
       canvas.off('object:removed', onCanvasObjectChanged)
     }
-  }, [showLayerNames, objects, screens, gap, artboardPresetId])
+  }, [showLayerNames, layerTitleMode, objects, screens, gap, artboardPresetId])
 
   useEffect(() => {
     return () => {

@@ -4,6 +4,8 @@ import type { ArtboardPresetId } from '../constants/artboardPresets'
  * Serializable design-layer metadata kept in sync with the Fabric canvas in later phases.
  * Fabric.Object instances are not stored in Zustand (see project architecture rules).
  */
+export type LayerTitleMode = 'name' | 'id'
+
 export type CanvasBackgroundMode = 'solid' | 'gradient'
 
 export type BackgroundGradientKind = 'linear' | 'radial'
@@ -44,6 +46,10 @@ export interface DesignConfig {
   backgroundImageUrl: string | null
   /** Show non-exported layer labels near object borders on the canvas. */
   showLayerNames: boolean
+  /**
+   * Whether those labels and the Layers list row show the human name or the stable `id` (e.g. UUID).
+   */
+  layerTitleMode: LayerTitleMode
 }
 
 /** For `setConfig`: allow updating a subset of {@link backgroundGradient} fields. */

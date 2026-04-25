@@ -94,6 +94,7 @@ export function LeftSidebar() {
   const gap = useDesignStore((s) => s.config.gap)
   const artboardPresetId = useDesignStore((s) => s.config.artboardPresetId)
   const showLayerNames = useDesignStore((s) => s.config.showLayerNames)
+  const layerTitleMode = useDesignStore((s) => s.config.layerTitleMode)
   const upsertObject = useDesignStore((s) => s.upsertObject)
   const setConfig = useDesignStore((s) => s.setConfig)
   const clearCanvasBackgroundImage = useDesignStore((s) => s.clearCanvasBackgroundImage)
@@ -323,6 +324,9 @@ export function LeftSidebar() {
   }
 
   const sortedLayers = [...objects].sort((a, b) => b.zIndex - a.zIndex)
+
+  const layerRowTitle = (o: (typeof objects)[0]) =>
+    layerTitleMode === 'id' ? o.id : o.name
 
   const startEditingLayerName = (id: string, currentName: string) => {
     setEditingLayerId(id)
@@ -850,6 +854,37 @@ export function LeftSidebar() {
                 aria-label="Show layer name on canvas"
               />
             </label>
+            <div
+              className="mt-1.5 flex flex-wrap items-center gap-2 px-0.5 py-0.5 text-xs text-zinc-300"
+              role="group"
+              aria-label="Layer list and overlay title"
+            >
+              <span className="min-w-0">Title as</span>
+              <div className="ml-auto flex shrink-0 overflow-hidden rounded-md border border-zinc-600/80 p-0">
+                <button
+                  type="button"
+                  onClick={() => setConfig({ layerTitleMode: 'name' })}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                    layerTitleMode === 'name'
+                      ? 'bg-emerald-800/50 text-zinc-100'
+                      : 'bg-zinc-900/60 text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-200'
+                  }`}
+                >
+                  Name
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ layerTitleMode: 'id' })}
+                  className={`border-l border-zinc-600/60 px-2.5 py-1 text-xs font-medium transition-colors ${
+                    layerTitleMode === 'id'
+                      ? 'bg-emerald-800/50 text-zinc-100'
+                      : 'bg-zinc-900/60 text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-200'
+                  }`}
+                >
+                  ID
+                </button>
+              </div>
+            </div>
             <div className="mt-1 border-b border-zinc-800/80" aria-hidden />
             {sortedLayers.length === 0 ? (
               <p className="mt-2 text-sm text-zinc-600">No layers yet.</p>
@@ -866,7 +901,7 @@ export function LeftSidebar() {
                         <button
                           type="button"
                           title="Move forward (in front of the layer below in this list)"
-                          aria-label={`Move layer ${o.name} up`}
+                          aria-label={`Move layer ${layerRowTitle(o)} up`}
                           disabled={!canMoveUp}
                           className="rounded-t p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
                           onClick={() => moveLayerById(o.id, true)}
@@ -876,7 +911,7 @@ export function LeftSidebar() {
                         <button
                           type="button"
                           title="Move behind the next layer in this list"
-                          aria-label={`Move layer ${o.name} down`}
+                          aria-label={`Move layer ${layerRowTitle(o)} down`}
                           disabled={!canMoveDown}
                           className="rounded-b p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
                           onClick={() => moveLayerById(o.id, false)}
@@ -899,7 +934,7 @@ export function LeftSidebar() {
                             }
                           }}
                           className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-emerald-600"
-                          aria-label={`Edit layer name for ${o.name}`}
+                          aria-label={`Edit layer name for ${layerRowTitle(o)}`}
                           autoFocus
                         />
                       ) : (
@@ -913,14 +948,14 @@ export function LeftSidebar() {
                               : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
                           }`}
                         >
-                          {o.name}
+                          {layerRowTitle(o)}
                           <span className="ml-1 text-xs text-zinc-600">({o.kind})</span>
                         </button>
                       )}
                       <button
                         type="button"
                         title="Edit layer name"
-                        aria-label={`Edit layer ${o.name} name`}
+                        aria-label={`Edit layer ${layerRowTitle(o)} name`}
                         className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
                         onClick={(e) => {
                           e.stopPropagation()
@@ -932,7 +967,7 @@ export function LeftSidebar() {
                       <button
                         type="button"
                         title="Delete layer"
-                        aria-label={`Delete layer ${o.name}`}
+                        aria-label={`Delete layer ${layerRowTitle(o)}`}
                         className="flex shrink-0 items-center justify-center rounded px-1.5 text-zinc-500 hover:bg-red-950/50 hover:text-red-300"
                         onClick={(e) => {
                           e.stopPropagation()

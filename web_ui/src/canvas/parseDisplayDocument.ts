@@ -22,7 +22,8 @@ function isDesignConfigShape(x: unknown): boolean {
     isRecord(x.backgroundGradient) &&
     isValidBackgroundGradientJson(x.backgroundGradient) &&
     (x.backgroundImageUrl === null || typeof x.backgroundImageUrl === 'string') &&
-    (x.showLayerNames === undefined || typeof x.showLayerNames === 'boolean')
+    (x.showLayerNames === undefined || typeof x.showLayerNames === 'boolean') &&
+    (x.layerTitleMode === undefined || x.layerTitleMode === 'name' || x.layerTitleMode === 'id')
   )
 }
 
@@ -78,6 +79,8 @@ export function parseDisplayDocument(raw: unknown): DisplayDocumentV1 {
   }
 
   const rawCfg = design.config as Record<string, unknown>
+  const layerTitleMode: DesignConfig['layerTitleMode'] =
+    rawCfg.layerTitleMode === 'id' ? 'id' : 'name'
   const snapshot: DisplayDesignSnapshot = {
     config: {
       ...(design.config as DesignConfig),
@@ -85,6 +88,7 @@ export function parseDisplayDocument(raw: unknown): DisplayDocumentV1 {
         typeof rawCfg.artboardPresetId === 'string' ? rawCfg.artboardPresetId : undefined,
       ),
       backgroundGradient: normalizeBackgroundGradient(rawCfg.backgroundGradient),
+      layerTitleMode,
     },
     objects: design.objects,
     canvasZoom: design.canvasZoom,

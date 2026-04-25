@@ -40,6 +40,7 @@ const defaultConfig: DesignConfig = {
   },
   backgroundImageUrl: null,
   showLayerNames: false,
+  layerTitleMode: 'name',
 }
 
 /** Default / reset zoom: 20% on-screen vs full App Store artboard (CSS scale; backstore stays 1:1). */
