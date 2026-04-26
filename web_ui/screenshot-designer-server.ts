@@ -340,6 +340,7 @@ const CLIENT_AUTHORITATIVE_OPERATIONS = new Set([
   'device_set_angle',
   'render_preview',
   'render_workspace_preview',
+  'render_panel_preview',
   'export_json',
 ])
 

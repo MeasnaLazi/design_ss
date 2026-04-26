@@ -4,9 +4,10 @@ import { ActiveSelection, Group, Textbox } from 'fabric'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
 import { buildAgentLayoutSummaryFromCanvas } from './buildAgentLayoutSummary'
+import { screenExportRect } from '../constants/appStoreScreens'
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
-import { pushAgentExportJson, pushLiveCanvasPreview } from '../lib/agentContextApi'
+import { pushAgentExportJson, pushLiveCanvasPreview, pushLiveCanvasPreviewRect } from '../lib/agentContextApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import { useDesignStore } from '../store/useDesignStore'
@@ -412,6 +413,38 @@ export async function applyAgentCommand(
     case 'render_preview':
     case 'render_workspace_preview': {
       await pushLiveCanvasPreview(canvas, 2)
+      return
+    }
+
+    case 'render_panel_preview': {
+      const rawPanelIndex = args.panel_index
+      const rawPanelNumber = args.panel_number
+      const panelIndex =
+        rawPanelIndex !== undefined
+          ? Number(rawPanelIndex)
+          : rawPanelNumber !== undefined
+            ? Number(rawPanelNumber) - 1
+            : Number.NaN
+      if (!Number.isInteger(panelIndex)) {
+        useToastStore
+          .getState()
+          .showToast('render_panel_preview: provide integer panel_index (0-based) or panel_number (1-based).', 'warning')
+        return
+      }
+      const { config } = useDesignStore.getState()
+      const screens = Math.max(1, Math.floor(Number(config.screens ?? 1)))
+      if (panelIndex < 0 || panelIndex >= screens) {
+        useToastStore
+          .getState()
+          .showToast(
+            `render_panel_preview: panel_index must be in [0, ${screens - 1}] or panel_number in [1, ${screens}].`,
+            'warning',
+          )
+        return
+      }
+      const { width, height } = getArtboardDimensionsFromConfig(config)
+      const rect = screenExportRect(panelIndex, config.gap, width, height)
+      await pushLiveCanvasPreviewRect(canvas, rect, 2)
       return
     }
 

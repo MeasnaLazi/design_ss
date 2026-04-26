@@ -34,6 +34,27 @@ export async function pushLiveCanvasPreview(
   await pushAgentPreviewBlob(blob)
 }
 
+/**
+ * Upload a cropped region of the current Fabric canvas as PNG.
+ */
+export async function pushLiveCanvasPreviewRect(
+  canvas: import('fabric').Canvas,
+  rect: { left: number; top: number; width: number; height: number },
+  multiplier = 2,
+): Promise<void> {
+  const dataUrl = canvas.toDataURL({
+    format: 'png',
+    multiplier,
+    enableRetinaScaling: true,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  })
+  const blob = await (await fetch(dataUrl)).blob()
+  await pushAgentPreviewBlob(blob)
+}
+
 /** POST latest compact layout summary for agent pull-export (see `buildAgentLayoutSummaryFromCanvas`). */
 export async function pushAgentExportJson(payload: unknown): Promise<void> {
   const res = await fetch(AGENT_EXPORT_ENDPOINT, {

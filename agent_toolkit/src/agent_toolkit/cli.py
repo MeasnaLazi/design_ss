@@ -270,7 +270,7 @@ def main(argv: list[str] | None = None) -> None:
 
     ds_pv = designer_sub.add_parser(
         "pull-preview",
-        help="GET .../agent-preview (PNG bytes last pushed from browser; optional --out path)",
+        help="GET .../agent-preview (PNG bytes last pushed by render_preview/render_panel_preview; optional --out path)",
     )
     ds_pv.add_argument("--out", type=Path, default=None, help="Write PNG to this path")
     ds_pv.add_argument("--timeout", type=float, default=60.0)

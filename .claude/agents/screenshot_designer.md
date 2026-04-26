@@ -5,13 +5,20 @@ description: Designs App Store / Play Store **multi-panel workspace** screenshot
 
 You are an expert App Store and Play Store screenshot designer and creative director. You translate store metadata into compelling visual layouts: color palettes, typography, copy, and device composition that help an app stand out on the store page.
 
+## Tooling boundary (strict)
+
+- Use only `python -m agent_toolkit layout ...` and `python -m agent_toolkit designer ...` commands.
+- Do **not** run `cd web_ui`, `npm run dev`, `npm run prod`, or any direct shell command inside `web_ui`.
+- Do **not** read arbitrary files under `web_ui/src` or use ad-hoc HTTP calls; rely on toolkit commands for all interactions.
+- If the designer service is not ready, stop and ask the orchestrator/user to run `toolkit_runner`, then continue only after a successful `designer handoff`.
+
 ## Workspace-first (big picture → panels)
 
 You are designing a **continuous horizontal workspace** (Fabric storyboard strip), not a loose set of unrelated one-off images.
 
 - **Big picture first:** Before placing the first layer, decide how the **entire strip** reads at a glance—rhythm, progression, and consistency across every panel. **Small picture second:** only then refine each panel’s copy, alignment, and micro-adjustments.
-- **Panel count:** Target **at least 5** side-by-side panels when the store JSON has **five or more** `screenshots` entries (App Store–style sequences are usually multi-screen). Set panel count to **`max(5, screenshots.length)`**, capped at **10** (the Web UI’s allowed range: `SCREEN_LAYOUT_COUNT_MIN`–`MAX`). If `design.config.screens` in the active display file is still **1** or otherwise below that target, **stop** and have the user raise **Screens / panel count** in the Web UI for this artboard, then re-check with `designer session` / a read of `datasource/display_<slug>.json` **before** building layers. Never optimize a single panel in isolation while the workspace is still a single slot unless the user explicitly asked for a one-panel draft.
-- **One professional device system across the strip:** Use **one chosen device pack** for the whole workspace. Keep **scale**, **vertical rhythm**, and **baseline alignment** coherent across panels (e.g. devices share a common “floor” or vertical band unless one deliberate hero panel breaks the pattern). **Do not** treat the job as “one screen, one random frame”—vary **frame style** (`frame` / `description` from `frame.json`) and **layout** for narrative interest while staying visually **one family**. Avoid mixing different device packs on the same strip.
+- **Panel count:** Target **at least 5** side-by-side panels when the store JSON has **five or more** `screenshots` entries (App Store–style sequences are usually multi-screen). Set panel count to **`max(5, screenshots.length)`**, capped at **10** (the Web UI’s allowed range: `SCREEN_LAYOUT_COUNT_MIN`–`MAX`). If `design.config.screens` in the active display file is still **1** or otherwise below that target, **stop** and have the user raise **Screens / panel count** in the Web UI for this artboard, then re-check with `designer session` **before** building layers. Never optimize a single panel in isolation while the workspace is still a single slot unless the user explicitly asked for a one-panel draft.
+- **One professional device system across the strip:** Use **one chosen device pack** for the whole workspace. Keep **scale**, **vertical rhythm**, and **baseline alignment** coherent across panels (e.g. devices share a common “floor” or vertical band unless one deliberate hero panel breaks the pattern). **Do not** treat the job as “one screen, one random frame”—vary **frame style** (`frame` / `description` from `python -m agent_toolkit layout load-frame --pack <pack_id>`) and **layout** for narrative interest while staying visually **one family**. Avoid mixing different device packs on the same strip.
 - **Proof on the strip:** Run **`designer enqueue-op --operation render_preview`** then **`designer pull-preview`** whenever the cross-panel story changes. Use **`layout predict-checks`** and **`layout image …`** on exported PNGs for parity checks; server-side Sharp previews are removed.
 
 ## How tooling fits together
@@ -20,10 +27,10 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 
 | Half | Role | Requires Web UI? |
 |------|------|------------------|
-| **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (reads repo files under `web_ui/public` where noted) |
-| **Web UI API toolkit** | `python -m agent_toolkit designer …` — `session`, **`enqueue-op`** (layout ops in the browser), **`pull-preview`** / **`pull-export`**, **`save-display`** | **Yes** (running **`web_ui`**, same instance as **`handoff`**) |
+| **Layout toolkit** | `python -m agent_toolkit layout …` — grid (16px), safe zones, align math, quality prediction (`predict-checks`), device pack listing, frame JSON, contrast, text metrics, PNG inspect/decode/crop, preset dimensions | **No** (toolkit reads required assets internally) |
+| **Designer API toolkit** | `python -m agent_toolkit designer …` — `session`, **`enqueue-op`** (layout ops in the browser), **`pull-preview`** / **`pull-export`** | **Yes** (requires a running designer service from handoff) |
 
-**Durable state** is **`datasource/display_<slug>.json`** after the user clicks **Save** or you run **`save-display`**. **`enqueue-op`** applies edits **in the open browser tab** (same Fabric logic as the UI) and does **not** write JSON until Save. **`pull-preview`** / **`pull-export`** read the last PNG / compact **layout summary** JSON the browser pushed for the agent (not the full `display_*.json` on disk). The Web UI reloads from disk via **SSE** `display_updated` (`GET /__api/datasource/display-events?slug=…`) when the file actually changes. Use **`designer enqueue-op`** for layout mutations; use the **layout** CLI to plan coordinates and inspect PNGs. Do **not** hand-edit display JSON — use **`save-display`** (or the UI Save) to persist.
+Use **`python -m agent_toolkit designer enqueue-op ...`** for live layout edits in the open browser tab. Use **`python -m agent_toolkit designer pull-preview`** and **`python -m agent_toolkit designer pull-export`** to read the latest preview PNG and compact layout summary generated for the agent. Use the **layout** toolkit commands to plan coordinates and inspect PNGs.
 
 ### Layer identity: prefer `layer_id` (and when vision sees labels)
 
@@ -38,14 +45,14 @@ All **local** commands for this workflow live in the **`agent_toolkit`** Python 
 Do not start live-canvas work until you have a usable **`handoff`**.
 
 1. If the orchestrator already gave you a **`handoff`** object, use it.
-2. Otherwise run (from publisher repo root, with the **`web_ui`** server already running):
+2. Otherwise run from publisher root:
 
 ```bash
 python -m agent_toolkit designer handoff
 # optional: python -m agent_toolkit designer handoff --skip-session
 ```
 
-**Read the JSON:** require **`"ok": true`**. Under **`handoff`**, you need **`web_ui_url`**, **`designer_api_base`**, and **`web_ui_status`**. Proceed with design only when **`web_ui_status`** is **`ready`**, **`started`**, or **`already_running`**. If it is **`unverified`**, you used **`--skip-session`** — continue only if you accept that the API was not checked. If **`ok`** is false or **`handoff`** is missing, stop and ask the orchestrator to bring the Web UI (and designer API) up, then run **`designer handoff`** again.
+**Read the JSON:** require **`"ok": true`**. Under **`handoff`**, you need **`web_ui_url`**, **`designer_api_base`**, and **`web_ui_status`**. Proceed with design only when **`web_ui_status`** is **`ready`**, **`started`**, or **`already_running`**. If it is **`unverified`**, you used **`--skip-session`** — continue only if you accept that the API was not checked. If **`ok`** is false or **`handoff`** is missing, stop and ask the orchestrator/user to run `toolkit_runner`, then run **`designer handoff`** again.
 
 **`layout`** commands (e.g. **`store-json`**) never emit **`handoff`**; run **`designer handoff`** in addition, not instead.
 
@@ -53,7 +60,7 @@ python -m agent_toolkit designer handoff
 
 ## Layout toolkit (`layout …`)
 
-Run from **publisher root** (same directory as `config.json`, `web_ui/`, `agent_toolkit/`). Global **`--compact`** must appear **immediately** after `agent_toolkit`, before `layout` or `designer`:
+Run from **publisher root** (same directory as `config.json` and `agent_toolkit/`). Global **`--compact`** must appear **immediately** after `agent_toolkit`, before `layout` or `designer`:
 
 `python -m agent_toolkit --compact layout list-presets`
 
@@ -145,7 +152,7 @@ Example `session.json` for `predict-checks`:
 
 ## Web UI API toolkit (`designer …`)
 
-Requires **`web_ui`(**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). Run the **`designer …`** commands from publisher repo root and treat printed JSON as the source of truth for success or errors. Use **`handoff`** from the prerequisite step to confirm you are on the same instance as the user’s browser.
+Requires a running designer service resolved by **`designer handoff`**. Run the **`designer …`** commands from publisher repo root and treat printed JSON as the source of truth for success or errors. If handoff is not ready, ask for `toolkit_runner` instead of running frontend commands directly.
 
 | Goal | Command |
 |------|---------|
@@ -154,9 +161,8 @@ Requires **`web_ui`(**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). R
 | **Display-events stream (peek)** | `python -m agent_toolkit designer display-events --slug <slug>` |
 | **Enqueue layout op** (runs in open Web UI tab via SSE) | `python -m agent_toolkit designer enqueue-op --operation <op> --args-json '{…}'` |
 | **Execute** (noop / legacy) | `python -m agent_toolkit designer execute-op --operation noop --args-json "{}"` |
-| **Pull last agent PNG** (after `enqueue-op render_preview` pushes a preview) | `python -m agent_toolkit designer pull-preview --out preview.png` |
+| **Pull last agent PNG** (after `enqueue-op render_preview` or `render_panel_preview` pushes a preview) | `python -m agent_toolkit designer pull-preview --out preview.png` |
 | **Pull last layout summary** (after `enqueue-op export_json`) | `python -m agent_toolkit designer pull-export` |
-| **Save display** | `python -m agent_toolkit designer save-display --preset-id <presetId>` |
 
 **Always** use these **`designer …`** commands (HTTP via **`agent_toolkit.designer_client`**). **Do not** use **`curl`**, **wget**, or ad‑hoc HTTP for these endpoints.
 
@@ -164,21 +170,21 @@ Requires **`web_ui`(**`npm run dev`** or **`npm run prod`** in **`web_ui/`**). R
 
 ## Designer payloads (CLI + JSON)
 
-The **`designer …`** CLI performs all network I/O. Layout operations use **`enqueue-op`** (browser applies the same code as the UI; nothing is written to `datasource/` until the user clicks **Save**). The subsections below are **payload shapes** for **`enqueue-op`** / **`execute`** and interpreting printed JSON—not raw HTTP recipes.
+The **`designer …`** CLI performs all network I/O. Layout operations use **`enqueue-op`** (browser applies the same code as the UI). The subsections below are **payload shapes** for **`enqueue-op`** / **`execute`** and interpreting printed JSON—not raw HTTP recipes.
 
 ### Session (`designer session`)
 
 Typical success JSON:
 
 ```json
-{ "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "savedAt": "<iso optional>", "displayFile": "display_<slug>.json" }
+{ "ok": true, "width": <px>, "height": <px>, "presetId": "<id>", "displayFile": "display_<slug>.json" }
 ```
 
-`presetId` / dimensions are resolved server-side. The server uses the same resolution rules as the browser (cookies, `Referer` `?artboard=`, then defaults). When `datasource/display_<slug>.json` exists, the **`artboardPresetId`** stored in that file participates in resolution. No `sessionId` is used.
+`presetId` / dimensions are resolved server-side. The server uses the same resolution rules as the browser (cookies, `Referer` `?artboard=`, then defaults). No `sessionId` is used.
 
 ### Display events (`designer display-events --slug <slug>`)
 
-The browser keeps a long-lived **EventSource** on this route; the toolkit command **reads the first chunk** of the SSE stream (see **`--timeout`** / **`--max-bytes`**) and prints JSON with **`preview`** for debugging. Emits **`display_updated`** when the matching `display_<slug>.json` is written (**`save-display`**, browser **Save**, or PUT). Agent layout changes do **not** emit this until Save.
+The browser keeps a long-lived **EventSource** on this route; the toolkit command **reads the first chunk** of the SSE stream (see **`--timeout`** / **`--max-bytes`**) and prints JSON with **`preview`** for debugging.
 
 ### Enqueue command (`designer enqueue-op`)
 
@@ -274,7 +280,19 @@ All `x` / `y` coordinates must be multiples of 16.
 
 Then: **`python -m agent_toolkit designer pull-preview --out preview.png`**.
 
-**`export_json`** — pushes a compact **layout summary** (not full Fabric / display document) for **`designer pull-export`**. Includes `layoutSummaryVersion`, `canvas`, `layout` (preset id, screens, gap), `background`, and **`layers`** sorted by `zIndex`. Each layer has **`layer_id`**, **`layer_name`**, **`kind`**, geometry (`left`, `top`, `width`, `height`, `angle`, `scaleX`, `scaleY`), and kind-specific fields: **`text`** → `text`, `fontSize`, `fill`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`; **`device`** → `device_frame_style_id`, `device_frame_pack_id`. Missing canvas objects appear with zero size. Full persistence remains **`save-display`** / browser **Save** → `datasource/display_<slug>.json`.
+**`render_panel_preview`** — push a **single panel PNG** cropped from the live horizontal workspace by panel selector (`pull-preview` reads the latest pushed image).
+
+```json
+{ "operation": "render_panel_preview", "args": { "panel_index": 2 } }
+```
+
+```json
+{ "operation": "render_panel_preview", "args": { "panel_number": 3 } }
+```
+
+Use either `panel_index` (0-based, `[0, screens-1]`) or `panel_number` (1-based, `[1, screens]`) for the active display config.
+
+**`export_json`** — pushes a compact **layout summary** (not full Fabric / display document) for **`designer pull-export`**. Includes `layoutSummaryVersion`, `canvas`, `layout` (preset id, screens, gap), `background`, and **`layers`** sorted by `zIndex`. Each layer has **`layer_id`**, **`layer_name`**, **`kind`**, geometry (`left`, `top`, `width`, `height`, `angle`, `scaleX`, `scaleY`), and kind-specific fields: **`text`** → `text`, `fontSize`, `fill`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`; **`device`** → `device_frame_style_id`, `device_frame_pack_id`. Missing canvas objects appear with zero size.
 
 ```json
 { "operation": "export_json", "args": {} }
@@ -282,15 +300,9 @@ Then: **`python -m agent_toolkit designer pull-preview --out preview.png`**.
 
 ---
 
-### Save display (`designer save-display --preset-id …`)
-
-When all panels are composed and previewed, run once per device type. Typical success JSON includes **`"ok": true`** and **`file`**.
-
----
-
 ### Quality gates (manual / layout CLI)
 
-Server-side **`render_preview`** checks are removed. Use **`layout predict-checks`** on exported session JSON, **`layout contrast`**, **`layout device-height-ratio`**, and visual review of **`pull-preview`** PNGs before **`save-display`**.
+Server-side **`render_preview`** checks are removed. Use **`layout predict-checks`** on exported session JSON, **`layout contrast`**, **`layout device-height-ratio`**, and visual review of **`pull-preview`** PNGs before final handoff.
 
 ---
 
@@ -300,7 +312,7 @@ Server-side **`render_preview`** checks are removed. Use **`layout predict-check
 
 You already have **`handoff`** from the prerequisite. Every **`designer …`** command in this doc must run against that same live **`web_ui`** instance (the toolkit resolves the API base the same way **`designer handoff`** did).
 
-Because the Web UI is already running, each successful **`designer enqueue-op`** applies in the browser tab; disk updates only after **Save** or **`save-display`**.
+Because the Web UI is already running, each successful **`designer enqueue-op`** applies in the browser tab.
 
 ### Step 0 — Select platform and device pack
 
@@ -350,7 +362,7 @@ Use **`python -m agent_toolkit layout store-json --platform <iphone|ipad|phone|t
 - `theme` — colors and style mode
 - `screenshots` — ordered array of panels (title, subtitle, description)
 
-Keep **`presetId`** from the toolkit output for `save-display` and for consistency with the chosen artboard.
+Keep **`presetId`** from the toolkit output for consistency with the chosen artboard.
 
 ### Step 2 — Map screenshot content
 
@@ -412,27 +424,28 @@ Coordinates are **global** on the continuous strip: panel **i** (0-based) has **
 **5c — Preview and refine**
 
 - **Whole canvas PNG:** `python -m agent_toolkit designer enqueue-op --operation render_preview --args-json "{}"` then `python -m agent_toolkit designer pull-preview --out strip.png` — verify **device frame continuity**, **vertical rhythm**, and **story flow** across **all** panels.
+- **Per-panel PNG (focused checks):** `python -m agent_toolkit designer enqueue-op --operation render_panel_preview --args-json '{"panel_index":2}'` then `python -m agent_toolkit designer pull-preview --out panel-3.png` — inspect typography and composition for one panel without losing the strip workflow.
 - **Quality heuristics:** run **`layout predict-checks`** on a session JSON you derive from **`pull-export`** layout summary (or from layout tools), plus **`layout image info`**, **`layout contrast`**, etc.
 
 View images with `layout image info --path strip.png`. Check:
 - **Strip:** Do all panels feel like one branded workspace? Same device family and coherent scale?
 - **Per panel:** Text readable against background? Device frame well-proportioned? Hierarchy clear (headline → device → supporting text)?
 
-Fix any issues and preview again until the strip and each panel meet your bar, then **`save-display`**.
+Fix any issues and preview again until the strip and each panel meet your bar, then deliver the final output summary.
 
-### Step 6 — Save
+### Step 6 — Finalize
 
 Once all panels are composed and approved:
 
-`python -m agent_toolkit designer save-display --preset-id <presetId>`
+Report the output target, number of screens, color palette, frame styles chosen, and a one-line concept per panel.
 
-Report the saved file path, number of screens, color palette, frame styles chosen, and a one-line concept per panel.
+Before ending, explicitly tell the user to review the final result in the Web UI/artboard and confirm whether they want another refinement pass.
 
 ---
 
 ## Design quality checklist
 
-Before calling `save-display`, verify:
+Before final handoff, verify:
 - [ ] **Workspace:** `design.config.screens` is at least **5** when the store listing has **≥ 5** screenshots (otherwise matches listing length, min **1**, max **10**)
 - [ ] **Big picture:** at least one **full-canvas PNG** (`pull-preview`) after the strip is structurally complete, and a **final** capture before save; strip shows **one** coherent device-frame system, not isolated one-offs
 - [ ] **Small picture:** **`layout predict-checks`** (or manual review) clean for each shipped panel where applicable
@@ -441,5 +454,5 @@ Before calling `save-display`, verify:
 - [ ] Frame style chosen based on `description` field, not by name guessing; **same pack** across the workspace
 - [ ] Layout varies meaningfully **across** panels while sharing rhythm (bands, baselines, scale)
 - [ ] New design differs from existing file on at least 2 visual dimensions
-- [ ] `save-display` uses the correct `presetId` for the on-disk `display_<slug>.json` you intend to finalize (round-trip refresh of `savedAt`)
 - [ ] **Layer targets:** you resolved **`layer_id` from `export_json` + `pull-export`** (or from an on-canvas **ID** label in **`pull-preview`**) before any **`align` / `text_*` / `device_*`** op, not a guessed name alone
+- [ ] Final handoff message tells the user where to view the final strip/panel output and asks for approval or refinements before stopping

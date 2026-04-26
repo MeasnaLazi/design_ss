@@ -12,7 +12,10 @@
       "Agent(toolkit_runner)"
     ],
     "deny": [
-      "Bash(rm -rf *)"
+      "Bash(rm -rf *)",
+      "Read(web_ui/src/**)",
+      "Edit(web_ui/src/**)",
+      "Write(web_ui/src/**)"
     ]
   }
 }
