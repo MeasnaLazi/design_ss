@@ -1,73 +1,8 @@
-import fs from 'node:fs/promises'
-
+import { ARTBOARD_PRESET_ID_LEGACY, normalizeArtboardPresetId } from './src/constants/artboardPresets'
 import {
-  displayDocumentToSession,
   displayFilePathForPreset,
   readDisplayDocumentIfExists,
-  sessionToDisplayDocument,
 } from './display-designer-session'
-import { ARTBOARD_PRESET_ID_LEGACY, normalizeArtboardPresetId } from './src/constants/artboardPresets'
-
-type TextAlign = 'left' | 'center' | 'right'
-
-type GradientStop = { offset: number; color: string }
-type GradientConfig = {
-  angleDeg: number
-  stops: GradientStop[]
-}
-
-type BackgroundConfig =
-  | { type: 'color'; value: string }
-  | { type: 'gradient'; value: GradientConfig }
-  | { type: 'image'; value: string }
-
-type BaseLayer = {
-  id: string
-  kind: 'device_frame' | 'text'
-  x: number
-  y: number
-  width: number
-  height: number
-  zIndex: number
-}
-
-type CornerPoint = [number, number]
-type CornerData = { TL: CornerPoint; TR: CornerPoint; BR: CornerPoint; BL: CornerPoint }
-type RadiiData = { tl: number; tr: number; br: number; bl: number }
-
-type DeviceFrameLayer = BaseLayer & {
-  kind: 'device_frame'
-  framePath: string
-  frameName: string
-  packId: string
-  scale: number
-  viewWidth: number
-  viewHeight: number
-  corners: CornerData
-  clipRadii: RadiiData | null
-  homography: boolean
-}
-
-type TextLayer = BaseLayer & {
-  kind: 'text'
-  content: string
-  font: string
-  size: number
-  color: string
-  align: TextAlign
-  weight: string
-}
-
-type Layer = DeviceFrameLayer | TextLayer
-
-type DesignerSession = {
-  width: number
-  height: number
-  background: BackgroundConfig
-  layers: Layer[]
-}
-
-const PANEL_GAP = 40
 
 type PresetInfo = { presetId: string; displaySlug: string; placeholder: string }
 
@@ -114,15 +49,6 @@ export type DesignerExecuteContext = {
   cookieArtboard?: string
   refererArtboard?: string
   onDisplayWritten?: (info: { slug: string; savedAt: string }) => void
-}
-
-function createBlankSession(width: number, height: number): DesignerSession {
-  return {
-    width,
-    height,
-    background: { type: 'color', value: '#101827' },
-    layers: [],
-  }
 }
 
 /** `?artboard=` on the app URL or session URL: short keys (iphone, …) or full preset id. */
@@ -180,95 +106,6 @@ export function resolveDesignerDisplaySlugFromHints(h: {
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x)
-}
-
-async function loadDesignerSessionForPreset(
-  rootDir: string,
-  datasourceDir: string,
-  resolvedPresetId: string,
-): Promise<{
-  session: DesignerSession
-  slug: string
-  displayPath: string
-  canvasZoom: number
-  screens: number
-  gap: number
-}> {
-  const preset = PRESET_BY_ID[resolvedPresetId]
-  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
-  const displayPath = displayFilePathForPreset(datasourceDir, resolvedPresetId)
-  const slug = preset.displaySlug
-  const raw = await readDisplayDocumentIfExists(displayPath)
-  if (raw === null) {
-    return {
-      session: createBlankSession(preset.width, preset.height),
-      slug,
-      displayPath,
-      canvasZoom: 0.2,
-      screens: 1,
-      gap: PANEL_GAP,
-    }
-  }
-  const loaded = await displayDocumentToSession(raw, preset.width, preset.height, rootDir)
-  const design = raw.design
-  let canvasZoom = 0.2
-  let screens = 1
-  let gap = PANEL_GAP
-  if (isRecord(design)) {
-    const cz = design.canvasZoom
-    if (typeof cz === 'number' && Number.isFinite(cz)) canvasZoom = cz
-    const cfg = design.config
-    if (isRecord(cfg)) {
-      const sc = cfg.screens
-      const g = cfg.gap
-      if (typeof sc === 'number' && Number.isFinite(sc)) screens = Math.round(sc)
-      if (typeof g === 'number' && Number.isFinite(g)) gap = Math.round(g)
-    }
-  }
-  return {
-    session: {
-      width: loaded.width,
-      height: loaded.height,
-      background: loaded.background as BackgroundConfig,
-      layers: loaded.layers as Layer[],
-    },
-    slug,
-    displayPath,
-    canvasZoom,
-    screens,
-    gap,
-  }
-}
-
-async function persistDesignerSession(
-  ctx: DesignerExecuteContext,
-  resolvedPresetId: string,
-  session: DesignerSession,
-  meta: { canvasZoom: number; screens: number; gap: number },
-): Promise<{ slug: string; savedAt: string }> {
-  const preset = PRESET_BY_ID[resolvedPresetId]
-  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
-  const doc = sessionToDisplayDocument(
-    session,
-    normalizeArtboardPresetId(resolvedPresetId),
-    {
-      placeholderUrl: preset.placeholder,
-      canvasZoom: meta.canvasZoom,
-      screens: meta.screens,
-      gap: meta.gap,
-      buildScreenHolePath,
-    },
-  )
-  const savedAt = String(doc.savedAt)
-  await fs.mkdir(ctx.datasourceDir, { recursive: true })
-  await fs.writeFile(
-    displayFilePathForPreset(ctx.datasourceDir, resolvedPresetId),
-    JSON.stringify(doc, null, 2),
-    'utf8',
-  )
-  const info = { slug: preset.displaySlug, savedAt }
-  ctx.onDisplayWritten?.(info)
-  return info
 }
 
 export async function getScreenshotDesignerSession(
@@ -334,10 +171,25 @@ const CLIENT_AUTHORITATIVE_OPERATIONS = new Set([
   'text_set_font_size',
   'text_set_font_style',
   'text_set_color',
+  'text_set_content',
+  'text_set_line_height',
+  'text_set_letter_spacing',
+  'text_auto_fit',
   'device_size_delta',
+  'device_set_size',
   'device_set_position',
   'device_move_delta',
   'device_set_angle',
+  'device_set_frame_style',
+  'device_set_screen_image',
+  'remove_layer',
+  'set_z_index',
+  'layer_patch',
+  'layers_patch_bulk',
+  'batch',
+  'distribute_layers',
+  'set_equal_spacing',
+  'match_size',
   'render_preview',
   'render_workspace_preview',
   'render_panel_preview',
@@ -361,77 +213,4 @@ export async function screenshotDesignerExecuteOperation(
   throw new Error(`Unknown operation "${operation}"`)
 }
 
-// Build SVG path commands for the screen hole.
-// Corners are in frame SVG space (origin = top-left of SVG).
-// Output is in image-local space (origin = center of image).
-function buildScreenHolePath(
-  corners: CornerData,
-  radii: RadiiData | null,
-  viewWidth: number,
-  viewHeight: number,
-): unknown[][] {
-  const hw = viewWidth / 2
-  const hh = viewHeight / 2
-  const pts: [number, number][] = [
-    [corners.TL[0] - hw, corners.TL[1] - hh],
-    [corners.TR[0] - hw, corners.TR[1] - hh],
-    [corners.BR[0] - hw, corners.BR[1] - hh],
-    [corners.BL[0] - hw, corners.BL[1] - hh],
-  ]
-  const r = radii ? [radii.tl, radii.tr, radii.br, radii.bl] : [0, 0, 0, 0]
-  const n = 4
-  const cmds: unknown[][] = []
 
-  for (let i = 0; i < n; i++) {
-    const prev = pts[(i - 1 + n) % n]!
-    const curr = pts[i]!
-    const next = pts[(i + 1) % n]!
-    const ri = r[i] ?? 0
-
-    if (ri <= 0) {
-      cmds.push(i === 0 ? ['M', curr[0], curr[1]] : ['L', curr[0], curr[1]])
-      continue
-    }
-
-    const dx1 = curr[0] - prev[0], dy1 = curr[1] - prev[1]
-    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1)
-    const dx2 = next[0] - curr[0], dy2 = next[1] - curr[1]
-    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-
-    const inX = curr[0] - (dx1 / len1) * ri
-    const inY = curr[1] - (dy1 / len1) * ri
-    const outX = curr[0] + (dx2 / len2) * ri
-    const outY = curr[1] + (dy2 / len2) * ri
-
-    cmds.push(i === 0 ? ['M', inX, inY] : ['L', inX, inY])
-    cmds.push(['Q', curr[0], curr[1], outX, outY])
-  }
-
-  cmds.push(['Z'])
-  return cmds
-}
-
-/** Round-trip current on-disk design for a preset (refreshes `savedAt`, notifies SSE). */
-export async function saveDisplayDocument(
-  datasourceDir: string,
-  rootDir: string,
-  presetId?: string,
-  opts?: { onDisplayWritten?: DesignerExecuteContext['onDisplayWritten'] },
-): Promise<{ file: string }> {
-  const resolvedPresetId =
-    presetId && PRESET_BY_ID[presetId] ? presetId : DEFAULT_PRESET_ID
-  const preset = PRESET_BY_ID[resolvedPresetId]
-  if (!preset) throw new Error(`Unknown presetId "${resolvedPresetId}"`)
-  const loaded = await loadDesignerSessionForPreset(rootDir, datasourceDir, resolvedPresetId)
-  const ctx: DesignerExecuteContext = {
-    rootDir,
-    datasourceDir,
-    onDisplayWritten: opts?.onDisplayWritten,
-  }
-  await persistDesignerSession(ctx, resolvedPresetId, loaded.session, {
-    canvasZoom: loaded.canvasZoom,
-    screens: loaded.screens,
-    gap: loaded.gap,
-  })
-  return { file: `display_${preset.displaySlug}.json` }
-}

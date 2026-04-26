@@ -4,7 +4,7 @@ import pytest
 
 from agent_toolkit.color import contrast_ratio, is_hex_color, relative_luminance
 from agent_toolkit.constants import DESIGN_GRID
-from agent_toolkit.geometry import align_layer, rects_overlap
+from agent_toolkit.geometry import align_layer, panel_rect, rects_overlap
 from agent_toolkit.grid import is_grid_value, snap_to_grid
 from agent_toolkit.presets import resolve_preset, resolve_preset_id
 from agent_toolkit.text_metrics import estimate_text_height, estimate_text_width
@@ -53,6 +53,13 @@ def test_is_grid_value() -> None:
 def test_rects_overlap() -> None:
     assert rects_overlap(0, 0, 10, 10, 5, 5, 10, 10)
     assert not rects_overlap(0, 0, 10, 10, 10, 0, 10, 10)
+
+
+def test_panel_rect_matches_strip_formula() -> None:
+    gap, w, h = 40, 1290, 2796
+    assert panel_rect(0, gap, w, h) == (0.0, 0.0, float(w), float(h))
+    assert panel_rect(1, gap, w, h) == (w + gap, 0.0, float(w), float(h))
+    assert panel_rect(2, gap, w, h) == (2 * (w + gap), 0.0, float(w), float(h))
 
 
 def test_align_center_x_canvas() -> None:

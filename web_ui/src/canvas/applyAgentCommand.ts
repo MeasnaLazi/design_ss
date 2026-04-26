@@ -1,16 +1,19 @@
+import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
-import { ActiveSelection, Group, Textbox } from 'fabric'
+import { pushAgentExportJson, pushLiveCanvasPreview, pushLiveCanvasPreviewRect } from '../lib/agentContextApi'
 
+import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
+import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 import { buildAgentLayoutSummaryFromCanvas } from './buildAgentLayoutSummary'
-import { screenExportRect } from '../constants/appStoreScreens'
-import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
-import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
-import { pushAgentExportJson, pushLiveCanvasPreview, pushLiveCanvasPreviewRect } from '../lib/agentContextApi'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
+import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
+import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
+import { screenExportRect } from '../constants/appStoreScreens'
 import { useDesignStore } from '../store/useDesignStore'
+import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import { useToastStore } from '../store/useToastStore'
 
 const DESIGN_GRID = 16
@@ -65,6 +68,22 @@ function isHexColor(value: string): boolean {
   return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value.trim())
 }
 
+function normalizeBackgroundType(rawType: unknown, rawValue: unknown): 'color' | 'gradient' | 'image' | null {
+  const t = String(rawType ?? '').trim().toLowerCase()
+  if (t === 'color' || t === 'gradient' || t === 'image') return t
+  if (t === 'background_color' || t === 'bg_color') return 'color'
+  if (t === 'background_gradient' || t === 'bg_gradient') return 'gradient'
+  if (t === 'background_image' || t === 'bg_image') return 'image'
+  if (t === 'solid' || t === 'set_background_color' || t === 'set_bg') return 'color'
+  if (!t) {
+    if (typeof rawValue === 'string' && isHexColor(rawValue)) return 'color'
+    if (typeof rawValue === 'object' && rawValue !== null && 'stops' in (rawValue as Record<string, unknown>)) {
+      return 'gradient'
+    }
+  }
+  return null
+}
+
 function estimateTextWidth(content: string, fontSize: number): number {
   return Math.max(fontSize, Math.round(content.length * fontSize * 0.56))
 }
@@ -76,10 +95,332 @@ function packIdFromDeviceFramePath(framePath: string): string | undefined {
 }
 
 type AlignAnchor = 'center_x' | 'center_y' | 'top' | 'bottom' | 'left' | 'right'
+type LayerKind = 'text' | 'device'
 
 function refRectCanvas(): { x: number; y: number; width: number; height: number } {
   const { width, height } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
   return { x: 0, y: 0, width, height }
+}
+
+function argsSpecifyPanel(args: Record<string, unknown>): boolean {
+  return (
+    (args.panel_index !== undefined && args.panel_index !== null && args.panel_index !== '') ||
+    (args.panel_number !== undefined && args.panel_number !== null && args.panel_number !== '')
+  )
+}
+
+/** Resolve optional `panel_index` (0-based) or `panel_number` (1-based) from op args; `null` if neither set. */
+function parsePanelIndexFromArgs(args: Record<string, unknown>): number | null {
+  const hasPi = args.panel_index !== undefined && args.panel_index !== null && args.panel_index !== ''
+  const hasPn = args.panel_number !== undefined && args.panel_number !== null && args.panel_number !== ''
+  if (hasPi) {
+    const n = Number(args.panel_index)
+    if (!Number.isInteger(n)) return null
+    return n
+  }
+  if (hasPn) {
+    const n = Number(args.panel_number)
+    if (!Number.isInteger(n)) return null
+    return n - 1
+  }
+  return null
+}
+
+function clampPanelIndex(panelIndex: number, screens: number): number {
+  const s = Math.max(1, screens)
+  if (!Number.isInteger(panelIndex) || panelIndex < 0) return 0
+  if (panelIndex >= s) return s - 1
+  return panelIndex
+}
+
+function refRectForPanelIndex(panelIndex: number): { x: number; y: number; width: number; height: number } | null {
+  const config = useDesignStore.getState().config
+  const screens = Math.max(1, config.screens)
+  if (!Number.isInteger(panelIndex) || panelIndex < 0 || panelIndex >= screens) return null
+  const { width, height } = getArtboardDimensionsFromConfig(config)
+  const r = screenExportRect(panelIndex, config.gap, width, height)
+  return { x: r.left, y: r.top, width: r.width, height: r.height }
+}
+
+function getLayerTarget(canvas: Canvas, layerId: string): { obj: FabricObject; kind: LayerKind } | null {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (!rec || (rec.kind !== 'text' && rec.kind !== 'device')) return null
+  const obj = findObjectOnCanvasByAppId(canvas, layerId)
+  if (!obj || obj instanceof ActiveSelection) return null
+  return { obj, kind: rec.kind }
+}
+
+function normalizeLayerPosition(x: unknown, y: unknown): { left: number; top: number } | null {
+  const nx = Number(x)
+  const ny = Number(y)
+  if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null
+  return { left: snapGrid(nx), top: snapGrid(ny) }
+}
+
+function applyLayerBoxSize(target: FabricObject, width: unknown, height: unknown): boolean {
+  const w = Number(width)
+  const h = Number(height)
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return false
+  const curW = target.getScaledWidth()
+  const curH = target.getScaledHeight()
+  if (curW < 1e-6 || curH < 1e-6) return false
+  target.set({
+    scaleX: (target.scaleX ?? 1) * (snapGrid(w) / curW),
+    scaleY: (target.scaleY ?? 1) * (snapGrid(h) / curH),
+  })
+  return true
+}
+
+/** Uniform scale so aspect ratio is preserved — device frame layers only (`kind: 'device'`). */
+type UniformFitMode = 'contain' | 'cover'
+
+function applyUniformScaledSizeForDeviceFrame(
+  canvas: Canvas,
+  layerId: string,
+  target: FabricObject,
+  opts: { w?: number; h?: number; fit: UniformFitMode },
+): boolean {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (rec?.kind !== 'device') return false
+  const onCanvas = findObjectOnCanvasByAppId(canvas, layerId)
+  if (onCanvas !== target) return false
+  const cw = target.getScaledWidth()
+  const ch = target.getScaledHeight()
+  if (cw < 1e-6 || ch < 1e-6) return false
+  const hasW = opts.w != null && Number.isFinite(opts.w) && opts.w > 0
+  const hasH = opts.h != null && Number.isFinite(opts.h) && opts.h > 0
+  if (!hasW && !hasH) return false
+  const tw = hasW ? snapGrid(opts.w!) : null
+  const th = hasH ? snapGrid(opts.h!) : null
+  let factor: number
+  if (hasW && hasH && tw != null && th != null) {
+    const scaleW = tw / cw
+    const scaleH = th / ch
+    factor = opts.fit === 'cover' ? Math.max(scaleW, scaleH) : Math.min(scaleW, scaleH)
+  } else if (hasW && tw != null) {
+    factor = tw / cw
+  } else if (hasH && th != null) {
+    factor = th / ch
+  } else {
+    return false
+  }
+  if (!Number.isFinite(factor) || factor <= 0) return false
+  target.set({
+    scaleX: (target.scaleX ?? 1) * factor,
+    scaleY: (target.scaleY ?? 1) * factor,
+  })
+  return true
+}
+
+function applyLayerPatch(canvas: Canvas, layerId: string, patch: Record<string, unknown>): string | null {
+  const target = getLayerTarget(canvas, layerId)
+  if (!target) return `layer "${layerId}" not found.`
+  const { obj, kind } = target
+  const changed: Record<string, unknown> = {}
+  const allowedCommon = new Set(['x', 'y', 'width', 'height', 'angle', 'opacity', 'scale_x', 'scale_y'])
+  const allowedText = new Set([
+    'content',
+    'font_size',
+    'font_weight',
+    'font_style',
+    'color',
+    'text_align',
+    'line_height',
+    'letter_spacing',
+  ])
+
+  for (const key of Object.keys(patch)) {
+    const deviceOnly = key === 'fit' && kind === 'device'
+    if (!allowedCommon.has(key) && !(kind === 'text' && allowedText.has(key)) && !deviceOnly) {
+      return `layer_patch: key "${key}" is not allowed for ${kind} layers.`
+    }
+  }
+  if ('fit' in patch && kind !== 'device') {
+    return 'layer_patch: fit is only valid for device frame layers.'
+  }
+
+  if ('x' in patch || 'y' in patch) {
+    const pos = normalizeLayerPosition(patch.x ?? obj.left, patch.y ?? obj.top)
+    if (!pos) return 'layer_patch: x and y must both be numeric when setting position.'
+    changed.left = pos.left
+    changed.top = pos.top
+  }
+
+  if ('width' in patch || 'height' in patch) {
+    const pw = 'width' in patch ? Number(patch.width) : Number.NaN
+    const ph = 'height' in patch ? Number(patch.height) : Number.NaN
+    const hasW = Number.isFinite(pw) && pw > 0
+    const hasH = Number.isFinite(ph) && ph > 0
+    if (kind === 'device') {
+      if (!hasW && !hasH) {
+        return 'layer_patch: device needs at least one positive width or height.'
+      }
+      const fitRaw = String(patch.fit ?? 'contain').toLowerCase()
+      const fit: UniformFitMode = fitRaw === 'cover' ? 'cover' : 'contain'
+      if (
+        !applyUniformScaledSizeForDeviceFrame(canvas, layerId, obj, {
+          w: hasW ? pw : undefined,
+          h: hasH ? ph : undefined,
+          fit,
+        })
+      ) {
+        return 'layer_patch: device frame width/height could not be applied.'
+      }
+    } else {
+      if (!hasW || !hasH) {
+        return 'layer_patch: width and height must be provided together.'
+      }
+      if (!applyLayerBoxSize(obj, patch.width, patch.height)) {
+        return 'layer_patch: width/height must be positive numeric values.'
+      }
+    }
+  }
+
+  if ('scale_x' in patch) {
+    const sx = Number(patch.scale_x)
+    if (!Number.isFinite(sx) || sx <= 0) return 'layer_patch: scale_x must be > 0.'
+    changed.scaleX = sx
+  }
+  if ('scale_y' in patch) {
+    const sy = Number(patch.scale_y)
+    if (!Number.isFinite(sy) || sy <= 0) return 'layer_patch: scale_y must be > 0.'
+    changed.scaleY = sy
+  }
+  if ('angle' in patch) {
+    const angle = Number(patch.angle)
+    if (!Number.isFinite(angle)) return 'layer_patch: angle must be numeric.'
+    changed.angle = angle
+  }
+  if ('opacity' in patch) {
+    const opacity = Number(patch.opacity)
+    if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+      return 'layer_patch: opacity must be between 0 and 1.'
+    }
+    changed.opacity = opacity
+  }
+
+  if (kind === 'text') {
+    const text = obj instanceof Textbox ? obj : null
+    if (!text) return `layer_patch: text layer "${layerId}" object mismatch.`
+    if ('content' in patch) changed.text = String(patch.content ?? '')
+    if ('font_size' in patch) {
+      const size = Number(patch.font_size)
+      if (!Number.isFinite(size)) return 'layer_patch: font_size must be numeric.'
+      changed.fontSize = clampTextFontSize(size)
+    }
+    if ('font_weight' in patch) changed.fontWeight = String(patch.font_weight ?? 'normal')
+    if ('font_style' in patch) {
+      const style = String(patch.font_style ?? 'normal')
+      if (!['normal', 'italic'].includes(style)) return 'layer_patch: font_style must be normal or italic.'
+      changed.fontStyle = style
+    }
+    if ('color' in patch) {
+      const color = String(patch.color ?? '').trim()
+      if (!isHexColor(color)) return 'layer_patch: color must be hex (#rrggbb).'
+      changed.fill = color
+    }
+    if ('text_align' in patch) {
+      const align = String(patch.text_align ?? 'left')
+      if (!['left', 'center', 'right', 'justify'].includes(align)) {
+        return 'layer_patch: text_align must be left|center|right|justify.'
+      }
+      changed.textAlign = align
+    }
+    if ('line_height' in patch) {
+      const lineHeight = Number(patch.line_height)
+      if (!Number.isFinite(lineHeight) || lineHeight <= 0) return 'layer_patch: line_height must be > 0.'
+      changed.lineHeight = lineHeight
+    }
+    if ('letter_spacing' in patch) {
+      const spacing = Number(patch.letter_spacing)
+      if (!Number.isFinite(spacing)) return 'layer_patch: letter_spacing must be numeric.'
+      changed.charSpacing = spacing
+    }
+    patchTextbox(canvas, text, changed)
+    return null
+  }
+
+  obj.set(changed)
+  obj.setCoords()
+  fireObjectModified(canvas, obj)
+  return null
+}
+
+function sortObjectsByAxis(objs: FabricObject[], axis: 'x' | 'y'): FabricObject[] {
+  return [...objs].sort((a, b) => ((axis === 'x' ? a.left : a.top) ?? 0) - ((axis === 'x' ? b.left : b.top) ?? 0))
+}
+
+function resolveLayersForIds(canvas: Canvas, layerIds: string[]): FabricObject[] | null {
+  const targets: FabricObject[] = []
+  for (const id of layerIds) {
+    const obj = findObjectOnCanvasByAppId(canvas, id)
+    if (!obj || obj instanceof ActiveSelection) return null
+    targets.push(obj)
+  }
+  return targets
+}
+
+async function replaceDeviceFrameStyle(canvas: Canvas, layerId: string, styleId: string, packId?: string): Promise<string | null> {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (rec?.kind !== 'device') return `device_set_frame_style: layer "${layerId}" is not a device.`
+  const target = getDeviceGroupForLayer(canvas, layerId)
+  if (!target) return `device_set_frame_style: device layer "${layerId}" not found.`
+
+  const state = useDeviceFramePackStore.getState()
+  const resolvedPack = packId ?? rec.deviceFramePackId ?? state.selectedPackId ?? undefined
+  const style = resolveDeviceFrameStyle(resolvedPack, styleId, state.devices, state.selectedPackId ?? undefined)
+  if (!style.src) return 'device_set_frame_style: could not resolve frame style source.'
+
+  const frame = await FabricImage.fromURL(
+    style.src,
+    { crossOrigin: 'anonymous' },
+    {
+      originX: 'left',
+      originY: 'top',
+      selectable: false,
+      evented: false,
+    },
+  )
+  if (!(frame instanceof FabricImage)) return 'device_set_frame_style: failed to load frame image.'
+
+  const objects = target.getObjects()
+  if (objects.length === 0) return 'device_set_frame_style: device group has no frame.'
+  const oldFrame = objects[objects.length - 1]
+  const oldW = oldFrame.getScaledWidth()
+  const nextW = frame.getScaledWidth()
+  const factor = oldW > 1e-6 && nextW > 1e-6 ? oldW / nextW : 1
+  frame.set({
+    left: oldFrame.left,
+    top: oldFrame.top,
+    scaleX: (frame.scaleX ?? 1) * factor,
+    scaleY: (frame.scaleY ?? 1) * factor,
+    objectCaching: false,
+    dirty: true,
+  })
+  target.remove(oldFrame)
+  target.add(frame)
+  target.triggerLayout({})
+  target.setCoords()
+  useDesignStore.getState().upsertObject({
+    ...rec,
+    deviceFrameStyleId: style.id,
+    deviceFramePackId: resolvedPack,
+  })
+  fireObjectModified(canvas, target)
+  return null
+}
+
+async function applyDeviceScreenshotFromUrl(canvas: Canvas, layerId: string, url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return `device_set_screen_image: failed to fetch url (${res.status}).`
+    const blob = await res.blob()
+    const file = new File([blob], 'device-screen.png', { type: blob.type || 'image/png' })
+    await applyScreenshotToDeviceGroup(canvas, layerId, file)
+    return null
+  } catch (e) {
+    return `device_set_screen_image: ${e instanceof Error ? e.message : 'failed to load image'}`
+  }
 }
 
 /**
@@ -99,15 +440,42 @@ export async function applyAgentCommand(
       const path = String(args.path ?? '')
       const frame = String(args.frame ?? DEFAULT_DEVICE_FRAME_STYLE_ID)
       const packId = path ? packIdFromDeviceFramePath(path.startsWith('/') ? path : `/${path}`) : undefined
-      await addDeviceFrameToCanvas(canvas, frame, packId ? { packId } : undefined)
+      let panelIndex = 0
+      if (argsSpecifyPanel(args)) {
+        const parsedPanel = parsePanelIndexFromArgs(args)
+        if (parsedPanel === null) {
+          useToastStore
+            .getState()
+            .showToast('add_device_frame: panel_index and panel_number must be integers.', 'warning')
+          return
+        }
+        const screens = Math.max(1, useDesignStore.getState().config.screens)
+        panelIndex = clampPanelIndex(parsedPanel, screens)
+      }
+      await addDeviceFrameToCanvas(canvas, frame, {
+        ...(packId ? { packId } : {}),
+        panelIndex,
+      })
       return
     }
 
     case 'set_background': {
-      const type = args.type
+      const payload =
+        typeof args.background === 'object' && args.background !== null && !Array.isArray(args.background)
+          ? (args.background as Record<string, unknown>)
+          : args
+      const rawType = payload.type ?? payload.mode ?? payload.background_type
+      const rawValue =
+        payload.value ??
+        payload.color ??
+        payload.gradient ??
+        payload.image ??
+        payload.image_url ??
+        payload.background
+      const type = normalizeBackgroundType(rawType, rawValue)
       const { setConfig } = useDesignStore.getState()
       if (type === 'color') {
-        const value = String(args.value ?? '').trim()
+        const value = String(rawValue ?? '').trim()
         if (!isHexColor(value)) {
           useToastStore.getState().showToast('Solid background must be a hex color.', 'warning')
           return
@@ -121,7 +489,7 @@ export async function applyAgentCommand(
         return
       }
       if (type === 'gradient') {
-        const g = normalizeBackgroundGradient(args.value)
+        const g = normalizeBackgroundGradient(rawValue)
         setConfig({
           backgroundMode: 'gradient',
           backgroundGradient: g,
@@ -131,11 +499,51 @@ export async function applyAgentCommand(
         return
       }
       if (type === 'image') {
-        setConfig({ backgroundImageUrl: String(args.value ?? '') })
+        setConfig({ backgroundImageUrl: String(rawValue ?? '') })
         canvas.requestRenderAll()
         return
       }
+      console.warn('[applyAgentCommand] set_background rejected payload', { args })
       useToastStore.getState().showToast('set_background type must be color | gradient | image.', 'warning')
+      return
+    }
+
+    case 'move_layer': {
+      const layerId = String(args.layer_id ?? '')
+      if (!layerId) {
+        useToastStore.getState().showToast('move_layer: missing layer_id.', 'warning')
+        return
+      }
+      const target = getLayerTarget(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`move_layer: layer "${layerId}" not found.`, 'warning')
+        return
+      }
+
+      const x = Number(args.x)
+      const y = Number(args.y)
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        target.obj.set({ left: snapGrid(x), top: snapGrid(y) })
+        target.obj.setCoords()
+        fireObjectModified(canvas, target.obj)
+        return
+      }
+
+      const dx = Number(args.dx)
+      const dy = Number(args.dy)
+      if (Number.isFinite(dx) && Number.isFinite(dy)) {
+        target.obj.set({
+          left: snapGrid((target.obj.left ?? 0) + dx),
+          top: snapGrid((target.obj.top ?? 0) + dy),
+        })
+        target.obj.setCoords()
+        fireObjectModified(canvas, target.obj)
+        return
+      }
+
+      useToastStore
+        .getState()
+        .showToast('move_layer: provide x/y for absolute move or dx/dy for delta move.', 'warning')
       return
     }
 
@@ -156,6 +564,31 @@ export async function applyAgentCommand(
       let refRect: { x: number; y: number; width: number; height: number }
       if (reference === 'canvas') {
         refRect = refRectCanvas()
+      } else if (reference === 'panel') {
+        if (!argsSpecifyPanel(args)) {
+          useToastStore
+            .getState()
+            .showToast(
+              'align: reference "panel" requires panel_index (0-based) or panel_number (1-based).',
+              'warning',
+            )
+          return
+        }
+        const parsedPanel = parsePanelIndexFromArgs(args)
+        if (parsedPanel === null) {
+          useToastStore
+            .getState()
+            .showToast('align: panel_index and panel_number must be integers.', 'warning')
+          return
+        }
+        const screens = Math.max(1, useDesignStore.getState().config.screens)
+        const p = clampPanelIndex(parsedPanel, screens)
+        const rr = refRectForPanelIndex(p)
+        if (!rr) {
+          useToastStore.getState().showToast('align: invalid panel for current layout.', 'warning')
+          return
+        }
+        refRect = rr
       } else {
         const refObj = findObjectOnCanvasByAppId(canvas, reference)
         if (!refObj) {
@@ -199,8 +632,24 @@ export async function applyAgentCommand(
 
     case 'add_text': {
       const content = String(args.content ?? '')
-      const x = Number(args.x)
-      const y = Number(args.y)
+      let x = Number(args.x)
+      let y = Number(args.y)
+      if (argsSpecifyPanel(args)) {
+        const parsedPanel = parsePanelIndexFromArgs(args)
+        if (parsedPanel === null) {
+          useToastStore.getState().showToast('add_text: panel_index and panel_number must be integers.', 'warning')
+          return
+        }
+        const screens = Math.max(1, useDesignStore.getState().config.screens)
+        const p = clampPanelIndex(parsedPanel, screens)
+        const pr = refRectForPanelIndex(p)
+        if (!pr) {
+          useToastStore.getState().showToast('add_text: invalid panel for current layout.', 'warning')
+          return
+        }
+        x = pr.x + x
+        y = pr.y + y
+      }
       const fontToken = String(args.font ?? 'body') as FontToken
       const size = Number(args.size)
       const color = String(args.color ?? '#ffffff')
@@ -316,6 +765,95 @@ export async function applyAgentCommand(
       return
     }
 
+    case 'text_set_content': {
+      const layerId = String(args.layer_id ?? '')
+      const content = String(args.content ?? '')
+      if (!layerId) {
+        useToastStore.getState().showToast('text_set_content: missing layer_id.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_set_content: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      patchTextbox(canvas, text, { text: content })
+      return
+    }
+
+    case 'text_set_line_height': {
+      const layerId = String(args.layer_id ?? '')
+      const lineHeight = Number(args.line_height)
+      if (!layerId || !Number.isFinite(lineHeight) || lineHeight <= 0) {
+        useToastStore.getState().showToast('text_set_line_height: need layer_id and line_height > 0.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_set_line_height: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      patchTextbox(canvas, text, { lineHeight })
+      return
+    }
+
+    case 'text_set_letter_spacing': {
+      const layerId = String(args.layer_id ?? '')
+      const spacing = Number(args.letter_spacing)
+      if (!layerId || !Number.isFinite(spacing)) {
+        useToastStore.getState().showToast(
+          'text_set_letter_spacing: need layer_id and numeric letter_spacing.',
+          'warning',
+        )
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore
+          .getState()
+          .showToast(`text_set_letter_spacing: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      patchTextbox(canvas, text, { charSpacing: spacing })
+      return
+    }
+
+    case 'text_auto_fit': {
+      const layerId = String(args.layer_id ?? '')
+      const minSizeRaw = args.min_size
+      const maxSizeRaw = args.max_size
+      if (!layerId) {
+        useToastStore.getState().showToast('text_auto_fit: missing layer_id.', 'warning')
+        return
+      }
+      const text = getTextboxForLayer(canvas, layerId)
+      if (!text) {
+        useToastStore.getState().showToast(`text_auto_fit: text layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const minSize = Number.isFinite(Number(minSizeRaw))
+        ? clampTextFontSize(Number(minSizeRaw))
+        : TEXT_FONT_SIZE_MIN
+      const maxSize = Number.isFinite(Number(maxSizeRaw))
+        ? clampTextFontSize(Number(maxSizeRaw))
+        : TEXT_FONT_SIZE_MAX
+      const ceiling = Math.max(minSize, maxSize)
+      const floor = Math.min(minSize, maxSize)
+      const cur = clampTextFontSize(Number(text.fontSize ?? ceiling))
+      const width = Math.max(1, Number(text.width ?? 1))
+      let best = Math.min(cur, ceiling)
+      const content = String(text.text ?? '')
+      for (let size = best; size >= floor; size -= 1) {
+        if (estimateTextWidth(content, size) <= width) {
+          best = size
+          break
+        }
+        best = size
+      }
+      patchTextbox(canvas, text, { fontSize: best })
+      return
+    }
+
     case 'device_size_delta': {
       const layerId = String(args.layer_id ?? '')
       const rawDelta = args.delta_px ?? args.delta
@@ -401,6 +939,296 @@ export async function applyAgentCommand(
       target.set({ angle })
       target.setCoords()
       fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'device_set_size': {
+      const layerId = String(args.layer_id ?? '')
+      const width = Number(args.width)
+      const height = Number(args.height)
+      const hasW = Number.isFinite(width) && width > 0
+      const hasH = Number.isFinite(height) && height > 0
+      const fitRaw = String(args.fit ?? 'contain').toLowerCase()
+      const fit: UniformFitMode = fitRaw === 'cover' ? 'cover' : 'contain'
+      if (!layerId || (!hasW && !hasH)) {
+        useToastStore
+          .getState()
+          .showToast(
+            'device_set_size: need layer_id and at least one positive width or height (aspect ratio preserved).',
+            'warning',
+          )
+        return
+      }
+      const target = getDeviceGroupForLayer(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`device_set_size: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      if (
+        !applyUniformScaledSizeForDeviceFrame(canvas, layerId, target, {
+          w: hasW ? width : undefined,
+          h: hasH ? height : undefined,
+          fit,
+        })
+      ) {
+        useToastStore.getState().showToast('device_set_size: could not apply size (device frame only).', 'warning')
+        return
+      }
+      target.setCoords()
+      fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'device_set_frame_style': {
+      const layerId = String(args.layer_id ?? '')
+      const style = String(args.style ?? args.frame ?? '')
+      const packIdRaw = args.pack_id
+      const packId = packIdRaw == null ? undefined : String(packIdRaw)
+      if (!layerId || !style) {
+        useToastStore
+          .getState()
+          .showToast('device_set_frame_style: need layer_id and style (or frame).', 'warning')
+        return
+      }
+      const err = await replaceDeviceFrameStyle(canvas, layerId, style, packId)
+      if (err) useToastStore.getState().showToast(err, 'warning')
+      return
+    }
+
+    case 'device_set_screen_image': {
+      const layerId = String(args.layer_id ?? '')
+      const imageUrl = String(args.image_url ?? args.url ?? '')
+      if (!layerId || !imageUrl) {
+        useToastStore
+          .getState()
+          .showToast('device_set_screen_image: need layer_id and image_url (or url).', 'warning')
+        return
+      }
+      const err = await applyDeviceScreenshotFromUrl(canvas, layerId, imageUrl)
+      if (err) useToastStore.getState().showToast(err, 'warning')
+      return
+    }
+
+    case 'remove_layer': {
+      const layerId = String(args.layer_id ?? '')
+      if (!layerId) {
+        useToastStore.getState().showToast('remove_layer: missing layer_id.', 'warning')
+        return
+      }
+      const target = findObjectOnCanvasByAppId(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`remove_layer: layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      canvas.remove(target)
+      useDesignStore.getState().removeObject(layerId)
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+      return
+    }
+
+    case 'set_z_index': {
+      const layerId = String(args.layer_id ?? '')
+      const zIndex = Number(args.z_index)
+      if (!layerId || !Number.isInteger(zIndex)) {
+        useToastStore.getState().showToast('set_z_index: need layer_id and integer z_index.', 'warning')
+        return
+      }
+      const target = findObjectOnCanvasByAppId(canvas, layerId)
+      if (!target) {
+        useToastStore.getState().showToast(`set_z_index: layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const objs = canvas.getObjects()
+      const maxIndex = Math.max(0, objs.length - 1)
+      const clamped = Math.min(maxIndex, Math.max(0, zIndex))
+      const movable = target as FabricObject & { moveTo?: (index: number) => void }
+      if (typeof movable.moveTo !== 'function') {
+        useToastStore.getState().showToast('set_z_index: target does not support moveTo.', 'warning')
+        return
+      }
+      movable.moveTo(clamped)
+      target.setCoords()
+      fireObjectModified(canvas, target)
+      return
+    }
+
+    case 'layer_patch': {
+      const layerId = String(args.layer_id ?? '')
+      const patch = args.patch
+      if (!layerId || typeof patch !== 'object' || patch == null || Array.isArray(patch)) {
+        useToastStore.getState().showToast('layer_patch: need layer_id and object patch.', 'warning')
+        return
+      }
+      const err = applyLayerPatch(canvas, layerId, patch as Record<string, unknown>)
+      if (err) useToastStore.getState().showToast(err, 'warning')
+      return
+    }
+
+    case 'layers_patch_bulk': {
+      const entries = Array.isArray(args.layers) ? args.layers : null
+      if (!entries || entries.length === 0) {
+        useToastStore.getState().showToast('layers_patch_bulk: layers must be a non-empty array.', 'warning')
+        return
+      }
+      for (const entry of entries) {
+        if (typeof entry !== 'object' || entry == null || Array.isArray(entry)) {
+          useToastStore.getState().showToast('layers_patch_bulk: each entry must be an object.', 'warning')
+          return
+        }
+        const row = entry as Record<string, unknown>
+        const layerId = String(row.layer_id ?? '')
+        const patch = row.patch
+        if (!layerId || typeof patch !== 'object' || patch == null || Array.isArray(patch)) {
+          useToastStore.getState().showToast(
+            'layers_patch_bulk: each entry needs layer_id and object patch.',
+            'warning',
+          )
+          return
+        }
+        const err = applyLayerPatch(canvas, layerId, patch as Record<string, unknown>)
+        if (err) {
+          useToastStore.getState().showToast(`layers_patch_bulk: ${err}`, 'warning')
+          return
+        }
+      }
+      return
+    }
+
+    case 'batch': {
+      const ops = Array.isArray(args.operations) ? args.operations : null
+      if (!ops) {
+        useToastStore.getState().showToast('batch: operations must be an array.', 'warning')
+        return
+      }
+      for (const op of ops) {
+        if (typeof op !== 'object' || op == null || Array.isArray(op)) {
+          useToastStore.getState().showToast('batch: each operation must be an object.', 'warning')
+          return
+        }
+        const row = op as Record<string, unknown>
+        const childOp = String(row.operation ?? '')
+        const childArgsRaw = row.args ?? {}
+        if (!childOp || typeof childArgsRaw !== 'object' || childArgsRaw == null || Array.isArray(childArgsRaw)) {
+          useToastStore
+            .getState()
+            .showToast('batch: each item requires operation and object args.', 'warning')
+          return
+        }
+        if (childOp === 'batch') {
+          useToastStore.getState().showToast('batch: nested batch is not supported.', 'warning')
+          return
+        }
+        await applyAgentCommand(canvas, childOp, childArgsRaw as Record<string, unknown>)
+      }
+      return
+    }
+
+    case 'distribute_layers': {
+      const layerIds = Array.isArray(args.layer_ids) ? args.layer_ids.map((id) => String(id)) : null
+      const axis = String(args.axis ?? 'x')
+      if (!layerIds || layerIds.length < 3 || !['x', 'y'].includes(axis)) {
+        useToastStore
+          .getState()
+          .showToast('distribute_layers: need 3+ layer_ids and axis x|y.', 'warning')
+        return
+      }
+      const targets = resolveLayersForIds(canvas, layerIds)
+      if (!targets) {
+        useToastStore.getState().showToast('distribute_layers: one or more layers not found.', 'warning')
+        return
+      }
+      const sorted = sortObjectsByAxis(targets, axis as 'x' | 'y')
+      const first = sorted[0]
+      const last = sorted[sorted.length - 1]
+      const start = axis === 'x' ? (first.left ?? 0) : (first.top ?? 0)
+      const end = axis === 'x' ? (last.left ?? 0) : (last.top ?? 0)
+      const step = (end - start) / (sorted.length - 1)
+      for (let i = 0; i < sorted.length; i += 1) {
+        const pos = snapGrid(start + step * i)
+        if (axis === 'x') {
+          sorted[i].set({ left: pos })
+        } else {
+          sorted[i].set({ top: pos })
+        }
+        sorted[i].setCoords()
+        canvas.fire('object:modified', { target: sorted[i] })
+      }
+      canvas.requestRenderAll()
+      return
+    }
+
+    case 'set_equal_spacing': {
+      const layerIds = Array.isArray(args.layer_ids) ? args.layer_ids.map((id) => String(id)) : null
+      const axis = String(args.axis ?? 'x')
+      const gap = Number(args.gap)
+      if (!layerIds || layerIds.length < 2 || !['x', 'y'].includes(axis) || !Number.isFinite(gap)) {
+        useToastStore
+          .getState()
+          .showToast('set_equal_spacing: need 2+ layer_ids, axis x|y, and numeric gap.', 'warning')
+        return
+      }
+      const targets = resolveLayersForIds(canvas, layerIds)
+      if (!targets) {
+        useToastStore.getState().showToast('set_equal_spacing: one or more layers not found.', 'warning')
+        return
+      }
+      const sorted = sortObjectsByAxis(targets, axis as 'x' | 'y')
+      let cursor = axis === 'x' ? (sorted[0].left ?? 0) : (sorted[0].top ?? 0)
+      for (let i = 1; i < sorted.length; i += 1) {
+        const prev = sorted[i - 1]
+        const prevSize = axis === 'x' ? prev.getScaledWidth() : prev.getScaledHeight()
+        cursor = cursor + prevSize + gap
+        const pos = snapGrid(cursor)
+        if (axis === 'x') {
+          sorted[i].set({ left: pos })
+        } else {
+          sorted[i].set({ top: pos })
+        }
+        sorted[i].setCoords()
+        canvas.fire('object:modified', { target: sorted[i] })
+      }
+      canvas.requestRenderAll()
+      return
+    }
+
+    case 'match_size': {
+      const sourceId = String(args.source_layer_id ?? '')
+      const targetIds = Array.isArray(args.target_layer_ids)
+        ? args.target_layer_ids.map((id) => String(id))
+        : []
+      const mode = String(args.mode ?? 'both')
+      if (!sourceId || targetIds.length === 0 || !['width', 'height', 'both'].includes(mode)) {
+        useToastStore.getState().showToast(
+          'match_size: need source_layer_id, target_layer_ids[], and mode width|height|both.',
+          'warning',
+        )
+        return
+      }
+      const source = findObjectOnCanvasByAppId(canvas, sourceId)
+      if (!source || source instanceof ActiveSelection) {
+        useToastStore.getState().showToast(`match_size: source layer "${sourceId}" not found.`, 'warning')
+        return
+      }
+      const sw = source.getScaledWidth()
+      const sh = source.getScaledHeight()
+      for (const targetId of targetIds) {
+        const target = findObjectOnCanvasByAppId(canvas, targetId)
+        if (!target || target instanceof ActiveSelection) {
+          useToastStore.getState().showToast(`match_size: target layer "${targetId}" not found.`, 'warning')
+          return
+        }
+        const tw = target.getScaledWidth()
+        const th = target.getScaledHeight()
+        if (tw < 1e-6 || th < 1e-6) continue
+        const patch: Record<string, number> = {}
+        if (mode === 'width' || mode === 'both') patch.scaleX = (target.scaleX ?? 1) * (sw / tw)
+        if (mode === 'height' || mode === 'both') patch.scaleY = (target.scaleY ?? 1) * (sh / th)
+        target.set(patch)
+        target.setCoords()
+        canvas.fire('object:modified', { target })
+      }
+      canvas.requestRenderAll()
       return
     }
 

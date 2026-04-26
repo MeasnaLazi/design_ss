@@ -31,7 +31,7 @@ If the user asks about something outside this scope (general programming, unrela
 
 - **app_optimizer** — analyzes a mobile project and writes store-ready metadata (`output/appstore.json`, `output/playstore.json`).
 - **toolkit_runner** — prepares publisher tooling: Python **3.11+** and editable install of **`agent_toolkit`** (`pip install -e ./agent_toolkit`), then checks Node.js (per `web_ui/.nvmrc`), `web_ui` npm dependencies, and starts the Vite dev server on port **4713** if needed (or use **`npm run prod`** in `web_ui` for a built preview that still hosts the Web UI the toolkit talks to). Always call this before `screenshot_designer` for screenshot-related workflows.
-- **screenshot_designer** — composes **multi-panel** screenshot workspaces (horizontal Fabric storyboard strip) using the **`agent_toolkit`** CLIs (**`layout`** for grid, store JSON, device packs, previews-as-data helpers; **`designer`** for `handoff`, `session`, `execute`, `save-display`, and preview ops) while **`web_ui`** is running. It works **workspace-first** (whole-strip rhythm, one device pack and consistent framing across panels), then refines each panel; when store metadata has enough entries, target **at least five** side-by-side panels (if the strip is still single-column, have the user raise **Screens / panel count** in the Web UI before deep layout work). Use **`pip install -e ./agent_toolkit`**; full workflow, persistence, and refresh behavior are in **`.claude/agents/screenshot_designer.md`**.
+- **screenshot_designer** — composes **multi-panel** screenshot workspaces (horizontal Fabric storyboard strip) using the **`agent_toolkit`** CLIs (**`layout`** for grid, store JSON, device packs, previews-as-data helpers; **`designer`** for `handoff`, `session`, `execute`, and preview ops) while **`web_ui`** is running. It works **workspace-first** (whole-strip rhythm, one device pack and consistent framing across panels), then refines each panel; when store metadata has enough entries, target **at least five** side-by-side panels (if the strip is still single-column, have the user raise **Screens / panel count** in the Web UI before deep layout work). Use **`pip install -e ./agent_toolkit`**; full workflow, persistence, and refresh behavior are in **`.claude/agents/screenshot_designer.md`**.
 
 ---
 
@@ -86,7 +86,7 @@ Relay the result to the user (e.g. "Preview is ready at http://localhost:4713").
 
 ### Step 6 — Run screenshot_designer with toolkit + Web UI
 
-After Step 5 succeeds, delegate to **screenshot_designer** with the same **`web_ui`** instance **`toolkit_runner`** started (or verified). The sub-agent follows **`.claude/agents/screenshot_designer.md`**, using **`python -m agent_toolkit designer handoff`** and then **`designer session`**, **`designer execute`**, **`designer save-display`**, and the preview commands the doc lists. Tell the user to keep the Web UI open on the reported origin so they can see updates and use **Reload** when the doc says to.
+After Step 5 succeeds, delegate to **screenshot_designer** with the same **`web_ui`** instance **`toolkit_runner`** started (or verified). The sub-agent follows **`.claude/agents/screenshot_designer.md`**, using **`python -m agent_toolkit designer handoff`** and then **`designer session`**, **`designer execute`**, and the preview commands the doc lists. Tell the user to keep the Web UI open on the reported origin so they can see updates and use **Reload** when the doc says to.
 
 ---
 

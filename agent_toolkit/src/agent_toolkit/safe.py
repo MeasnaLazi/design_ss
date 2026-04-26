@@ -39,6 +39,61 @@ def safe_zone_rect(canvas_width: int, canvas_height: int) -> SafeZoneRect:
     )
 
 
+def panel_width_from_strip(strip_width: int, screens: int, gap: int) -> int:
+    """Inverse of ``screens * panel_w + (screens - 1) * gap`` (integer strip width)."""
+    if screens < 1:
+        return strip_width
+    return round((strip_width - (screens - 1) * gap) / screens)
+
+
+def panel_index_for_center_x(cx: float, screens: int, gap: int, panel_w: int) -> int:
+    best_i = 0
+    best_d = float("inf")
+    for i in range(screens):
+        mid = i * (panel_w + gap) + panel_w / 2
+        d = abs(cx - mid)
+        if d < best_d:
+            best_d = d
+            best_i = i
+    return best_i
+
+
+def text_in_multi_panel_strip_safe_zone(
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    strip_width: int,
+    strip_height: int,
+    screens: int,
+    gap: int,
+) -> tuple[bool, dict[str, float]]:
+    """Text bbox must lie inside safe margins of the panel that contains the bbox horizontal center."""
+    panel_w = panel_width_from_strip(strip_width, screens, gap)
+    panel_h = strip_height
+    cx = x + width / 2
+    pi = panel_index_for_center_x(cx, screens, gap, panel_w)
+    pl = pi * (panel_w + gap)
+    safe_l = pl + SAFE_ZONE_SIDES
+    safe_r = pl + panel_w - SAFE_ZONE_SIDES
+    safe_t = SAFE_ZONE_TOP
+    safe_b = panel_h - SAFE_ZONE_BOTTOM
+    ok = (
+        x >= safe_l - 1e-6
+        and y >= safe_t - 1e-6
+        and x + width <= safe_r + 1e-6
+        and y + height <= safe_b + 1e-6
+    )
+    deltas = {
+        "margin_left": float(x - safe_l),
+        "margin_top": float(y - safe_t),
+        "margin_right": float(safe_r - (x + width)),
+        "margin_bottom": float(safe_b - (y + height)),
+        "panel_index": float(pi),
+    }
+    return ok, deltas
+
+
 def text_in_safe_zone(
     x: float,
     y: float,
@@ -47,7 +102,7 @@ def text_in_safe_zone(
     canvas_width: int,
     canvas_height: int,
 ) -> tuple[bool, dict[str, float]]:
-    """Mirror textInsideSafeZone in screenshot-designer-server.ts."""
+    """Single-panel canvas (or legacy): same as one strip panel at origin."""
     ok = (
         x >= SAFE_ZONE_SIDES
         and y >= SAFE_ZONE_TOP

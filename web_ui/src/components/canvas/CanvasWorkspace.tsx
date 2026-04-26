@@ -17,6 +17,7 @@ import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
 import { attachDeviceGroupNoCacheForScreenshotClip } from '../../canvas/deviceGroupDisableCachingForClipRotation'
 import { attachDeviceGroupPanelClamp } from '../../canvas/deviceGroupPanelClamp'
 import { attachDeviceGroupUniformScaling } from '../../canvas/deviceGroupUniformScaling'
+import { attachTextboxSafeZoneClamp } from '../../canvas/textSafeZone'
 import {
   addGutterOverlayRects,
   attachGutterOverlaysAlwaysOnTop,
@@ -392,6 +393,7 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
   const layerNameOverlaysRef = useRef<LayerNameOverlayText[]>([])
   const gutterStackCleanupRef = useRef<(() => void) | null>(null)
+  const textSafeZoneCleanupRef = useRef<(() => void) | null>(null)
   const smartGuideCleanupRef = useRef<(() => void) | null>(null)
   const prevLayoutRef = useRef<{ screens: number; gap: number; preset: string }>({
     screens: -1,
@@ -443,6 +445,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       attachSelectionSync(canvas)
       attachDeviceGroupUniformScaling(canvas)
       attachDeviceGroupPanelClamp(canvas)
+      textSafeZoneCleanupRef.current?.()
+      textSafeZoneCleanupRef.current = attachTextboxSafeZoneClamp(canvas)
       attachDeviceGroupNoCacheForScreenshotClip(canvas)
       smartGuideCleanupRef.current = attachPanelAlignmentGuides(canvas)
       gutterStackCleanupRef.current = attachGutterOverlaysAlwaysOnTop(
@@ -711,6 +715,8 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       console.log('[CanvasWorkspace] disposing fabric.Canvas')
       gutterStackCleanupRef.current?.()
       gutterStackCleanupRef.current = null
+      textSafeZoneCleanupRef.current?.()
+      textSafeZoneCleanupRef.current = null
       smartGuideCleanupRef.current?.()
       smartGuideCleanupRef.current = null
       const c = fabricRef.current

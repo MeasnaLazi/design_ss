@@ -24,7 +24,6 @@ from agent_toolkit.designer_client import (
     designer_execute as designer_execute_http,
     designer_pull_agent_export as designer_pull_agent_export_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
-    designer_save_display as designer_save_display_http,
     designer_session as designer_session_http,
     ensure_publisher_dotenv_loaded,
     resolve_designer_base_url,
@@ -283,11 +282,6 @@ def main(argv: list[str] | None = None) -> None:
     ds_expt.add_argument("--timeout", type=float, default=60.0)
     ds_expt.set_defaults(handler=_cmd_designer_pull_export)
 
-    ds_save = designer_sub.add_parser("save-display", help="POST .../save-display {presetId}")
-    ds_save.add_argument("--preset-id", required=True)
-    ds_save.add_argument("--timeout", type=float, default=120.0)
-    ds_save.set_defaults(handler=_cmd_designer_save_display)
-
     ns = parser.parse_args(argv)
     compact = bool(ns.compact)
     ensure_publisher_dotenv_loaded()
@@ -374,11 +368,6 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, _compact: bool) -> None:
 
 def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_pull_agent_export_http(resolve_designer_base_url(), timeout=ns.timeout)
-    _json_print(out, compact)
-
-
-def _cmd_designer_save_display(ns: argparse.Namespace, compact: bool) -> None:
-    out = designer_save_display_http(resolve_designer_base_url(), ns.preset_id, timeout=ns.timeout)
     _json_print(out, compact)
 
 

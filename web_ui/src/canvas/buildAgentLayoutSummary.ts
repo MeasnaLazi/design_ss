@@ -1,6 +1,7 @@
 import type { Canvas } from 'fabric'
 import { Group, Textbox } from 'fabric'
 
+import { totalContinuousWidth } from '../constants/appStoreScreens'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import type { DesignConfig, DesignObjectRecord } from '../store/designTypes'
@@ -54,6 +55,7 @@ export type AgentLayoutSummaryLayer =
 export type AgentLayoutSummaryV1 = {
   layoutSummaryVersion: typeof AGENT_LAYOUT_SUMMARY_VERSION
   savedAt: string
+  /** Full Fabric artboard: multi-panel width includes gaps; height is one row (preset height). */
   canvas: { width: number; height: number }
   layout: {
     artboardPresetId: string
@@ -109,7 +111,11 @@ function geometryForObject(obj: {
  */
 export function buildAgentLayoutSummaryFromCanvas(canvas: Canvas): AgentLayoutSummaryV1 {
   const { config, objects } = useDesignStore.getState()
-  const { width, height } = getArtboardDimensionsFromConfig(config)
+  const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(config)
+  const screens = Math.max(1, Math.floor(Number(config.screens) || 1))
+  const gap = config.gap
+  const width = totalContinuousWidth(screens, gap, panelW)
+  const height = panelH
 
   const sorted = [...objects].sort((a, b) => a.zIndex - b.zIndex)
 
@@ -126,8 +132,8 @@ export function buildAgentLayoutSummaryFromCanvas(canvas: Canvas): AgentLayoutSu
     canvas: { width, height },
     layout: {
       artboardPresetId: config.artboardPresetId,
-      screens: config.screens,
-      gap: config.gap,
+      screens,
+      gap,
     },
     background: summarizeBackground(config),
     layers,

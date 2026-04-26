@@ -1,4 +1,5 @@
 import { FabricImage, Group, LayoutManager, FixedLayout, type Canvas } from 'fabric'
+import { screenExportRect } from '../constants/appStoreScreens'
 import { getArtboardDimensionsFromConfig, getArtboardPreset } from '../constants/artboardPresets'
 import {
   deviceFrameTargetWidth,
@@ -19,6 +20,8 @@ import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 export type AddDeviceFrameToCanvasOptions = {
   /** Pack folder id under `public/device-frames/<id>/`. Defaults to sidebar selection. */
   packId?: string
+  /** 0-based panel column on the horizontal strip; device is centered in that panel. Defaults to 0. */
+  panelIndex?: number
 }
 
 /**
@@ -58,9 +61,22 @@ export async function addDeviceFrameToCanvas(
   }
   const styles = activePackStyles(packState.devices, packId)
   const style = getDeviceFrameStyle(styleId, styles)
-  const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(
-    useDesignStore.getState().config,
-  )
+  const designConfig = useDesignStore.getState().config
+  const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(designConfig)
+  const gap = designConfig.gap
+  const screens = designConfig.screens
+  let panelIndex = opts?.panelIndex ?? 0
+  if (!Number.isInteger(panelIndex) || panelIndex < 0) panelIndex = 0
+  if (panelIndex >= Math.max(1, screens)) {
+    useToastStore
+      .getState()
+      .showToast(
+        `add_device_frame: panel_index ${panelIndex} is out of range for ${screens} screen(s); using last panel.`,
+        'warning',
+      )
+    panelIndex = Math.max(0, screens - 1)
+  }
+  const panelRect = screenExportRect(panelIndex, gap, panelW, panelH)
   const targetW = deviceFrameTargetWidth(panelW)
   const packDevice = packState.devices.find((d) => d.id === packId)
   const frontManifest = packDevice?.manifest.frames.find((f) => f.name === DEFAULT_DEVICE_FRAME_ANGLE_ID)
@@ -136,12 +152,12 @@ export async function addDeviceFrameToCanvas(
     objectCaching: false,
   })
 
-  /** Center on screenshot panel 1 — avoids a large fixed offset (legacy 160×140) vs panel size. */
+  /** Center in the chosen strip column (default first panel). */
   group.set({
     originX: 'center',
     originY: 'center',
-    left: panelW / 2,
-    top: panelH / 2,
+    left: panelRect.left + panelW / 2,
+    top: panelRect.top + panelH / 2,
   })
   group.setCoords()
 

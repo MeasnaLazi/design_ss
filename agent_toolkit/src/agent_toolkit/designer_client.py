@@ -312,12 +312,3 @@ def designer_pull_agent_export(
     return _json_request("GET", url, timeout=timeout)
 
 
-def designer_save_display(
-    base_url: str,
-    preset_id: str,
-    *,
-    timeout: float = 120.0,
-) -> dict[str, Any]:
-    base = validate_designer_base_url(base_url)
-    url = f"{base}/save-display"
-    return _json_request("POST", url, body={"presetId": preset_id}, timeout=timeout)

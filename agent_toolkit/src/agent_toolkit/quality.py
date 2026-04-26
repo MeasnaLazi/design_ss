@@ -11,7 +11,11 @@ from agent_toolkit.constants import (
 )
 from agent_toolkit.geometry import rects_overlap
 from agent_toolkit.models import BackgroundModel, DeviceLayerModel, SessionCheckInput, TextLayerModel
-from agent_toolkit.safe import layer_within_canvas, text_in_safe_zone
+from agent_toolkit.safe import (
+    layer_within_canvas,
+    text_in_multi_panel_strip_safe_zone,
+    text_in_safe_zone,
+)
 
 
 @dataclass
@@ -47,12 +51,19 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
     errors: list[str] = []
     contrast_issues: list[ContrastIssue] = []
     w, h = session.width, session.height
+    screens_ct = session.screens
+    gap_px = session.gap
 
     text_layers: list[TextLayerModel] = [L for L in session.layers if L.kind == "text"]
     devices: list[DeviceLayerModel] = [L for L in session.layers if L.kind == "device_frame"]
 
     for text in text_layers:
-        ok_safe, _ = text_in_safe_zone(text.x, text.y, text.width, text.height, w, h)
+        if screens_ct > 1:
+            ok_safe, _ = text_in_multi_panel_strip_safe_zone(
+                text.x, text.y, text.width, text.height, w, h, screens_ct, gap_px
+            )
+        else:
+            ok_safe, _ = text_in_safe_zone(text.x, text.y, text.width, text.height, w, h)
         if not ok_safe:
             errors.append(f"Text layer {text.id} is outside safe zones.")
         if not layer_within_canvas(text.x, text.y, text.width, text.height, w, h):

@@ -66,6 +66,59 @@ def test_predict_checks_contrast_fail() -> None:
     assert explain_failure(r) != "ok"
 
 
+def test_predict_checks_multi_panel_text_in_second_panel_safe() -> None:
+    """Strip width 2×1290 + 40 gap; text sits in panel 2 safe rect."""
+    s = SessionCheckInput(
+        width=2620,
+        height=2796,
+        screens=2,
+        gap=40,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t1",
+                x=1390,
+                y=128,
+                width=400,
+                height=78,
+                content="Second panel title",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert r.ok is True
+
+
+def test_predict_checks_multi_panel_text_bleeds_into_gap() -> None:
+    """Text bbox in gutter between panels must fail per-panel safe zone."""
+    s = SessionCheckInput(
+        width=2620,
+        height=2796,
+        screens=2,
+        gap=40,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t1",
+                x=1260,
+                y=128,
+                width=120,
+                height=78,
+                content="Straddling gap",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert r.ok is False
+    assert any("outside safe zones" in e for e in r.errors)
+
+
 def test_predict_checks_headline_too_small() -> None:
     s = SessionCheckInput(
         width=1290,

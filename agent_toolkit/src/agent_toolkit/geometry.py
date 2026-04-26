@@ -26,6 +26,15 @@ def rects_overlap(
     )
 
 
+def panel_rect(index: int, gap: float, panel_w: float, panel_h: float) -> tuple[float, float, float, float]:
+    """
+    Top-left and size of one column on the horizontal strip (mirrors web_ui screenExportRect).
+    Returns (left, top, width, height).
+    """
+    left = float(index) * (float(panel_w) + float(gap))
+    return left, 0.0, float(panel_w), float(panel_h)
+
+
 def align_layer(
     layer_x: float,
     layer_y: float,

@@ -16,7 +16,6 @@ import {
   getScreenshotDesignerSession,
   resolveDesignerDisplaySlugFromHints,
   screenshotDesignerExecuteOperation,
-  saveDisplayDocument,
 } from './screenshot-designer-server'
 
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
@@ -31,6 +30,17 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
+}
+
+/** Compact JSON for dev logs (avoid huge terminal spam). */
+function stringifyArgsForLog(args: Record<string, unknown>, maxLen = 4000): string {
+  try {
+    const s = JSON.stringify(args)
+    if (s.length <= maxLen) return s
+    return `${s.slice(0, maxLen)}…(truncated)`
+  } catch {
+    return '[unserializable args]'
+  }
 }
 
 function designerHintsFromRequest(req: IncomingMessage): {
@@ -522,30 +532,6 @@ export function datasourceApiPlugin(): Plugin {
           return
         }
 
-        if (pathname === '/__api/screenshot-designer/save-display') {
-          try {
-            if (req.method !== 'POST') {
-              nodeRes.statusCode = 405
-              nodeRes.end('Method not allowed')
-              return
-            }
-            const body = await readBody(req as IncomingMessage)
-            const parsed = JSON.parse(body) as Record<string, unknown>
-            const presetId = typeof parsed.presetId === 'string' ? parsed.presetId : undefined
-            const result = await saveDisplayDocument(datasourceDir, webUiRoot, presetId, {
-              onDisplayWritten: ({ slug, savedAt }) => notifyDisplayWritten(slug, savedAt),
-            })
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ ok: true, ...result }))
-          } catch (e: unknown) {
-            const err = e as Error
-            nodeRes.statusCode = 400
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
-          }
-          return
-        }
-
         if (pathname === '/__api/screenshot-designer/command-events' && req.method === 'GET') {
           const u = new URL(req.url ?? '/', 'http://vite.datasource')
           const slug = u.searchParams.get('slug') ?? ''
@@ -608,7 +594,19 @@ export function datasourceApiPlugin(): Plugin {
             }
             const h = designerHintsFromRequest(req as IncomingMessage)
             const slug = resolveDesignerDisplaySlugFromHints(h)
+            console.info('[screenshot-designer] enqueue-command received', {
+              slug,
+              operation,
+              requestId: requestId ?? null,
+              args: stringifyArgsForLog(args),
+            })
             if (commandUpdateEvents.listenerCount(slug) === 0) {
+              console.warn('[screenshot-designer] enqueue-command no subscribers', {
+                slug,
+                operation,
+                requestId: requestId ?? null,
+                args: stringifyArgsForLog(args),
+              })
               nodeRes.statusCode = 503
               nodeRes.setHeader('Content-Type', 'application/json')
               nodeRes.end(
@@ -623,10 +621,19 @@ export function datasourceApiPlugin(): Plugin {
               return
             }
             commandUpdateEvents.emit(slug, { operation, args, requestId })
+            console.info('[screenshot-designer] enqueue-command dispatched', {
+              slug,
+              operation,
+              requestId: requestId ?? null,
+              args: stringifyArgsForLog(args),
+            })
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true, slug, operation, requestId: requestId ?? null }))
           } catch (e: unknown) {
             const err = e as Error
+            console.error('[screenshot-designer] enqueue-command failed', {
+              error: String(err?.message ?? e),
+            })
             nodeRes.statusCode = 400
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))

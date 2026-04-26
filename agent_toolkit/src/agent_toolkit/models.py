@@ -45,9 +45,15 @@ LayerInput = Annotated[TextLayerModel | DeviceLayerModel, Field(discriminator="k
 
 
 class SessionCheckInput(BaseModel):
-    """JSON shape for predict-checks CLI."""
+    """JSON shape for predict-checks CLI.
+
+    For multi-panel strips, set ``screens`` and ``gap`` so text safe-zone is checked per panel
+    (strip ``width`` must be the full artboard width).
+    """
 
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     background: BackgroundModel
     layers: list[TextLayerModel | DeviceLayerModel] = Field(default_factory=list)
+    screens: int = Field(default=1, ge=1, description="Panel count on the horizontal strip.")
+    gap: int = Field(default=0, ge=0, description="Gap in px between panels.")

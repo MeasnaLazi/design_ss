@@ -36,7 +36,14 @@ export function useAgentCommandSync(): void {
           console.warn('[useAgentCommandSync] no fabric canvas; skipping', op)
           return
         }
-        void applyAgentCommand(canvas, op, data.args ?? {})
+        void applyAgentCommand(canvas, op, data.args ?? {}).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error('[useAgentCommandSync] applyAgentCommand failed', {
+            operation: op,
+            args: data.args ?? {},
+            message,
+          })
+        })
       } catch {
         /* ignore malformed SSE */
       }

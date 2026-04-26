@@ -16,7 +16,7 @@ The publisher root is the working directory (same level as `config.json`, `web_u
 
 | Piece | Purpose | When it matters |
 |-------|---------|-----------------|
-| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`), optional **designer HTTP** CLI (`designer session|execute|save-display` on loopback) — see `.claude/agents/screenshot_designer.md` |
+| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`), optional **designer HTTP** CLI (`designer session|execute` on loopback) — see `.claude/agents/screenshot_designer.md` |
 | **`pip install -e ./agent_toolkit`** | Installs the layout toolkit from the repo | Same as above; run once per venv, or after `pyproject.toml` / deps change |
 | **Node.js** (see `web_ui/.nvmrc`) | Builds and runs `web_ui` | **Required** for live designer API and `render_preview` |
 | **`web_ui/node_modules`** | Vite and frontend deps | **Required** before `npm run dev` |
