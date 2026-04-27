@@ -6,7 +6,7 @@ import json
 import os
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -185,49 +185,6 @@ def _json_request(
             msg = err_body or str(e.reason)
         raise DesignerClientError(
             msg,
-            status_code=e.code,
-            body=err_body,
-            url=url,
-        ) from e
-    except URLError as e:
-        raise DesignerClientError(str(e.reason or e), url=url) from e
-
-
-def datasource_display_events_probe(
-    designer_base_url: str,
-    slug: str,
-    *,
-    timeout: float = 8.0,
-    max_bytes: int = 65536,
-) -> dict[str, Any]:
-    """
-    Bounded read of ``GET {web_ui}/__api/datasource/display-events?slug=…`` (SSE).
-
-    The browser keeps a long-lived EventSource; this helper reads up to ``max_bytes``
-    then returns so agents can sanity-check the stream without ``curl``.
-    """
-    base = validate_designer_base_url(designer_base_url)
-    origin = web_ui_url_from_designer_base(base)
-    q = urlencode({"slug": slug})
-    url = f"{origin}/__api/datasource/display-events?{q}"
-    req = Request(url, headers={"Accept": "text/event-stream,*/*"}, method="GET")
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            chunks: list[bytes] = []
-            n = 0
-            while n < max_bytes:
-                chunk = resp.read(min(8192, max_bytes - n))
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                n += len(chunk)
-        raw = b"".join(chunks).decode("utf-8", errors="replace")
-        preview = raw if len(raw) <= 8000 else raw[:8000] + "\n…(truncated)"
-        return {"ok": True, "url": url, "bytesRead": n, "preview": preview}
-    except HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        raise DesignerClientError(
-            str(e.reason or e),
             status_code=e.code,
             body=err_body,
             url=url,

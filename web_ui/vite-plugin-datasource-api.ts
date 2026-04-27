@@ -358,14 +358,8 @@ export function datasourceApiPlugin(): Plugin {
   const templatesDir = path.join(datasourceDir, TEMPLATES_SUBDIR)
   const placeholderDir = path.join(datasourceDir, 'placeholder')
   const webUiRoot = path.dirname(fileURLToPath(import.meta.url))
-  const displayUpdateEvents = new EventEmitter()
-  displayUpdateEvents.setMaxListeners(200)
   const commandUpdateEvents = new EventEmitter()
   commandUpdateEvents.setMaxListeners(200)
-
-  const notifyDisplayWritten = (slug: string, savedAt: string): void => {
-    displayUpdateEvents.emit('update', { slug, savedAt })
-  }
 
   const runStartupCleanup = (): void => {
     void (async () => {
@@ -390,41 +384,6 @@ export function datasourceApiPlugin(): Plugin {
           await fs.mkdir(placeholderDir, { recursive: true })
         } catch {
           /* ignore */
-        }
-
-        if (pathname === '/__api/datasource/display-events' && req.method === 'GET') {
-          const u = new URL(req.url ?? '/', 'http://vite.datasource')
-          const slug = u.searchParams.get('slug') ?? ''
-          if (!isDisplayFileSlug(slug)) {
-            nodeRes.statusCode = 400
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ error: 'invalid_display_slug' }))
-            return
-          }
-          nodeRes.writeHead(200, {
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-store, no-transform',
-            Connection: 'keep-alive',
-            'X-Accel-Buffering': 'no',
-          })
-          nodeRes.write(`data: ${JSON.stringify({ type: 'hello', slug })}\n\n`)
-          const listener = (p: { slug: string; savedAt: string }) => {
-            if (p.slug !== slug) return
-            try {
-              nodeRes.write(
-                `data: ${JSON.stringify({ type: 'display_updated', slug: p.slug, savedAt: p.savedAt })}\n\n`,
-              )
-            } catch {
-              /* client disconnected */
-            }
-          }
-          displayUpdateEvents.on('update', listener)
-          const detach = (): void => {
-            displayUpdateEvents.off('update', listener)
-          }
-          req.on('close', detach)
-          res.on('close', detach)
-          return
         }
 
         // GET /__api/datasource/placeholder/<file>
@@ -516,7 +475,6 @@ export function datasourceApiPlugin(): Plugin {
                 sessionArtboard: h.sessionArtboard,
                 cookieArtboard: h.cookieArtboard,
                 refererArtboard: h.refererArtboard,
-                onDisplayWritten: ({ slug, savedAt }) => notifyDisplayWritten(slug, savedAt),
               },
               operation,
               args,
@@ -864,11 +822,7 @@ export function datasourceApiPlugin(): Plugin {
           return
         }
 
-        if (
-          pathname !== '/__api/datasource/display' &&
-          pathname !== '/__api/datasource/list' &&
-          pathname !== '/__api/datasource/display-events'
-        ) {
+        if (pathname !== '/__api/datasource/display' && pathname !== '/__api/datasource/list') {
           next()
           return
         }
@@ -905,16 +859,7 @@ export function datasourceApiPlugin(): Plugin {
               return
             }
             const body = await readBody(req as IncomingMessage)
-            const doc = JSON.parse(body) as { savedAt?: string }
             await fs.writeFile(resolved.filePath, body, 'utf8')
-            const base = path.basename(resolved.filePath)
-            const slugMatch = /^display_(.+)\.json$/.exec(base)
-            const slug = slugMatch?.[1]
-            const savedAt =
-              typeof doc.savedAt === 'string' ? doc.savedAt : new Date().toISOString()
-            if (slug !== undefined && isDisplayFileSlug(slug)) {
-              notifyDisplayWritten(slug, savedAt)
-            }
             nodeRes.setHeader('Content-Type', 'application/json')
             nodeRes.end(JSON.stringify({ ok: true }))
             return

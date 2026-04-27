@@ -1,16 +1,6 @@
 import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
 import { screenshotLeftEdgeXs, totalContinuousWidth } from '../../constants/appStoreScreens'
-import {
-  ActiveSelection,
-  Canvas,
-  Circle,
-  type FabricObject,
-  FabricImage,
-  Group,
-  IText,
-  Line,
-  Rect,
-} from 'fabric'
+import { Canvas, Circle, type FabricObject, FabricImage, Line, Rect } from 'fabric'
 import { memo, useEffect, useRef } from 'react'
 
 import { applyCanvasCssZoom } from '../../canvas/applyCanvasCssZoom'
@@ -43,6 +33,7 @@ import {
 } from '../../lib/canvasBackground'
 import { getFabricObjectId } from '../../lib/fabricObjectRegistry'
 import { useDesignStore } from '../../store/useDesignStore'
+import { isDesignSystemCanvasObject } from '../../canvas/canvasObjectMarks'
 
 const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
@@ -76,32 +67,34 @@ function removeAllPanelBackgroundImagesFromCanvas(
   }
 }
 
+/**
+ * Fabric 7's {@link ActiveSelection} extends {@link Group}, so `instanceof Group` is true for
+ * multi-select. Use the same duck-typing as fabric's `isActiveSelection` so we never treat a
+ * marquee selection as a single device/text layer.
+ */
+function isFabricActiveSelection(active: FabricObject | undefined): boolean {
+  return !!active && 'multiSelectionStacking' in active
+}
+
 function attachSelectionSync(canvas: Canvas): void {
   const pushSelectionToStore = (eventName: string) => {
     const active = canvas.getActiveObject()
     console.log(`[CanvasWorkspace] ${eventName}`, { activeType: active?.type })
 
-    if (active instanceof ActiveSelection) {
+    if (active && isFabricActiveSelection(active)) {
       useDesignStore.getState().setSelectedObject(null)
       console.log('[CanvasWorkspace] activeSelection — store cleared')
       return
     }
 
-    if (active instanceof IText) {
-      const id = getFabricObjectId(active)
-      useDesignStore.getState().setSelectedObject(id ?? null)
-      console.log('[CanvasWorkspace] selected text id', id)
+    if (!active || isDesignSystemCanvasObject(active)) {
+      useDesignStore.getState().setSelectedObject(null)
       return
     }
 
-    if (active instanceof Group) {
-      const id = getFabricObjectId(active)
-      useDesignStore.getState().setSelectedObject(id ?? null)
-      console.log('[CanvasWorkspace] selected group id', id)
-      return
-    }
-
-    useDesignStore.getState().setSelectedObject(null)
+    const id = getFabricObjectId(active)
+    useDesignStore.getState().setSelectedObject(id ?? null)
+    console.log('[CanvasWorkspace] selected layer id', id)
   }
 
   canvas.on('selection:created', () => pushSelectionToStore('selection:created'))

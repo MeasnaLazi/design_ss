@@ -11,7 +11,7 @@ import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
-import { screenExportRect } from '../constants/appStoreScreens'
+import { screenExportRect, totalContinuousWidth } from '../constants/appStoreScreens'
 import { useDesignStore } from '../store/useDesignStore'
 import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import { useToastStore } from '../store/useToastStore'
@@ -98,8 +98,34 @@ type AlignAnchor = 'center_x' | 'center_y' | 'top' | 'bottom' | 'left' | 'right'
 type LayerKind = 'text' | 'device'
 
 function refRectCanvas(): { x: number; y: number; width: number; height: number } {
-  const { width, height } = getArtboardDimensionsFromConfig(useDesignStore.getState().config)
+  const config = useDesignStore.getState().config
+  const { width: panelW, height } = getArtboardDimensionsFromConfig(config)
+  const screens = Math.max(1, Math.floor(Number(config.screens) || 1))
+  const gap = Number(config.gap) || 0
+  const width = totalContinuousWidth(screens, gap, panelW)
   return { x: 0, y: 0, width, height }
+}
+
+/**
+ * Axis-aligned box used to compute align deltas. Device frame groups use the bezel image’s bbox
+ * (last child), matching {@link clampDeviceGroupToNearestPanel}, so programmatic align + clamp do
+ * not fight each other.
+ */
+function boundingRectForAlign(layerId: string, target: FabricObject): {
+  left: number
+  top: number
+  width: number
+  height: number
+} {
+  const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
+  if (rec?.kind === 'device' && target instanceof Group) {
+    const children = target.getObjects()
+    const frame = children[children.length - 1]
+    if (frame instanceof FabricImage) {
+      return frame.getBoundingRect()
+    }
+  }
+  return target.getBoundingRect()
 }
 
 function argsSpecifyPanel(args: Record<string, unknown>): boolean {
@@ -561,10 +587,11 @@ export async function applyAgentCommand(
         return
       }
 
+      const refKey = reference.trim().toLowerCase()
       let refRect: { x: number; y: number; width: number; height: number }
-      if (reference === 'canvas') {
+      if (refKey === 'canvas') {
         refRect = refRectCanvas()
-      } else if (reference === 'panel') {
+      } else if (refKey === 'panel') {
         if (!argsSpecifyPanel(args)) {
           useToastStore
             .getState()
@@ -595,11 +622,11 @@ export async function applyAgentCommand(
           useToastStore.getState().showToast(`align: reference "${reference}" not found.`, 'warning')
           return
         }
-        const rr = refObj.getBoundingRect()
+        const rr = boundingRectForAlign(reference, refObj)
         refRect = { x: rr.left, y: rr.top, width: rr.width, height: rr.height }
       }
 
-      const b = target.getBoundingRect()
+      const b = boundingRectForAlign(layerId, target)
       const layerBox = { x: b.left, y: b.top, width: b.width, height: b.height }
 
       let nx = layerBox.x

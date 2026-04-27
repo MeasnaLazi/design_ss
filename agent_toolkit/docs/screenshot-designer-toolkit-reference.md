@@ -165,7 +165,7 @@ How to use each core operation:
 - `set_background` — set canvas background (`type: color|gradient|image`).
 - `add_device_frame` — add a device frame from selected pack/style; optional `panel_index` / `panel_number` centers the frame in that column.
 - `add_text` — add a text layer at snapped `x`,`y` with font token and size; with `panel_index` / `panel_number`, `x` and `y` are **relative to that panel’s top-left** (then snapped globally).
-- `align` — snap layer alignment against the first panel (`reference: "canvas"`), a strip column (`reference: "panel"` + panel fields), or another layer (`reference: "<layer_id>"`).
+- `align` — snap layer alignment against a strip column (`reference: "panel"` + **`panel_index` / `panel_number`**, including **`0` / `1`** for the first column), the **full** artboard (`reference: "canvas"`—matches **one** single-panel artboard; **not** a single column of a row—avoid for multi-panel strip alignment), or another layer (`reference: "<layer_id>"`).
 - `text_font_size_delta` — increase/decrease text size by delta px.
 - `text_set_font_size` — set absolute text size.
 - `text_set_font_style` — set style variant (`regular|bold|italic|bold_italic`).
@@ -219,11 +219,11 @@ Use these exact operation names and argument shapes.
   - `font` must be one of: `headline | subheadline | body | caption`
 
 - `align`
-  - First panel only (same as legacy `canvas` rect — one artboard wide):
+  - **Strip column (preferred for all panels, including the first):** `panel` rect = `screenExportRect` for that index (same as in-panel `add_text` / `add_device_frame` coords)
+    - `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":0}`
+    - `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":2}` or `"panel_number":3` instead of `panel_index`
+  - **Full artboard** (entire `width` from preset— spans all columns on a row; use for single-artboard work, not “column 0” of a row):
     - `{"layer_id":"<id>","anchor":"center_x","reference":"canvas"}`
-  - **Any strip column** (panel rect = `screenExportRect` for that index):
-    - `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":2}`
-    - or `"panel_number":3` instead of `panel_index`
   - Relative to another layer’s bounding box:
     - `{"layer_id":"<id>","anchor":"center_y","reference":"<other_layer_id>"}`
   - `anchor` must be one of: `center_x | center_y | top | bottom | left | right`

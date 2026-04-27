@@ -23,7 +23,7 @@ function downloadDisplayJson(doc: DisplayDocumentV1, filename: string): void {
 
 /**
  * Writes the current canvas + design store to `datasource/display_<slug>.json` via the dev API.
- * Same behavior as the toolbar “Save to datasource” action (toast + JSON download fallback).
+ * Same behavior as the toolbar “Save” action (toast + JSON download fallback). Also bound to ⌘S / Ctrl+S.
  */
 export async function saveDisplayToDatasource(): Promise<void> {
   const { showToast } = useToastStore.getState()

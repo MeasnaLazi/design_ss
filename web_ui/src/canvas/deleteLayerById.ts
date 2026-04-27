@@ -95,6 +95,7 @@ export function selectLayerById(id: string): void {
   if (!obj || isDesignSystemCanvasObject(obj)) return
   canvas.setActiveObject(obj)
   canvas.requestRenderAll()
+  useDesignStore.getState().setSelectedObject(id)
 }
 
 export function isFabricTextEditing(canvas: Canvas | null): boolean {

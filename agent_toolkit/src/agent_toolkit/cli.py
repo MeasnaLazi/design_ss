@@ -19,7 +19,6 @@ from agent_toolkit import store_listing as store_listing_mod
 from agent_toolkit import text_metrics as text_metrics_mod
 from agent_toolkit.designer_client import (
     DesignerClientError,
-    datasource_display_events_probe,
     designer_enqueue_command as designer_enqueue_command_http,
     designer_execute as designer_execute_http,
     designer_pull_agent_export as designer_pull_agent_export_http,
@@ -234,15 +233,6 @@ def main(argv: list[str] | None = None) -> None:
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
 
-    ds_ev = designer_sub.add_parser(
-        "display-events",
-        help="GET .../datasource/display-events?slug= (SSE; read initial bytes only)",
-    )
-    ds_ev.add_argument("--slug", required=True, help="Display slug, e.g. iphone from display_iphone.json")
-    ds_ev.add_argument("--timeout", type=float, default=8.0)
-    ds_ev.add_argument("--max-bytes", type=int, default=65536)
-    ds_ev.set_defaults(handler=_cmd_designer_display_events)
-
     ds_ex = designer_sub.add_parser("execute", help="POST .../execute with JSON body {operation, args}")
     ds_ex.add_argument("--json", required=True, help="Path to JSON or - for stdin")
     ds_ex.add_argument("--timeout", type=float, default=120.0)
@@ -308,16 +298,6 @@ def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_session_http(resolve_designer_base_url(), timeout=ns.timeout)
-    _json_print(out, compact)
-
-
-def _cmd_designer_display_events(ns: argparse.Namespace, compact: bool) -> None:
-    out = datasource_display_events_probe(
-        resolve_designer_base_url(),
-        ns.slug,
-        timeout=float(ns.timeout),
-        max_bytes=int(ns.max_bytes),
-    )
     _json_print(out, compact)
 
 

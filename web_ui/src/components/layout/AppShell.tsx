@@ -5,7 +5,6 @@ import { useCustomFontStore } from '../../store/useCustomFontStore'
 import { useDeviceFramePackStore } from '../../store/useDeviceFramePackStore'
 import { useArtboardPresetDisplaySync } from '../../hooks/useArtboardPresetDisplaySync'
 import { useAgentCommandSync } from '../../hooks/useAgentCommandSync'
-import { useDisplayRemoteSync } from '../../hooks/useDisplayRemoteSync'
 import { useArtboardUrlQuerySync } from '../../hooks/useArtboardUrlQuerySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
@@ -35,7 +34,6 @@ export function AppShell() {
   useUndoRedoHotkeys()
   useDesignHistoryRecorder()
   useArtboardPresetDisplaySync()
-  useDisplayRemoteSync()
   useAgentCommandSync()
   useArtboardUrlQuerySync()
 

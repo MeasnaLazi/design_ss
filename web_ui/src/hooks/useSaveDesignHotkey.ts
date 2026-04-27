@@ -12,7 +12,7 @@ function isTypingInField(target: EventTarget | null): boolean {
 }
 
 /**
- * Ctrl/Cmd+S saves the current design to datasource (same as Design → Save to datasource).
+ * Ctrl/Cmd+S saves the current design to datasource (same as the toolbar Save button).
  * Still runs while editing canvas text (Fabric’s hidden textarea); skips real app form fields.
  */
 export function useSaveDesignHotkey(): void {

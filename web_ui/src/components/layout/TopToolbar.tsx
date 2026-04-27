@@ -2,14 +2,12 @@ import {
   Download,
   LayoutTemplate,
   Redo2,
-  RotateCcw,
   Save,
   Undo2,
 } from 'lucide-react'
 import {
   canRedoDesignHistory,
   canUndoDesignHistory,
-  resetDesignHistoryFromCurrentCanvas,
   redoDesignHistory,
   undoDesignHistory,
   useDesignHistoryStore,
@@ -19,7 +17,6 @@ import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
 import { ContextualPositionToolbar } from './ContextualPositionToolbar'
 import { ContextualTextToolbar } from './ContextualTextToolbar'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
-import { applyEmptyDesignForPreset } from '../../canvas/loadDisplayDocument'
 import {
   getArtboardDimensionsFromConfig,
 } from '../../constants/artboardPresets'
@@ -52,29 +49,6 @@ export function TopToolbar() {
     }
   }
 
-  const handleReset = async () => {
-    const proceed = window.confirm(
-      [
-        'Reset current design to the default empty layout?',
-        '',
-        'This clears the canvas and undo/redo history.',
-        'Saved display JSON is unchanged until you click Save.',
-      ].join('\n'),
-    )
-    if (!proceed) return
-
-    const { config } = useDesignStore.getState()
-    const { showToast } = useToastStore.getState()
-    try {
-      await applyEmptyDesignForPreset(config.artboardPresetId)
-      resetDesignHistoryFromCurrentCanvas()
-      showToast('Reset complete — click Save to persist this default layout.', 'success')
-    } catch (e) {
-      console.error('[TopToolbar] reset failed', e)
-      showToast('Reset failed — please try again.', 'error')
-    }
-  }
-
   return (
     <header
       className="relative z-50 flex h-12 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-900/80 px-4 backdrop-blur-sm"
@@ -83,7 +57,7 @@ export function TopToolbar() {
       <div className="flex shrink-0 items-center gap-2">
         <LayoutTemplate className="size-5 text-emerald-400" aria-hidden />
         <span className="font-semibold tracking-tight text-zinc-100">
-          Screenshot Designer
+          Screenshotor
         </span>
       </div>
 
@@ -125,15 +99,6 @@ export function TopToolbar() {
         >
           <Save className="size-3.5 shrink-0" aria-hidden />
           <span className="hidden sm:inline">Save</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleReset()}
-          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
-          title="Reset current design to default layout (not saved until you click Save)"
-        >
-          <RotateCcw className="size-3.5 shrink-0" aria-hidden />
-          <span className="hidden sm:inline">Reset</span>
         </button>
         <button
           type="button"

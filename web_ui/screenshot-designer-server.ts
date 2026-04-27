@@ -48,7 +48,6 @@ export type DesignerExecuteContext = {
   sessionArtboard?: string
   cookieArtboard?: string
   refererArtboard?: string
-  onDisplayWritten?: (info: { slug: string; savedAt: string }) => void
 }
 
 /** `?artboard=` on the app URL or session URL: short keys (iphone, …) or full preset id. */
