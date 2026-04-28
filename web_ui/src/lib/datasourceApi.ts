@@ -12,11 +12,13 @@ export function displayDocumentUrl(slug: string): string {
 export async function putDisplayDocument(
   doc: DisplayDocumentV1,
   slug: string,
+  options?: { signal?: AbortSignal },
 ): Promise<void> {
   const res = await fetch(displayDocumentUrl(slug), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(doc, null, 2),
+    signal: options?.signal,
   })
   if (!res.ok) {
     const t = await res.text()

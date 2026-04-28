@@ -8,6 +8,7 @@ import { useAgentCommandSync } from '../../hooks/useAgentCommandSync'
 import { useArtboardUrlQuerySync } from '../../hooks/useArtboardUrlQuerySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
+import { useDatasourceAutoSave } from '../../hooks/useDatasourceAutoSave'
 import { useDesignHistoryRecorder } from '../../hooks/useDesignHistoryRecorder'
 import { useSaveDesignHotkey } from '../../hooks/useSaveDesignHotkey'
 import { useUndoRedoHotkeys } from '../../hooks/useUndoRedoHotkeys'
@@ -31,6 +32,7 @@ export function AppShell() {
   useCopyPasteLayerHotkeys()
   useDeleteLayerHotkeys()
   useSaveDesignHotkey()
+  useDatasourceAutoSave()
   useUndoRedoHotkeys()
   useDesignHistoryRecorder()
   useArtboardPresetDisplaySync()

@@ -1,25 +1,13 @@
-import { ActiveSelection, type FabricObject } from 'fabric'
+import type { FabricObject } from 'fabric'
 import { useEffect, useRef } from 'react'
 
-import { isDesignSystemCanvasObject } from '../canvas/canvasObjectMarks'
-import { getFabricObjectId } from '../lib/fabricObjectRegistry'
+import { isUserLayerFabricTarget } from '../canvas/fabricUserLayerTarget'
 import {
   pushDesignHistoryCommit,
 } from '../history/designHistory'
 import { useDesignStore } from '../store/useDesignStore'
 
 const DEBOUNCE_MS = 320
-
-function isUserHistoryTarget(target: FabricObject | undefined | null): boolean {
-  if (!target) return false
-  if (isDesignSystemCanvasObject(target)) return false
-  if (target instanceof ActiveSelection) {
-    return target
-      .getObjects()
-      .some((o) => !isDesignSystemCanvasObject(o) && getFabricObjectId(o))
-  }
-  return typeof getFabricObjectId(target) === 'string'
-}
 
 /**
  * Pushes undo steps after canvas gestures and debounced store-only edits (sidebar layout, etc.).
@@ -40,15 +28,15 @@ export function useDesignHistoryRecorder(): void {
     }
 
     const onModified = (opt: { target?: FabricObject }) => {
-      if (isUserHistoryTarget(opt.target)) onCommit()
+      if (isUserLayerFabricTarget(opt.target)) onCommit()
     }
 
     const onAdded = (opt: { target?: FabricObject }) => {
-      if (isUserHistoryTarget(opt.target)) onCommit()
+      if (isUserLayerFabricTarget(opt.target)) onCommit()
     }
 
     const onRemoved = (opt: { target?: FabricObject }) => {
-      if (isUserHistoryTarget(opt.target)) onCommit()
+      if (isUserLayerFabricTarget(opt.target)) onCommit()
     }
 
     canvas.on('object:modified', onModified)

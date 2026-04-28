@@ -2,27 +2,30 @@ import {
   Download,
   LayoutTemplate,
   Redo2,
-  Save,
+  RotateCcw,
   Undo2,
 } from 'lucide-react'
 import {
   canRedoDesignHistory,
   canUndoDesignHistory,
+  resetDesignHistoryFromCurrentCanvas,
   redoDesignHistory,
   undoDesignHistory,
   useDesignHistoryStore,
 } from '../../history/designHistory'
 
-import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
-import { ContextualPositionToolbar } from './ContextualPositionToolbar'
-import { ContextualTextToolbar } from './ContextualTextToolbar'
 import { exportAppStoreScreensToZip } from '../../canvas/exportAppStoreScreens'
+import { applyEmptyDesignForPreset } from '../../canvas/loadDisplayDocument'
 import {
   getArtboardDimensionsFromConfig,
 } from '../../constants/artboardPresets'
-import { saveDisplayToDatasource } from '../../lib/saveDisplayToDatasource'
 import { useDesignStore } from '../../store/useDesignStore'
+import { useSaveStatusStore } from '../../store/useSaveStatusStore'
 import { useToastStore } from '../../store/useToastStore'
+
+import { ContextualDeviceToolbar } from './ContextualDeviceToolbar'
+import { ContextualPositionToolbar } from './ContextualPositionToolbar'
+import { ContextualTextToolbar } from './ContextualTextToolbar'
 
 export function TopToolbar() {
   useDesignHistoryStore((s) => s.rev)
@@ -46,6 +49,31 @@ export function TopToolbar() {
     } catch (e) {
       console.error('[TopToolbar] export failed', e)
       showToast('Export failed — could not build the ZIP.', 'error')
+    }
+  }
+
+  const handleReset = async () => {
+    const proceed = window.confirm(
+      [
+        'Reset current design to the default empty layout?',
+        '',
+        'This clears the canvas, all layers, and undo/redo history.',
+        'Auto-save will sync to datasource shortly (or press ⌘S / Ctrl+S to save immediately).',
+      ].join('\n'),
+    )
+    if (!proceed) return
+
+    const { config } = useDesignStore.getState()
+    try {
+      await applyEmptyDesignForPreset(config.artboardPresetId)
+      resetDesignHistoryFromCurrentCanvas()
+      useSaveStatusStore.getState().clearPersistedFingerprint()
+      useSaveStatusStore
+        .getState()
+        .setIdle('Reset to default layout — auto-save will sync shortly.')
+    } catch (e) {
+      console.error('[TopToolbar] reset failed', e)
+      useToastStore.getState().showToast('Reset failed — please try again.', 'error')
     }
   }
 
@@ -93,12 +121,12 @@ export function TopToolbar() {
         </div>
         <button
           type="button"
-          onClick={() => void saveDisplayToDatasource()}
+          onClick={() => void handleReset()}
           className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
-          title="Save current design to datasource (display JSON)"
+          title="Reset to default empty layout and clear undo/redo history"
         >
-          <Save className="size-3.5 shrink-0" aria-hidden />
-          <span className="hidden sm:inline">Save</span>
+          <RotateCcw className="size-3.5 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">Reset</span>
         </button>
         <button
           type="button"
