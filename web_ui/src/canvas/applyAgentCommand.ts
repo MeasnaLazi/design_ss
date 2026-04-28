@@ -183,18 +183,31 @@ function normalizeLayerPosition(x: unknown, y: unknown): { left: number; top: nu
   return { left: snapGrid(nx), top: snapGrid(ny) }
 }
 
-function applyLayerBoxSize(target: FabricObject, width: unknown, height: unknown): boolean {
-  const w = Number(width)
-  const h = Number(height)
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return false
-  const curW = target.getScaledWidth()
-  const curH = target.getScaledHeight()
-  if (curW < 1e-6 || curH < 1e-6) return false
-  target.set({
-    scaleX: (target.scaleX ?? 1) * (snapGrid(w) / curW),
-    scaleY: (target.scaleY ?? 1) * (snapGrid(h) / curH),
-  })
+/**
+ * Sets a Textbox's wrap width to achieve a target on-canvas width, resets scale to 1, and
+ * recomputes height from wrapped lines (no glyph stretch from scaleX/scaleY).
+ */
+function applyTextboxToDesiredScaledWidth(text: Textbox, desiredScaledWidth: number): boolean {
+  const w = snapGrid(desiredScaledWidth)
+  if (!Number.isFinite(w) || w <= 0) return false
+  const curW = text.getScaledWidth()
+  if (curW < 1e-6) return false
+  const sx = text.scaleX ?? 1
+  const internal = text.width ?? curW / sx
+  const minW = text.minWidth ?? 20
+  const newInternal = Math.max(minW, internal * (w / curW))
+  text.set({ width: newInternal, scaleX: 1, scaleY: 1, dirty: true })
+  text.initDimensions()
+  text.setCoords()
   return true
+}
+
+/** `layer_patch` width/height for text: `width` drives wrap column; `height` is validated but intrinsic. */
+function applyTextboxTypographicBoxSize(text: Textbox, width: unknown, height: unknown): boolean {
+  const pw = Number(width)
+  const ph = Number(height)
+  if (!Number.isFinite(pw) || pw <= 0 || !Number.isFinite(ph) || ph <= 0) return false
+  return applyTextboxToDesiredScaledWidth(text, pw)
 }
 
 /** Uniform scale so aspect ratio is preserved — device frame layers only (`kind: 'device'`). */
@@ -296,7 +309,10 @@ function applyLayerPatch(canvas: Canvas, layerId: string, patch: Record<string, 
       if (!hasW || !hasH) {
         return 'layer_patch: width and height must be provided together.'
       }
-      if (!applyLayerBoxSize(obj, patch.width, patch.height)) {
+      if (!(obj instanceof Textbox)) {
+        return 'layer_patch: text resize requires a Textbox instance.'
+      }
+      if (!applyTextboxTypographicBoxSize(obj, patch.width, patch.height)) {
         return 'layer_patch: width/height must be positive numeric values.'
       }
     }
@@ -1244,6 +1260,15 @@ export async function applyAgentCommand(
         if (!target || target instanceof ActiveSelection) {
           useToastStore.getState().showToast(`match_size: target layer "${targetId}" not found.`, 'warning')
           return
+        }
+        if (target instanceof Textbox) {
+          if (mode === 'width' || mode === 'both') {
+            applyTextboxToDesiredScaledWidth(target, sw)
+          }
+          // Textbox height is intrinsic to wrapped text; do not scaleY to match source height.
+          target.setCoords()
+          canvas.fire('object:modified', { target })
+          continue
         }
         const tw = target.getScaledWidth()
         const th = target.getScaledHeight()

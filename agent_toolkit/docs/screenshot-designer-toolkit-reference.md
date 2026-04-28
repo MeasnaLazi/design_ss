@@ -188,7 +188,7 @@ How to use each core operation:
 - `batch` — execute multiple operations in order.
 - `distribute_layers` — evenly distribute layer positions along axis.
 - `set_equal_spacing` — enforce fixed gap along axis.
-- `match_size` — copy width/height/both from source to targets.
+- `match_size` — copy width/height/both from source to targets (text targets: width typographically; height not forced via scale).
 - `render_preview` — push full workspace PNG to agent preview store.
 - `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`).
 - `render_panel_preview` — push one panel PNG by panel index/number.
@@ -230,7 +230,7 @@ Use these exact operation names and argument shapes.
 
 - `layer_patch` (generic move/resize/style)
   - `{"layer_id":"<id>","patch":{"x":320,"y":640}}`
-  - **Text layers:** provide both `width` and `height` together when resizing (non-uniform box).
+  - **Text layers:** when resizing, provide both `width` and `height` in the patch (schema requirement). **`width`** sets the Fabric **Textbox wrap column** (re-wraps lines; **no** `scaleX`/`scaleY` glyph stretch). **`height`** must be a positive number but is **not** applied as a vertical scale—text height stays **intrinsic** to wrapped content (re-check with `layout estimate-text-height` / safe-zone after big width changes).
   - **Device frame layers only:** provide `width` and/or `height`; scaling is **uniform** (aspect preserved). If both are set, optional `patch.fit`: `contain` (default, fits inside the box) or `cover` (fills the box). `fit` is rejected on text layers.
 
 - `text_font_size_delta`
@@ -307,7 +307,7 @@ All payloads are sent via:
   - device-only patch key: `fit` (`contain` | `cover`) when both `width` and `height` are set on a **device** layer
   - text-only patch keys: `content`, `font_size`, `font_weight`, `font_style`, `color`, `text_align`, `line_height`, `letter_spacing`
   - notes:
-    - **Text:** `width` and `height` must be provided together when resizing.
+    - **Text:** `width` and `height` must be provided together when resizing; only **`width`** changes layout (wrap column). **`height`** is validated but not used to stretch the layer—re-run text metrics / safe-zone checks after resize.
     - **Device:** at least one of `width` / `height`; resize is **uniform** (aspect preserved). Optional `fit` when both are set.
     - `opacity` must be in `[0,1]`
     - `font_style` must be `normal` or `italic`
@@ -331,6 +331,7 @@ All payloads are sent via:
 - `match_size`
   - args: `{"source_layer_id":"<source>","target_layer_ids":["<target1>"],"mode":"both"}`
   - mode: `width|height|both`
+  - **Text targets (`Textbox`):** `width` and `both` match the source’s **on-canvas width** by adjusting wrap **`width`** (scale reset to 1). **`height`** / **`both`** do **not** vertically scale text to the source’s height—height stays intrinsic to copy and wrapping. Non-text targets still use **scale** for width/height/both as before.
 - `device_set_size`
   - Uniform scale only (no stretching). Pass at least one of `width` / `height` (positive, snapped to grid input).
   - Both dimensions: fits inside the target box by default (`fit: "contain"`). Use `fit: "cover"` to fill the box (may exceed one axis).
