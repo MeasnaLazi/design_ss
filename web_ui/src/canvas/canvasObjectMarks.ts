@@ -12,7 +12,15 @@ export function isPanelSlotRect(o: unknown): o is PanelSlotRect {
   return o instanceof Rect && !!(o as PanelSlotRect)[PANEL_SLOT_MARK]
 }
 
-/** Per-panel cover background images (cloned from {@link DesignConfig#backgroundImageUrl}). */
+/** Full-strip solid/gradient layer behind panel slot outlines (one rect for the whole artboard row). */
+export const STRIP_BACKGROUND_FILL_MARK = '__appsPublisherStripBackgroundFill' as const
+export type StripBackgroundFillRect = Rect & { [STRIP_BACKGROUND_FILL_MARK]?: true }
+
+export function isStripBackgroundFillRect(o: unknown): o is StripBackgroundFillRect {
+  return o instanceof Rect && !!(o as StripBackgroundFillRect)[STRIP_BACKGROUND_FILL_MARK]
+}
+
+/** Strip-wide cover image from {@link DesignConfig#backgroundImageUrl} (one object, clip to canvas). */
 export const PANEL_BG_MARK = '__appsPublisherPanelBg' as const
 export type PanelBgImage = FabricImage & { [PANEL_BG_MARK]?: true }
 
@@ -26,6 +34,7 @@ export function isPanelBackgroundImage(o: unknown): o is PanelBgImage {
  */
 export function isDesignSystemCanvasObject(o: FabricObject): boolean {
   if (o instanceof Line && o.excludeFromExport === true) return true
+  if (isStripBackgroundFillRect(o)) return true
   if (isPanelSlotRect(o)) return true
   if (isPanelBackgroundImage(o)) return true
   if (isGutterOverlayRect(o)) return true

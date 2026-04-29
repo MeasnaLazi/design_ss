@@ -106,7 +106,7 @@ How to use each layout command:
 - `session`
 - `enqueue-op --operation <op> --args-json '{...}'`
 - `pull-preview --out <file.png>`
-- `pull-export`
+- `pull-export` (optional `--panels "0,2"`)
 
 How to use each designer command:
 
@@ -119,6 +119,7 @@ How to use each designer command:
   - Use after `render_preview` or `render_panel_preview` to fetch latest agent PNG.
 - `pull-export`
   - Use after `export_json` to fetch layer summary and resolve canonical `layer_id` values.
+  - With `--panels "i,j,…"`, the CLI still GETs the full summary from the server, then returns one `AgentLayoutSummaryV1` per column: layers whose bbox overlaps that column, with `left`/`top` shifted to panel-local coordinates (`slicedExportVersion` wrapper — see `agent_toolkit.export_slice`).
 
 ## Core `enqueue-op` operations
 

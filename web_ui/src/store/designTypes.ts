@@ -39,7 +39,8 @@ export interface DesignConfig {
   backgroundMode: CanvasBackgroundMode
   backgroundGradient: BackgroundGradientConfig
   /**
-   * Optional full-bleed background image, cover-scaled to the canvas.
+   * Optional strip-wide background image: one cover-scaled layer across the full artboard row
+   * (all panels + gaps), clipped to the canvas height/width.
    * May be a legacy `data:image/...` URL (fallback when upload API is unavailable) or a
    * same-origin dev asset path such as `/__api/datasource/screenshots/<file>.png`.
    */

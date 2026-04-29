@@ -15,6 +15,7 @@ from agent_toolkit import image_io
 from agent_toolkit import presets as presets_mod
 from agent_toolkit import quality as quality_mod
 from agent_toolkit import safe as safe_mod
+from agent_toolkit import export_slice as export_slice_mod
 from agent_toolkit import store_listing as store_listing_mod
 from agent_toolkit import text_metrics as text_metrics_mod
 from agent_toolkit.designer_client import (
@@ -267,7 +268,13 @@ def main(argv: list[str] | None = None) -> None:
 
     ds_expt = designer_sub.add_parser(
         "pull-export",
-        help="GET .../agent-export (layout summary JSON last pushed after export_json)",
+        help="GET .../agent-export (layout summary JSON last pushed after export_json); optional --panels slices by column",
+    )
+    ds_expt.add_argument(
+        "--panels",
+        default=None,
+        metavar="INDICES",
+        help='Comma-separated 0-based strip column indexes, e.g. "0,2" — returns slicedExportVersion JSON (still requires prior export_json in the browser)',
     )
     ds_expt.add_argument("--timeout", type=float, default=60.0)
     ds_expt.set_defaults(handler=_cmd_designer_pull_export)
@@ -348,6 +355,9 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, _compact: bool) -> None:
 
 def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_pull_agent_export_http(resolve_designer_base_url(), timeout=ns.timeout)
+    if ns.panels is not None and str(ns.panels).strip():
+        indexes = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
+        out = export_slice_mod.slice_agent_layout_summary_v1(out, indexes)
     _json_print(out, compact)
 
 

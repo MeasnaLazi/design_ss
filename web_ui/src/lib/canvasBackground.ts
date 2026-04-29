@@ -15,7 +15,7 @@ export function canvasAreaBackdropStyle(): CSSProperties {
   return { backgroundColor: CANVAS_GUTTER_COLOR }
 }
 
-/** Solid or gradient fill for one screenshot panel rect (object-local coordinates). */
+/** Solid or gradient fill for the strip-wide background rect (object-local coordinates span the full row). */
 export function fabricPanelRectFill(
   config: DesignConfig,
 ): string | Gradient<'linear'> | Gradient<'radial'> {

@@ -27,6 +27,7 @@ python -m agent_toolkit designer execute-op --operation noop --args-json "{}"
 python -m agent_toolkit designer enqueue-op --operation add_device_frame --args-json '{"path":"/device-frames/iphone_12_pro/frame/front.svg","frame":"front"}'
 python -m agent_toolkit designer pull-preview --out /tmp/agent.png    # after Web UI “Agent PNG” or enqueue render_preview
 python -m agent_toolkit designer pull-export                        # after enqueue export_json (compact layout summary JSON)
+python -m agent_toolkit designer pull-export --panels "0,2"        # same GET, then slice columns 0 and 2 (panel-local coords)
 ```
 
 See `docs/screenshot-designer-toolkit-reference.md` for the screenshot-designer command reference. Multi-agent Claude workflow and **`datasource/temp/design_brief.json`**: `docs/screenshot-agents-overview.md` and `.claude/agents/screenshot_*.md`.

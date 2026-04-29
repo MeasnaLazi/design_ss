@@ -26,6 +26,8 @@ import {
   type PanelSlotRect,
   PANEL_BG_MARK,
   PANEL_SLOT_MARK,
+  STRIP_BACKGROUND_FILL_MARK,
+  type StripBackgroundFillRect,
 } from '../../canvas/canvasObjectMarks'
 import {
   CANVAS_GUTTER_COLOR,
@@ -45,20 +47,21 @@ const SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX = 6
 
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
-/** Removes tracked and any stray per-panel background images (avoids stale refs / async races). */
-function removeAllPanelBackgroundImagesFromCanvas(
+/** Removes the strip background image and any stray marked images (async / layout races). */
+function removeStripBackgroundImageFromCanvas(
   canvas: Canvas,
-  ref: { current: FabricImage[] },
+  ref: { current: FabricImage | null },
 ): void {
-  ref.current.forEach((img) => {
+  const tracked = ref.current
+  if (tracked) {
     try {
-      canvas.remove(img)
+      canvas.remove(tracked)
     } catch {
       /* already detached */
     }
-    img.dispose()
-  })
-  ref.current = []
+    tracked.dispose()
+    ref.current = null
+  }
   for (const o of [...canvas.getObjects()]) {
     if (isPanelBackgroundImage(o)) {
       canvas.remove(o)
@@ -381,8 +384,9 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<Canvas | null>(null)
   const guideLinesRef = useRef<Line[]>([])
-  const panelBackgroundRectsRef = useRef<Rect[]>([])
-  const panelBackgroundImagesRef = useRef<FabricImage[]>([])
+  const stripBackgroundFillRef = useRef<StripBackgroundFillRect | null>(null)
+  const panelSlotRectsRef = useRef<PanelSlotRect[]>([])
+  const stripBackgroundImageRef = useRef<FabricImage | null>(null)
   const gutterOverlayRectsRef = useRef<GutterOverlayRect[]>([])
   const layerNameOverlaysRef = useRef<LayerNameOverlayText[]>([])
   const gutterStackCleanupRef = useRef<(() => void) | null>(null)
@@ -475,10 +479,19 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
 
     if (
       !layoutChanged &&
-      panelBackgroundRectsRef.current.length === screens &&
+      stripBackgroundFillRef.current &&
+      panelSlotRectsRef.current.length === screens &&
       screens > 0
     ) {
-      panelBackgroundRectsRef.current.forEach((r) => r.set({ fill: panelFill }))
+      stripBackgroundFillRef.current.set({
+        fill: panelFill,
+        width,
+        height,
+      })
+      panelSlotRectsRef.current.forEach((r, i) => {
+        const left = i * (panelW + gap)
+        r.set({ left, width: panelW, height: panelH })
+      })
       canvas.requestRenderAll()
       applyCanvasCssZoom(
         canvas,
@@ -489,12 +502,33 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
       return
     }
 
-    removeAllPanelBackgroundImagesFromCanvas(canvas, panelBackgroundImagesRef)
+    removeStripBackgroundImageFromCanvas(canvas, stripBackgroundImageRef)
 
-    panelBackgroundRectsRef.current.forEach((r) => canvas.remove(r))
-    panelBackgroundRectsRef.current = []
+    if (stripBackgroundFillRef.current) {
+      canvas.remove(stripBackgroundFillRef.current)
+      stripBackgroundFillRef.current.dispose()
+      stripBackgroundFillRef.current = null
+    }
+    panelSlotRectsRef.current.forEach((r) => canvas.remove(r))
+    panelSlotRectsRef.current = []
     guideLinesRef.current.forEach((line) => canvas.remove(line))
     guideLinesRef.current = []
+
+    const stripRect = new Rect({
+      left: 0,
+      top: 0,
+      originX: 'left',
+      originY: 'top',
+      width,
+      height,
+      fill: panelFill,
+      strokeWidth: 0,
+      selectable: false,
+      evented: false,
+    }) as StripBackgroundFillRect
+    stripRect[STRIP_BACKGROUND_FILL_MARK] = true
+    canvas.insertAt(0, stripRect)
+    stripBackgroundFillRef.current = stripRect
 
     for (let i = 0; i < screens; i++) {
       const left = i * (panelW + gap)
@@ -505,19 +539,19 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
         originY: 'top',
         width: panelW,
         height: panelH,
-        fill: panelFill,
+        fill: 'transparent',
         stroke: PANEL_SLOT_STROKE,
         strokeWidth: 1,
         selectable: false,
         evented: false,
       }) as PanelSlotRect
       rect[PANEL_SLOT_MARK] = true
-      canvas.insertAt(0, rect)
-      panelBackgroundRectsRef.current.push(rect)
+      canvas.insertAt(i + 1, rect)
+      panelSlotRectsRef.current.push(rect)
     }
 
     const xs = screenshotLeftEdgeXs(screens, gap, panelW)
-    let guideInsertAt = screens
+    let guideInsertAt = 1 + screens
     for (const x of xs) {
       const line = new Line([x, 0, x, height], {
         stroke: GUIDE_STROKE,
@@ -566,11 +600,14 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
 
     let cancelled = false
 
-    removeAllPanelBackgroundImagesFromCanvas(canvas, panelBackgroundImagesRef)
+    removeStripBackgroundImageFromCanvas(canvas, stripBackgroundImageRef)
 
     const storeCfg = useDesignStore.getState().config
     const url = storeCfg.backgroundImageUrl
     const { width: W, height: H } = getArtboardDimensionsFromConfig(storeCfg)
+    const n = storeCfg.screens
+    const g = storeCfg.gap
+    const stripW = totalContinuousWidth(n, g, W)
 
     if (!url) {
       canvas.requestRenderAll()
@@ -590,54 +627,45 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
 
         const iw = Math.max(base.width || 1, 1)
         const ih = Math.max(base.height || 1, 1)
-        const n = useDesignStore.getState().config.screens
-        const g = useDesignStore.getState().config.gap
+        const scale = Math.max(stripW / iw, H / ih)
 
-        for (let i = 0; i < n; i++) {
-          if (cancelled) break
-          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
+        const img = (await base.clone()) as PanelBgImage
+        img[PANEL_BG_MARK] = true
 
-          const img = (await base.clone()) as PanelBgImage
-          img[PANEL_BG_MARK] = true
+        if (cancelled) return
+        if (useDesignStore.getState().config.backgroundImageUrl !== url) return
 
-          if (cancelled) break
-          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
-
-          const left = i * (W + g)
-          const scale = Math.max(W / iw, H / ih)
-
-          img.set({
+        img.set({
+          originX: 'center',
+          originY: 'center',
+          left: stripW / 2,
+          top: H / 2,
+          scaleX: scale,
+          scaleY: scale,
+          selectable: false,
+          evented: false,
+          clipPath: new Rect({
+            left: stripW / 2,
+            top: H / 2,
+            width: stripW,
+            height: H,
             originX: 'center',
             originY: 'center',
-            left: left + W / 2,
-            top: H / 2,
-            scaleX: scale,
-            scaleY: scale,
+            absolutePositioned: true,
             selectable: false,
             evented: false,
-            clipPath: new Rect({
-              left: left + W / 2,
-              top: H / 2,
-              width: W,
-              height: H,
-              originX: 'center',
-              originY: 'center',
-              absolutePositioned: true,
-              selectable: false,
-              evented: false,
-            }),
-          })
+          }),
+        })
 
-          if (cancelled) break
-          if (useDesignStore.getState().config.backgroundImageUrl !== url) break
+        if (cancelled) return
+        if (useDesignStore.getState().config.backgroundImageUrl !== url) return
 
-          canvas.insertAt(n + i, img)
-          panelBackgroundImagesRef.current.push(img)
-        }
+        canvas.insertAt(1 + n, img)
+        stripBackgroundImageRef.current = img
 
         if (!cancelled) {
           canvas.requestRenderAll()
-          console.log('[CanvasWorkspace] per-panel background images applied', { n })
+          console.log('[CanvasWorkspace] strip-wide background image applied', { stripW, n })
         }
       } catch (e) {
         console.error('[CanvasWorkspace] background image load failed', e)
@@ -718,8 +746,9 @@ export const CanvasWorkspace = memo(function CanvasWorkspace() {
         removeLayerNameOverlaysFromCanvas(c, layerNameOverlaysRef)
       }
       guideLinesRef.current = []
-      panelBackgroundRectsRef.current = []
-      panelBackgroundImagesRef.current = []
+      stripBackgroundFillRef.current = null
+      panelSlotRectsRef.current = []
+      stripBackgroundImageRef.current = null
       gutterOverlayRectsRef.current = []
       layerNameOverlaysRef.current = []
       c?.backgroundImage?.dispose()
