@@ -29,4 +29,4 @@ python -m agent_toolkit designer pull-preview --out /tmp/agent.png    # after We
 python -m agent_toolkit designer pull-export                        # after enqueue export_json (compact layout summary JSON)
 ```
 
-See `docs/screenshot-designer-toolkit-reference.md` for the screenshot-designer command reference, and `.claude/agents/screenshot_designer.md` for workflow/quality rules.
+See `docs/screenshot-designer-toolkit-reference.md` for the screenshot-designer command reference. Multi-agent Claude workflow and **`datasource/temp/design_brief.json`**: `docs/screenshot-agents-overview.md` and `.claude/agents/screenshot_*.md`.

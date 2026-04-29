@@ -8,7 +8,9 @@
       "Bash",
       "WebFetch",
       "Agent(app_optimizer)",
-      "Agent(screenshot_designer)",
+      "Agent(screenshot_requirements)",
+      "Agent(screenshot_background)",
+      "Agent(screenshot_panel)",
       "Agent(toolkit_runner)"
     ],
     "deny": [

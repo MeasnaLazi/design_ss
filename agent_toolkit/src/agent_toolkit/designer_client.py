@@ -98,6 +98,10 @@ def screenshot_designer_handoff(
     """
     Build the orchestrator handoff object and optionally verify the live session API.
 
+    **screenshot_background** and **screenshot_panel** consume this payload after **toolkit_runner** has started
+    the Web UI; **screenshot_requirements** uses layout CLI only and does not call this function. The
+    ``screenshot_designer_handoff`` name matches the screenshot-designer API, not a single monolithic agent file.
+
     Returns a dict: ``{"ok": True, "handoff": {...}, "session": ...}``.
     ``handoff.web_ui_status`` is ``ready`` after a successful session probe, or
     ``unverified`` when ``skip_session`` is True (URLs only; caller assumes server is up).

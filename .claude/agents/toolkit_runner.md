@@ -1,6 +1,6 @@
 ---
 name: toolkit_runner
-description: Manages publisher-local tooling before screenshot or layout work — Python agent_toolkit (layout/image CLI), Node.js for web_ui, npm dependencies, and starting the Vite dev server on port 4713. Call this agent before screenshot_designer so the designer API and browser session are available.
+description: Manages publisher-local tooling before live designer work — Python agent_toolkit (layout/image CLI), Node.js for web_ui, npm dependencies, and starting the Vite dev server on port 4713. Call this agent after screenshot_requirements and before screenshot_background / screenshot_panel so the designer API and browser session are available.
 tools:
   - Bash
   - Read
@@ -16,7 +16,7 @@ The publisher root is the working directory (same level as `config.json`, `web_u
 
 | Piece | Purpose | When it matters |
 |-------|---------|-----------------|
-| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`), optional **designer HTTP** CLI (`designer session|execute` on loopback) — see `.claude/agents/screenshot_designer.md` |
+| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`) for **screenshot_requirements**; **designer HTTP** CLI after **`toolkit_runner`** — **`docs/screenshot-agents-overview.md`** |
 | **`pip install -e ./agent_toolkit`** | Installs the layout toolkit from the repo | Same as above; run once per venv, or after `pyproject.toml` / deps change |
 | **Node.js** (see `web_ui/.nvmrc`) | Builds and runs `web_ui` | **Required** for live designer API and `render_preview` |
 | **`web_ui/node_modules`** | Vite and frontend deps | **Required** before `npm run dev` |
@@ -164,7 +164,7 @@ done
 
 Optional: confirm the designer API responds (requires `agent_toolkit` and a running server). Ensure **`agent_toolkit/.env`** sets `DESIGNER_API_BASE` to the same URL as the handoff’s `designer_api_base` (or rely on the default); see `agent_toolkit/.env.example`.
 
-Equivalent to session-only check, **`designer handoff`** prints the same three-field **`handoff`** object (plus session payload) for **`screenshot_designer`**:
+Equivalent to session-only check, **`designer handoff`** prints the same three-field **`handoff`** object (plus session payload) consumed by **`screenshot_background`** / **`screenshot_panel`** (**`screenshot_requirements`** uses layout CLI only and does not run handoff):
 
 ```bash
 python3 -m agent_toolkit designer handoff
@@ -191,4 +191,4 @@ When reporting success, briefly note whether **`agent_toolkit`** was verified or
 ## Notes
 
 - **`web_ui_runner`** was renamed to **`toolkit_runner`** to reflect the broader scope (Python toolkit + Web UI).
-- Layout and **designer HTTP** CLI details live in **`.claude/agents/screenshot_designer.md`** under **agent_toolkit**.
+- Multi-agent workflow overview: **`docs/screenshot-agents-overview.md`**. Command/payload reference: **`agent_toolkit/docs/screenshot-designer-toolkit-reference.md`**.

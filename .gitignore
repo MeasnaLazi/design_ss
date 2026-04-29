@@ -1,6 +1,9 @@
 datasource/screenshots/**
 datasource/display*
 datasource/.screenshot-designer-state.json
+# Session scratch: previews, API JSON, design_brief.json (add !datasource/temp/design_brief.json to track the brief)
+datasource/temp/**
+!datasource/temp/.gitkeep
 output/**
 
 agent_toolkit/.venv/

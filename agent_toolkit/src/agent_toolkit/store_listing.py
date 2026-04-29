@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Final
 
-# Same mapping as `.claude/agents/screenshot_designer.md` (Step 0a / store paths).
+# Same platform → store file + preset mapping as the screenshot agents (see docs/screenshot_design_brief.md / layout store-json).
 _STORE_ROWS: Final[dict[str, tuple[str, str]]] = {
     "iphone": ("output/appstore.json", "appstore_iphone_portrait"),
     "ipad": ("output/appstore.json", "appstore_ipad_portrait"),
