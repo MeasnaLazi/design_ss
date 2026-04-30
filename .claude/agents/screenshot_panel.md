@@ -107,9 +107,11 @@ Apply **`set_background`** only if Background already finalized it — Backgroun
 1. **`designer session`** → **presetId**, dimensions, **`design.config.screens`**, **`design.config.gap`** (session facts only — **do not** hand-layout using strip-wide pixel offsets from these alone).
 2. **`export_json`** + **`pull-export --panels "<i>"`** when you need **`layer_id`** ground truth for the **active** column (`align`, `device_*`, `text_*`). Prefer this **sliced** export so coordinates match **panel-local** design. Use unsliced **`pull-export`** only when you must inspect **every** column’s IDs in one file.
 3. For current **`i`** only (unless user jumped):
-   - **`add_device_frame`** as needed (same pack): **`panel_index`** / **`panel_number`** = **`i`** so placement is **panel-local**.
-   - **`align`**: **`reference: "panel"`** with the same **`i`** for column-anchored moves; inside the column, **`reference: "<layer_id>"`** is fine.
-   - **`add_text`**: pass **`panel_index`** / **`panel_number`** = **`i`** with **`x`/`y`** in **that panel’s** space; tiers from Step 6 — **never** rogue per-panel sizes for same role.
+   - **`add_device_frame`** as needed (same pack): **`panel_index`** / **`panel_number`** = **`i`** (**required** — no default column); placement is **panel-local** (device = **center** origin in column space).
+   - **`align`**: **`reference: "panel"`** with the same **`i`** for column anchors — **`reference: "canvas"` is rejected** by the designer. Inside the column, **`reference: "<layer_id>"`** is fine only when both layers sit in **that** column.
+   - **`add_text`**: **`panel_index`** / **`panel_number`** = **`i`** (**required**); **`x`/`y`** = **top-left** in that column’s space; tiers from Step 6 — **never** rogue per-panel sizes for same role.
+   - **`device_set_position`**, **`layer_patch`** / **`layers_patch_bulk`** with **`x`/`y`**, optional **`move_layer`** absolute **`x`/`y`**: always include **`panel_index`** / **`panel_number`** = **`i`** (or shared top-level panel for bulk); coordinates are **panel-local**, not strip-global.
+   - **`device_move_delta`**, **`distribute_layers`**, **`set_equal_spacing`**: keep targets in **one** column; optional **`panel_index`** asserts **`i`** when you want an explicit guard.
 
 **Proceed gate:** After panel **`i`** meets **Ship bar** for that index, **`render_panel_preview` + pull-preview**, then ask whether to continue to **`i+1`** **unless** the user already gave the next directive.
 
@@ -144,7 +146,8 @@ Merge final **`completed_panel_indexes`** into Brief; set **`updatedAt`**.
 ### Per panel / strip
 
 - [ ] **`render_panel_preview` + pull-preview`** for each index touched.
-- [ ] **`align`** uses **`reference: "panel"`** for column anchors.
+- [ ] **`align`** uses **`reference: "panel"`** for column anchors (never **`canvas`**).
+- [ ] **Positional ops** (`add_*`, `device_set_position`, `layer_patch` x/y, bulk patches, `move_layer` x/y) include **`panel_index`** / **`panel_number`** matching the active column.
 - [ ] **Strip-wide typography** adhered to (`typography_locked` respected).
 - [ ] **`layer_id`** resolved via **`pull-export --panels "<i>"`** (or full **`pull-export`** only when whole-strip ID map is required) before targeted ops; placement stays **panel-local** via **`panel_index`** / **`panel_number`**.
 

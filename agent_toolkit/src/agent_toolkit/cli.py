@@ -32,6 +32,7 @@ from agent_toolkit.designer_client import (
     try_designer_pull_agent_preview,
 )
 from agent_toolkit.paths import publisher_root
+from agent_toolkit.designer_enqueue_validate import validate_positional_enqueue_args
 from agent_toolkit.models import SessionCheckInput
 
 
@@ -352,6 +353,7 @@ def _cmd_designer_enqueue_op(ns: argparse.Namespace, compact: bool) -> None:
     args = _parse_args_json_payload(ns.args_json)
     if not isinstance(args, dict):
         raise ValueError("--args-json must decode to a JSON object")
+    validate_positional_enqueue_args(ns.operation, args)
     out = designer_enqueue_command_http(
         resolve_designer_base_url(),
         ns.operation,

@@ -20,7 +20,7 @@ Before every `designer enqueue-op` call, enforce this policy:
 1. **Operation name must exist in this document** under **Core `enqueue-op` operations**.
 2. **Args must match one documented schema/example** in this document.
 3. If operation/args are uncertain, **stop and re-read this file**; do not guess.
-4. **Never invent aliases or near-matches** (for example: `move_layer`, `set_bg`, `delete_layer`).
+4. **Never invent aliases or near-matches** (for example: `set_bg`, `delete_layer`).
 5. If a needed behavior is not documented, **compose it from documented operations** (for example use `layer_patch` + `batch`) instead of introducing a new op name.
 
 Hard rule:
@@ -60,6 +60,21 @@ If handoff is not ready, run `toolkit_runner` first.
   1. `designer enqueue-op --operation export_json --args-json "{}"`
   2. `designer pull-export`
 - Always use `layer_id` for `align`, `text_*`, and `device_*` operations.
+
+## Coordinate model (panel-local)
+
+**All placement `x` / `y` are panel-local** (origin = that strip column’s top-left from `screenExportRect`). You **must** pass **`panel_index`** (0-based) or **`panel_number`** (1-based) on:
+
+- `add_device_frame`, `add_text`
+- `device_set_position` (`x`/`y` = panel-local **center** of the device group — same origin model as new devices)
+- `layer_patch` / `layers_patch_bulk` whenever the patch includes **`x`** and/or **`y`**
+- `move_layer` when using absolute **`x`/`y`** (not for `dx`/`dy` only)
+
+**Semantics:** **Text** layers and text **`layer_patch`** positions use **top-left** in panel space. **Device** layers, **`device_set_position`**, and device **`layer_patch`** / **`move_layer`** `x`/`y` use the device group’s **center** origin in panel space (matches Fabric `originX`/`originY: 'center'`).
+
+**`align`:** `reference: "canvas"` is **rejected** — use `reference: "panel"` with `panel_index` / `panel_number`. `reference: "<layer_id>"` is allowed only when both layers’ align bboxes lie in the **same** column (enforced in the Web UI).
+
+**`device_move_delta`**, **`distribute_layers`**, **`set_equal_spacing`:** deltas / spacing stay canvas-relative; every target must already sit in **one** column. Optional **`panel_index`** / **`panel_number`** asserts that column (must match inferred centers).
 
 ## Commands you will use most
 
@@ -148,6 +163,7 @@ How to use each designer command:
 - `set_z_index`
 - `layer_patch`
 - `layers_patch_bulk`
+- `move_layer`
 - `batch`
 - `distribute_layers`
 - `set_equal_spacing`
@@ -157,17 +173,17 @@ How to use each designer command:
 - `render_panel_preview`
 - `export_json`
 
-All coordinates (`x`, `y`) must be snapped to the 16px grid after any panel offset is applied.
+All coordinates (`x`, `y`) must be snapped to the 16px grid after the panel origin is applied (Web UI), or use `layout snap-to-grid` for offline math.
 
-**Panel column helpers:** optional `panel_index` (0-based) or `panel_number` (1-based) on `add_device_frame` and `add_text`, and with `align` when `reference` is `"panel"`, anchor geometry to that strip column. For offline math, Python mirrors the same origin as `screenExportRect` / `agent_toolkit.geometry.panel_rect(index, gap, panel_w, panel_h)`.
+**Panel column:** `panel_index` (0-based) or `panel_number` (1-based) is **required** on `add_device_frame`, `add_text`, and any op that sets absolute **`x`/`y`** in panel space (see **Coordinate model** above). For offline math, Python mirrors the same origin as `screenExportRect` / `agent_toolkit.geometry.panel_rect(index, gap, panel_w, panel_h)`.
 
 How to use each core operation:
 
 - `noop` — no-op health check; useful for connectivity testing without canvas changes.
 - `set_background` — set canvas background (`type: color|gradient|image`).
-- `add_device_frame` — add a device frame from selected pack/style; optional `panel_index` / `panel_number` centers the frame in that column.
-- `add_text` — add a text layer at snapped `x`,`y` with font token and size; with `panel_index` / `panel_number`, `x` and `y` are **relative to that panel’s top-left** (then snapped globally).
-- `align` — snap layer alignment against a strip column (`reference: "panel"` + **`panel_index` / `panel_number`**, including **`0` / `1`** for the first column), the **full** artboard (`reference: "canvas"`—matches **one** single-panel artboard; **not** a single column of a row—avoid for multi-panel strip alignment), or another layer (`reference: "<layer_id>"`).
+- `add_device_frame` — add a device frame from selected pack/style; **`panel_index` / `panel_number` required** — `x`/`y` (if any) are panel-local **center** for the device group.
+- `add_text` — add a text layer at snapped `x`,`y` with font token and size; **`panel_index` / `panel_number` required** — `x`/`y` are **top-left** in that column (then snapped on canvas).
+- `align` — snap layer alignment against a strip column (`reference: "panel"` + **`panel_index` / `panel_number`**), or another layer in the **same** column (`reference: "<layer_id>"`). **`reference: "canvas"` is not allowed** (use `panel`).
 - `text_font_size_delta` — increase/decrease text size by delta px.
 - `text_set_font_size` — set absolute text size.
 - `text_set_font_style` — set style variant (`regular|bold|italic|bold_italic`).
@@ -178,8 +194,8 @@ How to use each core operation:
 - `text_auto_fit` — reduce/fit text within its current width bounds.
 - `device_size_delta` — grow/shrink device by width delta.
 - `device_set_size` — **device frame layers only**: resize with **uniform scale** (aspect ratio preserved); optional `fit` when both width and height are set.
-- `device_set_position` — set absolute snapped device position.
-- `device_move_delta` — offset device by delta.
+- `device_set_position` — set absolute snapped device position (**panel-local center**); **`panel_index` / `panel_number` required**.
+- `device_move_delta` — offset device by delta (canvas pixels). Optional **`panel_index`** must match the device’s column; targets must stay in one column.
 - `device_set_angle` — rotate device.
 - `device_set_frame_style` — switch style within a pack.
 - `device_set_screen_image` — apply image URL to device screen content.
@@ -188,8 +204,8 @@ How to use each core operation:
 - `layer_patch` — patch geometry/style fields for one layer.
 - `layers_patch_bulk` — patch multiple layers in one operation.
 - `batch` — execute multiple operations in order.
-- `distribute_layers` — evenly distribute layer positions along axis.
-- `set_equal_spacing` — enforce fixed gap along axis.
+- `distribute_layers` — evenly distribute layer positions along axis (all targets must be in **one** column; optional **`panel_index`** asserts it).
+- `set_equal_spacing` — enforce fixed gap along axis (same column rule as `distribute_layers`).
 - `match_size` — copy width/height/both from source to targets (text targets: width typographically; height not forced via scale).
 - `render_preview` — push full workspace PNG to agent preview store.
 - `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`).
@@ -210,28 +226,28 @@ Use these exact operation names and argument shapes.
   - `type` must be exactly: `color | gradient | image`
 
 - `add_device_frame`
-  - `{"path":"/device-frames/iphone_12_pro/frame/front.svg","frame":"front"}`
-  - Optional column (defaults to first panel): `{"path":"…","frame":"front","panel_index":2}` or `"panel_number":3` (1-based). Out-of-range indices clamp to the last panel.
+  - **Requires** `panel_index` or `panel_number` (no silent default to column 0):
+    - `{"path":"/device-frames/iphone_12_pro/frame/front.svg","frame":"front","panel_index":0}`
+    - Center in column 3 (1-based): `{"path":"…","frame":"front","panel_number":3}`
+  - Optional `x`,`y` (panel-local **center**); out-of-range indices clamp to the last panel.
 
 - `add_text`
-  - Global coordinates (entire strip), omit panel fields:
-    - `{"content":"Stay Focused","x":64,"y":128,"font":"headline","size":96,"color":"#ffffff","align":"center","weight":"700"}`
-  - **In-panel** coordinates: same `x`/`y` but relative to the chosen column’s top-left:
+  - **Requires** `panel_index` or `panel_number`; `x`/`y` are **top-left** in that column:
     - `{"content":"Headline","panel_index":2,"x":64,"y":128,"font":"headline","size":96,"color":"#ffffff","align":"left","weight":"700"}`
   - `font` must be one of: `headline | subheadline | body | caption`
 
 - `align`
-  - **Strip column (preferred for all panels, including the first):** `panel` rect = `screenExportRect` for that index (same as in-panel `add_text` / `add_device_frame` coords)
+  - **Strip column:** `panel` rect = `screenExportRect` for that index
     - `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":0}`
     - `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":2}` or `"panel_number":3` instead of `panel_index`
-  - **Full artboard** (entire `width` from preset— spans all columns on a row; use for single-artboard work, not “column 0” of a row):
-    - `{"layer_id":"<id>","anchor":"center_x","reference":"canvas"}`
-  - Relative to another layer’s bounding box:
+  - **Not supported:** `reference: "canvas"` (rejected — use `panel` + `panel_index`).
+  - Relative to another layer’s bounding box (**same column only** in the Web UI):
     - `{"layer_id":"<id>","anchor":"center_y","reference":"<other_layer_id>"}`
   - `anchor` must be one of: `center_x | center_y | top | bottom | left | right`
 
 - `layer_patch` (generic move/resize/style)
-  - `{"layer_id":"<id>","patch":{"x":320,"y":640}}`
+  - When `patch` includes `x` and/or `y`, **require** top-level `panel_index` / `panel_number` (panel-local; text = top-left, device = center):
+    - `{"layer_id":"<id>","panel_index":0,"patch":{"x":320,"y":640}}`
   - **Text layers:** when resizing, provide both `width` and `height` in the patch (schema requirement). **`width`** sets the Fabric **Textbox wrap column** (re-wraps lines; **no** `scaleX`/`scaleY` glyph stretch). **`height`** must be a positive number but is **not** applied as a vertical scale—text height stays **intrinsic** to wrapped content (re-check with `layout estimate-text-height` / safe-zone after big width changes).
   - **Device frame layers only:** provide `width` and/or `height`; scaling is **uniform** (aspect preserved). If both are set, optional `patch.fit`: `contain` (default, fits inside the box) or `cover` (fills the box). `fit` is rejected on text layers.
 
@@ -253,10 +269,10 @@ Use these exact operation names and argument shapes.
   - alias: `delta` is also accepted.
 
 - `device_set_position`
-  - `{"layer_id":"<id>","x":400,"y":1200}`
+  - Panel-local **center**: `{"layer_id":"<id>","panel_index":0,"x":400,"y":1200}`
 
 - `device_move_delta`
-  - `{"layer_id":"<id>","dx":32,"dy":0}`
+  - `{"layer_id":"<id>","dx":32,"dy":0}` — optional `panel_index` / `panel_number` must match the device’s column.
 
 - `device_set_angle`
   - `{"layer_id":"<id>","angle":-6}`
@@ -276,7 +292,8 @@ Use these exact operation names and argument shapes.
   - `{}`
 
 - `layers_patch_bulk`
-  - `{"layers":[{"layer_id":"<id1>","patch":{"x":112,"y":176}},{"layer_id":"<id2>","patch":{"x":640,"y":416}}]}`
+  - Shared column for all `x`/`y` patches: `{"panel_index":0,"layers":[{"layer_id":"<id1>","patch":{"x":112,"y":176}},{"layer_id":"<id2>","patch":{"x":64,"y":320}}]}`
+  - Or per-entry `panel_index` when positions differ by column (rare): each row with `patch.x`/`patch.y` must include `panel_index`/`panel_number` on the op or on that row.
 
 - `batch`
   - `{"operations":[{"operation":"text_set_content","args":{"layer_id":"<id>","content":"Track every goal"}},{"operation":"set_z_index","args":{"layer_id":"<id>","z_index":8}}]}`
@@ -285,7 +302,7 @@ Use these exact operation names and argument shapes.
 
 These names are invalid and will fail:
 
-- `move_layer` → use `layer_patch` (`x`,`y`) or `device_move_delta` / `device_set_position`
+- Prefer `layer_patch` for geometry; `move_layer` exists as a shortcut (`panel_index` + panel-local `x`/`y`, or `dx`/`dy`).
 - `delete_layer` → use `remove_layer`
 - `set_bg` / `set_background_color` → use `set_background` with valid `type`
 
@@ -304,8 +321,10 @@ All payloads are sent via:
   - args: `{"layer_id":"<id>"}`
 - `set_z_index`
   - args: `{"layer_id":"<id>","z_index":3}` (integer, clamped to canvas range)
+- `move_layer`
+  - args: panel-local absolute `{"layer_id":"<id>","panel_index":0,"x":64,"y":128}` (text: top-left, device: center), or delta `{"layer_id":"<id>","dx":32,"dy":0}` (optional `panel_index` must match inferred column).
 - `layer_patch`
-  - args: `{"layer_id":"<id>","patch":{...}}`
+  - args: `{"layer_id":"<id>","patch":{...}}` — when `patch` sets `x`/`y`, include **`panel_index`** / **`panel_number`** on the args object.
   - common patch keys (text + device): `x`, `y`, `width`, `height`, `angle`, `opacity`, `scale_x`, `scale_y`
   - device-only patch key: `fit` (`contain` | `cover`) when both `width` and `height` are set on a **device** layer
   - text-only patch keys: `content`, `font_size`, `font_weight`, `font_style`, `color`, `text_align`, `line_height`, `letter_spacing`
@@ -317,7 +336,8 @@ All payloads are sent via:
     - `text_align` must be `left|center|right|justify`
 - `layers_patch_bulk`
   - args:
-    - `{"layers":[{"layer_id":"<id1>","patch":{...}},{"layer_id":"<id2>","patch":{...}}]}`
+    - `{"panel_index":0,"layers":[{"layer_id":"<id1>","patch":{...}},{"layer_id":"<id2>","patch":{...}}]}`
+    - Any entry whose `patch` includes `x`/`y` needs `panel_index` on the op or on that entry.
 - `batch`
   - args:
     - `{"operations":[{"operation":"<op>","args":{...}},{"operation":"<op2>","args":{...}}]}`
@@ -328,9 +348,9 @@ All payloads are sent via:
 ## Full-control plus (v2) schemas
 
 - `distribute_layers`
-  - args: `{"layer_ids":["<id1>","<id2>","<id3>"],"axis":"x"}`
+  - args: `{"layer_ids":["<id1>","<id2>","<id3>"],"axis":"x"}` — optional `panel_index` / `panel_number` must match all targets’ column.
 - `set_equal_spacing`
-  - args: `{"layer_ids":["<id1>","<id2>"],"axis":"x","gap":64}`
+  - args: `{"layer_ids":["<id1>","<id2>"],"axis":"x","gap":64}` — same optional `panel_index` rule as `distribute_layers`.
 - `match_size`
   - args: `{"source_layer_id":"<source>","target_layer_ids":["<target1>"],"mode":"both"}`
   - mode: `width|height|both`
@@ -363,6 +383,7 @@ All payloads are sent via:
 ```bash
 python -m agent_toolkit designer enqueue-op --operation layer_patch --args-json '{
   "layer_id":"layer_text_hero",
+  "panel_index":0,
   "patch":{"x":112,"y":192,"font_size":108,"color":"#ffffff","text_align":"left"}
 }'
 ```
@@ -371,6 +392,7 @@ python -m agent_toolkit designer enqueue-op --operation layer_patch --args-json 
 
 ```bash
 python -m agent_toolkit designer enqueue-op --operation layers_patch_bulk --args-json '{
+  "panel_index":0,
   "layers":[
     {"layer_id":"layer_text_hero","patch":{"x":112,"y":192,"font_size":108}},
     {"layer_id":"layer_device_1","patch":{"x":640,"y":416,"width":784,"height":1568}}
@@ -384,7 +406,7 @@ python -m agent_toolkit designer enqueue-op --operation layers_patch_bulk --args
 python -m agent_toolkit designer enqueue-op --operation batch --args-json '{
   "operations":[
     {"operation":"text_set_content","args":{"layer_id":"layer_text_hero","content":"Track every goal"}},
-    {"operation":"layer_patch","args":{"layer_id":"layer_text_hero","patch":{"x":112,"y":176,"font_size":104}}},
+    {"operation":"layer_patch","args":{"layer_id":"layer_text_hero","panel_index":0,"patch":{"x":112,"y":176,"font_size":104}}},
     {"operation":"set_z_index","args":{"layer_id":"layer_text_hero","z_index":8}}
   ]
 }'
@@ -417,3 +439,4 @@ python -m agent_toolkit designer enqueue-op --operation set_z_index --args-json 
 
 - `render_preview`/`render_panel_preview` output comes from live Fabric canvas capture.
 - `enqueue-op` does not return new layer IDs for added layers; use `export_json` + `pull-export`.
+- The **`agent_toolkit` CLI** rejects some malformed positional payloads before the HTTP round-trip (missing `panel_index` where required, `align` + `canvas`, etc.) — match this document to avoid `ValueError` from `designer enqueue-op`.

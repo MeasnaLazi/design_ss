@@ -11,7 +11,7 @@ import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
-import { screenExportRect, totalContinuousWidth } from '../constants/appStoreScreens'
+import { screenExportRect } from '../constants/appStoreScreens'
 import { useDesignStore } from '../store/useDesignStore'
 import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
 import { useToastStore } from '../store/useToastStore'
@@ -97,15 +97,6 @@ function packIdFromDeviceFramePath(framePath: string): string | undefined {
 type AlignAnchor = 'center_x' | 'center_y' | 'top' | 'bottom' | 'left' | 'right'
 type LayerKind = 'text' | 'device'
 
-function refRectCanvas(): { x: number; y: number; width: number; height: number } {
-  const config = useDesignStore.getState().config
-  const { width: panelW, height } = getArtboardDimensionsFromConfig(config)
-  const screens = Math.max(1, Math.floor(Number(config.screens) || 1))
-  const gap = Number(config.gap) || 0
-  const width = totalContinuousWidth(screens, gap, panelW)
-  return { x: 0, y: 0, width, height }
-}
-
 /**
  * Axis-aligned box used to compute align deltas. Device frame groups use the bezel image’s bbox
  * (last child), matching {@link clampDeviceGroupToNearestPanel}, so programmatic align + clamp do
@@ -166,6 +157,75 @@ function refRectForPanelIndex(panelIndex: number): { x: number; y: number; width
   const { width, height } = getArtboardDimensionsFromConfig(config)
   const r = screenExportRect(panelIndex, config.gap, width, height)
   return { x: r.left, y: r.top, width: r.width, height: r.height }
+}
+
+/**
+ * Which strip column contains the point `(cx, cy)` (typically bbox center).
+ * Returns `null` if outside all panels (e.g. in the gutter).
+ */
+function panelIndexContainingPoint(cx: number, cy: number): number | null {
+  const config = useDesignStore.getState().config
+  const screens = Math.max(1, Math.floor(Number(config.screens) || 1))
+  const gap = Number(config.gap) || 0
+  const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(config)
+  for (let i = 0; i < screens; i += 1) {
+    const r = screenExportRect(i, gap, panelW, panelH)
+    if (cx >= r.left && cx < r.left + r.width && cy >= r.top && cy < r.top + r.height) {
+      return i
+    }
+  }
+  return null
+}
+
+function panelIndexForLayerObject(canvas: Canvas, layerId: string, obj: FabricObject): number | null {
+  const b = boundingRectForAlign(layerId, obj)
+  const cx = b.left + b.width / 2
+  const cy = b.top + b.height / 2
+  return panelIndexContainingPoint(cx, cy)
+}
+
+/**
+ * Resolves and clamps `panel_index` / `panel_number` from args, or `null` if missing / invalid.
+ * Callers should toast when `null`.
+ */
+function requirePanelIndexFromArgs(args: Record<string, unknown>, opName: string): number | null {
+  if (!argsSpecifyPanel(args)) {
+    useToastStore.getState().showToast(`${opName}: panel_index or panel_number is required (panel-local coordinates).`, 'warning')
+    return null
+  }
+  const parsed = parsePanelIndexFromArgs(args)
+  if (parsed === null) {
+    useToastStore.getState().showToast(`${opName}: panel_index and panel_number must be integers.`, 'warning')
+    return null
+  }
+  const screens = Math.max(1, useDesignStore.getState().config.screens)
+  return clampPanelIndex(parsed, screens)
+}
+
+/** Parse `panel_index` / `panel_number` when present; no toast on missing. */
+function parseOptionalPanelIndexClamped(args: Record<string, unknown>): number | null {
+  if (!argsSpecifyPanel(args)) return null
+  const parsed = parsePanelIndexFromArgs(args)
+  if (parsed === null) return null
+  const screens = Math.max(1, useDesignStore.getState().config.screens)
+  return clampPanelIndex(parsed, screens)
+}
+
+/** Panel-local top-left `(localX, localY)` to world canvas `left`/`top` for the same origin model (top-left). */
+function localToWorldTopLeft(panelIndex: number, localX: number, localY: number): { left: number; top: number } | null {
+  const origin = refRectForPanelIndex(panelIndex)
+  if (!origin) return null
+  return { left: origin.x + snapGrid(localX), top: origin.y + snapGrid(localY) }
+}
+
+/** Panel-local center `(lx, ly)` to world canvas `left`/`top` for a Fabric object with `originX/Y: 'center'`. */
+function localToWorldCenter(panelIndex: number, localCenterX: number, localCenterY: number): { left: number; top: number } | null {
+  const origin = refRectForPanelIndex(panelIndex)
+  if (!origin) return null
+  return {
+    left: origin.x + snapGrid(localCenterX),
+    top: origin.y + snapGrid(localCenterY),
+  }
 }
 
 function getLayerTarget(canvas: Canvas, layerId: string): { obj: FabricObject; kind: LayerKind } | null {
@@ -251,7 +311,12 @@ function applyUniformScaledSizeForDeviceFrame(
   return true
 }
 
-function applyLayerPatch(canvas: Canvas, layerId: string, patch: Record<string, unknown>): string | null {
+function applyLayerPatch(
+  canvas: Canvas,
+  layerId: string,
+  patch: Record<string, unknown>,
+  panelIndexForPosition: number | null,
+): string | null {
   const target = getLayerTarget(canvas, layerId)
   if (!target) return `layer "${layerId}" not found.`
   const { obj, kind } = target
@@ -279,10 +344,34 @@ function applyLayerPatch(canvas: Canvas, layerId: string, patch: Record<string, 
   }
 
   if ('x' in patch || 'y' in patch) {
-    const pos = normalizeLayerPosition(patch.x ?? obj.left, patch.y ?? obj.top)
-    if (!pos) return 'layer_patch: x and y must both be numeric when setting position.'
-    changed.left = pos.left
-    changed.top = pos.top
+    if (panelIndexForPosition === null) {
+      return 'layer_patch: panel_index or panel_number is required when setting x/y (panel-local coordinates).'
+    }
+    const origin = refRectForPanelIndex(panelIndexForPosition)
+    if (!origin) return 'layer_patch: invalid panel_index for current layout.'
+    let localX: number
+    let localY: number
+    if (kind === 'device') {
+      const curLx = (obj.left ?? 0) - origin.x
+      const curLy = (obj.top ?? 0) - origin.y
+      localX = 'x' in patch ? Number(patch.x) : curLx
+      localY = 'y' in patch ? Number(patch.y) : curLy
+    } else {
+      const curLx = (obj.left ?? 0) - origin.x
+      const curLy = (obj.top ?? 0) - origin.y
+      localX = 'x' in patch ? Number(patch.x) : curLx
+      localY = 'y' in patch ? Number(patch.y) : curLy
+    }
+    if (!Number.isFinite(localX) || !Number.isFinite(localY)) {
+      return 'layer_patch: x and y must be numeric when setting position.'
+    }
+    const world =
+      kind === 'device'
+        ? localToWorldCenter(panelIndexForPosition, localX, localY)
+        : localToWorldTopLeft(panelIndexForPosition, localX, localY)
+    if (!world) return 'layer_patch: could not resolve panel position.'
+    changed.left = world.left
+    changed.top = world.top
   }
 
   if ('width' in patch || 'height' in patch) {
@@ -402,6 +491,38 @@ function resolveLayersForIds(canvas: Canvas, layerIds: string[]): FabricObject[]
   return targets
 }
 
+/** All layers must lie in one strip column; optional declared panel must match inferred. */
+function validateSinglePanelForLayerIds(
+  canvas: Canvas,
+  layerIds: string[],
+  targets: FabricObject[],
+  opName: string,
+  optionalDeclaredPanel: number | null,
+): boolean {
+  const panels: (number | null)[] = []
+  for (let i = 0; i < layerIds.length; i += 1) {
+    panels.push(panelIndexForLayerObject(canvas, layerIds[i]!, targets[i]!))
+  }
+  if (panels.some((p) => p === null)) {
+    useToastStore
+      .getState()
+      .showToast(`${opName}: could not infer panel for one or more layers (stay inside one column).`, 'warning')
+    return false
+  }
+  const first = panels[0]!
+  if (!panels.every((p) => p === first)) {
+    useToastStore.getState().showToast(`${opName}: all layers must belong to the same panel column.`, 'warning')
+    return false
+  }
+  if (optionalDeclaredPanel !== null && optionalDeclaredPanel !== first) {
+    useToastStore
+      .getState()
+      .showToast(`${opName}: layers are not in the declared panel_index column.`, 'warning')
+    return false
+  }
+  return true
+}
+
 async function replaceDeviceFrameStyle(canvas: Canvas, layerId: string, styleId: string, packId?: string): Promise<string | null> {
   const rec = useDesignStore.getState().objects.find((o) => o.id === layerId)
   if (rec?.kind !== 'device') return `device_set_frame_style: layer "${layerId}" is not a device.`
@@ -482,18 +603,8 @@ export async function applyAgentCommand(
       const path = String(args.path ?? '')
       const frame = String(args.frame ?? DEFAULT_DEVICE_FRAME_STYLE_ID)
       const packId = path ? packIdFromDeviceFramePath(path.startsWith('/') ? path : `/${path}`) : undefined
-      let panelIndex = 0
-      if (argsSpecifyPanel(args)) {
-        const parsedPanel = parsePanelIndexFromArgs(args)
-        if (parsedPanel === null) {
-          useToastStore
-            .getState()
-            .showToast('add_device_frame: panel_index and panel_number must be integers.', 'warning')
-          return
-        }
-        const screens = Math.max(1, useDesignStore.getState().config.screens)
-        panelIndex = clampPanelIndex(parsedPanel, screens)
-      }
+      const panelIndex = requirePanelIndexFromArgs(args, 'add_device_frame')
+      if (panelIndex === null) return
       await addDeviceFrameToCanvas(canvas, frame, {
         ...(packId ? { packId } : {}),
         panelIndex,
@@ -565,7 +676,17 @@ export async function applyAgentCommand(
       const x = Number(args.x)
       const y = Number(args.y)
       if (Number.isFinite(x) && Number.isFinite(y)) {
-        target.obj.set({ left: snapGrid(x), top: snapGrid(y) })
+        const panelIndex = requirePanelIndexFromArgs(args, 'move_layer')
+        if (panelIndex === null) return
+        const world =
+          target.kind === 'device'
+            ? localToWorldCenter(panelIndex, x, y)
+            : localToWorldTopLeft(panelIndex, x, y)
+        if (!world) {
+          useToastStore.getState().showToast('move_layer: invalid panel_index for current layout.', 'warning')
+          return
+        }
+        target.obj.set(world)
         target.obj.setCoords()
         fireObjectModified(canvas, target.obj)
         return
@@ -574,6 +695,20 @@ export async function applyAgentCommand(
       const dx = Number(args.dx)
       const dy = Number(args.dy)
       if (Number.isFinite(dx) && Number.isFinite(dy)) {
+        const inferred = panelIndexForLayerObject(canvas, layerId, target.obj)
+        if (inferred === null) {
+          useToastStore
+            .getState()
+            .showToast('move_layer: could not infer panel from layer position (stay inside one column).', 'warning')
+          return
+        }
+        const declared = parseOptionalPanelIndexClamped(args)
+        if (declared !== null && declared !== inferred) {
+          useToastStore
+            .getState()
+            .showToast('move_layer: layer is not in the declared panel_index column.', 'warning')
+          return
+        }
         target.obj.set({
           left: snapGrid((target.obj.left ?? 0) + dx),
           top: snapGrid((target.obj.top ?? 0) + dy),
@@ -585,7 +720,7 @@ export async function applyAgentCommand(
 
       useToastStore
         .getState()
-        .showToast('move_layer: provide x/y for absolute move or dx/dy for delta move.', 'warning')
+        .showToast('move_layer: provide panel-local x/y with panel_index, or dx/dy for delta move.', 'warning')
       return
     }
 
@@ -606,7 +741,13 @@ export async function applyAgentCommand(
       const refKey = reference.trim().toLowerCase()
       let refRect: { x: number; y: number; width: number; height: number }
       if (refKey === 'canvas') {
-        refRect = refRectCanvas()
+        useToastStore
+          .getState()
+          .showToast(
+            'align: reference "canvas" is not allowed for layer placement; use reference "panel" with panel_index (panel-local).',
+            'warning',
+          )
+        return
       } else if (refKey === 'panel') {
         if (!argsSpecifyPanel(args)) {
           useToastStore
@@ -636,6 +777,14 @@ export async function applyAgentCommand(
         const refObj = findObjectOnCanvasByAppId(canvas, reference)
         if (!refObj) {
           useToastStore.getState().showToast(`align: reference "${reference}" not found.`, 'warning')
+          return
+        }
+        const pTarget = panelIndexForLayerObject(canvas, layerId, target)
+        const pRef = panelIndexForLayerObject(canvas, reference, refObj)
+        if (pTarget === null || pRef === null || pTarget !== pRef) {
+          useToastStore
+            .getState()
+            .showToast('align: target and reference layers must be in the same panel column.', 'warning')
           return
         }
         const rr = boundingRectForAlign(reference, refObj)
@@ -675,24 +824,22 @@ export async function applyAgentCommand(
 
     case 'add_text': {
       const content = String(args.content ?? '')
-      let x = Number(args.x)
-      let y = Number(args.y)
-      if (argsSpecifyPanel(args)) {
-        const parsedPanel = parsePanelIndexFromArgs(args)
-        if (parsedPanel === null) {
-          useToastStore.getState().showToast('add_text: panel_index and panel_number must be integers.', 'warning')
-          return
-        }
-        const screens = Math.max(1, useDesignStore.getState().config.screens)
-        const p = clampPanelIndex(parsedPanel, screens)
-        const pr = refRectForPanelIndex(p)
-        if (!pr) {
-          useToastStore.getState().showToast('add_text: invalid panel for current layout.', 'warning')
-          return
-        }
-        x = pr.x + x
-        y = pr.y + y
+      const p = requirePanelIndexFromArgs(args, 'add_text')
+      if (p === null) return
+      const pr = refRectForPanelIndex(p)
+      if (!pr) {
+        useToastStore.getState().showToast('add_text: invalid panel for current layout.', 'warning')
+        return
       }
+      const lx = Number(args.x)
+      const ly = Number(args.y)
+      const world = localToWorldTopLeft(p, lx, ly)
+      if (!world) {
+        useToastStore.getState().showToast('add_text: could not place text in panel.', 'warning')
+        return
+      }
+      const x = world.left
+      const y = world.top
       const fontToken = String(args.font ?? 'body') as FontToken
       const size = Number(args.size)
       const color = String(args.color ?? '#ffffff')
@@ -939,7 +1086,14 @@ export async function applyAgentCommand(
         useToastStore.getState().showToast(`device_set_position: device layer "${layerId}" not found.`, 'warning')
         return
       }
-      target.set({ left: snapGrid(x), top: snapGrid(y) })
+      const panelIndex = requirePanelIndexFromArgs(args, 'device_set_position')
+      if (panelIndex === null) return
+      const world = localToWorldCenter(panelIndex, x, y)
+      if (!world) {
+        useToastStore.getState().showToast('device_set_position: invalid panel_index for current layout.', 'warning')
+        return
+      }
+      target.set(world)
       target.setCoords()
       fireObjectModified(canvas, target)
       return
@@ -956,6 +1110,20 @@ export async function applyAgentCommand(
       const target = getDeviceGroupForLayer(canvas, layerId)
       if (!target) {
         useToastStore.getState().showToast(`device_move_delta: device layer "${layerId}" not found.`, 'warning')
+        return
+      }
+      const inferred = panelIndexForLayerObject(canvas, layerId, target)
+      if (inferred === null) {
+        useToastStore
+          .getState()
+          .showToast('device_move_delta: could not infer panel from device position.', 'warning')
+        return
+      }
+      const declared = parseOptionalPanelIndexClamped(args)
+      if (declared !== null && declared !== inferred) {
+        useToastStore
+          .getState()
+          .showToast('device_move_delta: device is not in the declared panel_index column.', 'warning')
         return
       }
       target.set({
@@ -1103,7 +1271,11 @@ export async function applyAgentCommand(
         useToastStore.getState().showToast('layer_patch: need layer_id and object patch.', 'warning')
         return
       }
-      const err = applyLayerPatch(canvas, layerId, patch as Record<string, unknown>)
+      const p = patch as Record<string, unknown>
+      const needsPanel = 'x' in p || 'y' in p
+      const panelIdx = needsPanel ? requirePanelIndexFromArgs(args, 'layer_patch') : null
+      if (needsPanel && panelIdx === null) return
+      const err = applyLayerPatch(canvas, layerId, p, panelIdx)
       if (err) useToastStore.getState().showToast(err, 'warning')
       return
     }
@@ -1114,6 +1286,7 @@ export async function applyAgentCommand(
         useToastStore.getState().showToast('layers_patch_bulk: layers must be a non-empty array.', 'warning')
         return
       }
+      const bulkDefaultPanel = parseOptionalPanelIndexClamped(args)
       for (const entry of entries) {
         if (typeof entry !== 'object' || entry == null || Array.isArray(entry)) {
           useToastStore.getState().showToast('layers_patch_bulk: each entry must be an object.', 'warning')
@@ -1129,7 +1302,22 @@ export async function applyAgentCommand(
           )
           return
         }
-        const err = applyLayerPatch(canvas, layerId, patch as Record<string, unknown>)
+        const p = patch as Record<string, unknown>
+        const needsPanel = 'x' in p || 'y' in p
+        let panelIdx: number | null = null
+        if (needsPanel) {
+          panelIdx = parseOptionalPanelIndexClamped(row) ?? bulkDefaultPanel
+          if (panelIdx === null) {
+            useToastStore
+              .getState()
+              .showToast(
+                'layers_patch_bulk: panel_index or panel_number required on each entry (or top-level) when patch sets x/y.',
+                'warning',
+              )
+            return
+          }
+        }
+        const err = applyLayerPatch(canvas, layerId, p, panelIdx)
         if (err) {
           useToastStore.getState().showToast(`layers_patch_bulk: ${err}`, 'warning')
           return
@@ -1181,6 +1369,9 @@ export async function applyAgentCommand(
         useToastStore.getState().showToast('distribute_layers: one or more layers not found.', 'warning')
         return
       }
+      if (!validateSinglePanelForLayerIds(canvas, layerIds, targets, 'distribute_layers', parseOptionalPanelIndexClamped(args))) {
+        return
+      }
       const sorted = sortObjectsByAxis(targets, axis as 'x' | 'y')
       const first = sorted[0]
       const last = sorted[sorted.length - 1]
@@ -1214,6 +1405,9 @@ export async function applyAgentCommand(
       const targets = resolveLayersForIds(canvas, layerIds)
       if (!targets) {
         useToastStore.getState().showToast('set_equal_spacing: one or more layers not found.', 'warning')
+        return
+      }
+      if (!validateSinglePanelForLayerIds(canvas, layerIds, targets, 'set_equal_spacing', parseOptionalPanelIndexClamped(args))) {
         return
       }
       const sorted = sortObjectsByAxis(targets, axis as 'x' | 'y')
