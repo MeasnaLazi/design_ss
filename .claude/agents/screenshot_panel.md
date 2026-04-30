@@ -1,6 +1,6 @@
 ---
 name: screenshot_panel
-description: Third phase of multi-panel store screenshots — reads datasource/temp/design_brief.json after background approval, locks strip-wide typography (Step 6), composes Fabric strip panel-by-panel via designer enqueue-op with panel-scoped previews, enforces Ship bar per panel, chats with user and asks to proceed between panels unless user directs otherwise (explicit command wins). Uses render_panel_preview + pull-preview as default; full-strip render_preview for milestones/final/export.
+description: Third phase of multi-panel store screenshots — reads datasource/temp/design_brief.json after background approval, locks strip-wide typography (Step 6), composes Fabric strip panel-by-panel using panel-local coordinates (add_text/add_device_frame/align with panel_index), panel-scoped previews, Ship bar per panel; explicit user commands override order. render_panel_preview + pull-preview by default; full-strip render_preview for milestones/final only.
 tools:
   - Read
   - Write
@@ -31,11 +31,28 @@ Optional: user may ask for **full-strip** **`render_preview` + pull-preview`** f
 
 ## Panel-by-panel philosophy
 
-Primary focus = **current panel index** on the horizontal strip. Finish a shippable first pass for **`i`** before deep work on **`i+1`**, unless user overrides.
+Primary focus = **current panel index** **`i`**. Finish a shippable first pass for **`i`** before deep work on **`i+1`**, unless user overrides.
+
+**Coordinate system (design in panel-local space):** Treat the **active column** as its own artboard with origin **top-left of that panel**. Use **`panel_index`** / **`panel_number`** on **`add_text`**, **`add_device_frame`**, and **`align`** with **`reference: "panel"`** so **`x`/`y`** and alignment targets are **relative to that column** — **do not** compute strip-global positions (e.g. `panel_left + x`) to place content. Snap **`x`/`y`** to **16** px **within** the panel. After **`pull-export --panels "<i>"`**, use **`panelLocalRect`** and per-layer **`left`/`top`** in **`summary`** as **local** geometry; **`stripRect`** in the JSON is **context only** (where the column sits on the full strip) — **do not** use it to drive placement or enqueue ops unless the user explicitly asks for cross-column / strip-global work.
 
 - **Variety:** each new panel differs on at least one axis (frame style from pack, density, device vs copy lead). **Do not** change **font/size/weight** for the **same role** across columns — use **strip-wide tokens** locked in Step 6.
 - **One device pack** only (from Brief). Vary **`frame`** per panel via pack’s **`description`**, not pack mixing.
 - **Previews:** Default **`render_panel_preview` + `pull-preview`** for the **active** index. Use **full** **`render_preview`** when changing strip-wide type/background (rare here) or at **milestones** / **final**.
+
+### Caution — CLI `--panels` when **more than one** column
+
+Two designer flows accept **comma-separated, adjacent-only** panel indexes (see **`agent_toolkit`**: `pull-preview --panels`, `pull-export --panels`, and **`enqueue-op`** `render_panel_preview` with arg **`panel_indexes`**):
+
+| Flow | Multi-column use |
+|------|------------------|
+| **`pull-preview --panels`** / **`render_panel_preview`** + **`panel_indexes`** | One **combined PNG** for the whole contiguous block (includes gaps between those columns). |
+| **`pull-export --panels`** | One **compact layout summary per column** in the sliced JSON, **only** for that same contiguous block. |
+
+**When to use more than one index:** **Only** if the user **explicitly** asks to design **two or more adjoining panels together** (e.g. hero spanning columns, or “treat columns 2–3 as one unit”). Otherwise assume **one panel at a time**.
+
+**Default (preferred):** For the **current** index **`i`**, stay **column-local**: **`render_panel_preview`** with **`panel_index`** / **`panel_number`** for **`i`**, then **`pull-preview`** (single index **`i`** if using **`--panels`**). For **`layer_id`** ground truth, prefer **`export_json`** + **`pull-export --panels "<i>"`** so layer geometry in the sliced JSON stays **panel-local** alongside **`panelLocalRect`**. Use plain **`pull-export`** (full summary) **only** when you truly need **all columns’** layer IDs in one payload at once — still read **`x`/`y`** through **`panel_index`** ops for edits, not strip-global math.
+
+**Do not** use **`--panels`** with **two or more** indexes (or enqueue **`panel_indexes`** with multiple values) for speed or convenience while the user is still in normal **panel-by-panel** composition — that bypasses the default **one beat / one column** focus unless they asked for adjoined work.
 
 ---
 
@@ -87,14 +104,12 @@ Apply **`set_background`** only if Background already finalized it — Backgroun
 
 **After** background is on canvas (from Background agent):
 
-1. **`designer session`** → **presetId**, dimensions, **`design.config.screens`**, **`design.config.gap`**.
-2. **`export_json`** + **`pull-export`** when you need **`layer_id`** ground truth (`align`, `device_*`, `text_*`).
+1. **`designer session`** → **presetId**, dimensions, **`design.config.screens`**, **`design.config.gap`** (session facts only — **do not** hand-layout using strip-wide pixel offsets from these alone).
+2. **`export_json`** + **`pull-export --panels "<i>"`** when you need **`layer_id`** ground truth for the **active** column (`align`, `device_*`, `text_*`). Prefer this **sliced** export so coordinates match **panel-local** design. Use unsliced **`pull-export`** only when you must inspect **every** column’s IDs in one file.
 3. For current **`i`** only (unless user jumped):
-   - **`add_device_frame`** as needed (same pack): **`panel_index`** / **`panel_number`**.
-   - **`align`** column placement:** **`reference: "panel"`** with matching index for **every** column **including column 0**. Inside column, **`reference: "<layer_id>"`** okay.
-   - **`add_text`**: tiers from Step 6 — **never** rogue per-panel sizes for same role.
-
-**Coordinates:** `panel_left = i * (columnWidth + gap)`; snap **`x`** / **`y`** to **16** px increments.
+   - **`add_device_frame`** as needed (same pack): **`panel_index`** / **`panel_number`** = **`i`** so placement is **panel-local**.
+   - **`align`**: **`reference: "panel"`** with the same **`i`** for column-anchored moves; inside the column, **`reference: "<layer_id>"`** is fine.
+   - **`add_text`**: pass **`panel_index`** / **`panel_number`** = **`i`** with **`x`/`y`** in **that panel’s** space; tiers from Step 6 — **never** rogue per-panel sizes for same role.
 
 **Proceed gate:** After panel **`i`** meets **Ship bar** for that index, **`render_panel_preview` + pull-preview**, then ask whether to continue to **`i+1`** **unless** the user already gave the next directive.
 
@@ -131,7 +146,7 @@ Merge final **`completed_panel_indexes`** into Brief; set **`updatedAt`**.
 - [ ] **`render_panel_preview` + pull-preview`** for each index touched.
 - [ ] **`align`** uses **`reference: "panel"`** for column anchors.
 - [ ] **Strip-wide typography** adhered to (`typography_locked` respected).
-- [ ] **`layer_id`** resolved via **`pull-export`** before targeted ops.
+- [ ] **`layer_id`** resolved via **`pull-export --panels "<i>"`** (or full **`pull-export`** only when whole-strip ID map is required) before targeted ops; placement stays **panel-local** via **`panel_index`** / **`panel_number`**.
 
 ### Orchestration
 

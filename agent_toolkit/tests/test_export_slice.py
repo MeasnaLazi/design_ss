@@ -6,6 +6,7 @@ from agent_toolkit.export_slice import (
     dedupe_preserve_order,
     parse_panel_indexes_arg,
     slice_agent_layout_summary_v1,
+    sorted_contiguous_panel_indexes,
 )
 
 
@@ -23,6 +24,16 @@ def test_parse_panel_indexes_arg_rejects_empty() -> None:
 
 def test_dedupe_preserve_order() -> None:
     assert dedupe_preserve_order([0, 2, 0, 1]) == [0, 2, 1]
+
+
+def test_sorted_contiguous_ok() -> None:
+    assert sorted_contiguous_panel_indexes([2, 4, 3]) == [2, 3, 4]
+    assert sorted_contiguous_panel_indexes([1, 0]) == [0, 1]
+
+
+def test_sorted_contiguous_rejects_gap() -> None:
+    with pytest.raises(ValueError, match="adjacent"):
+        sorted_contiguous_panel_indexes([0, 2])
 
 
 def test_slice_shifts_layers_per_panel() -> None:
@@ -82,6 +93,10 @@ def test_slice_shifts_layers_per_panel() -> None:
     panels = out["panels"]
     assert len(panels) == 2
     assert panels[0]["panelIndex"] == 0
+    assert panels[0]["panelLocalRect"] == {"left": 0, "top": 0, "width": 100, "height": 200}
+    assert panels[0]["stripRect"] == {"left": 0, "top": 0, "width": 100, "height": 200}
+    assert panels[1]["panelLocalRect"] == {"left": 0, "top": 0, "width": 100, "height": 200}
+    assert panels[1]["stripRect"] == {"left": 110, "top": 0, "width": 100, "height": 200}
     s0 = panels[0]["summary"]
     assert s0["canvas"] == {"width": 100, "height": 200}
     assert s0["layout"] == {"artboardPresetId": "appstore_iphone_portrait", "screens": 1, "gap": 0}
@@ -96,6 +111,19 @@ def test_slice_shifts_layers_per_panel() -> None:
     # panel 1 origin x = 100 + 10 = 110
     assert s1["layers"][0]["left"] == 10.0
     assert s1["layers"][0]["top"] == 5
+
+
+def test_slice_rejects_non_contiguous_indexes() -> None:
+    full = {
+        "layoutSummaryVersion": 1,
+        "savedAt": "x",
+        "canvas": {"width": 300, "height": 200},
+        "layout": {"artboardPresetId": "p", "screens": 3, "gap": 0},
+        "background": {"type": "solid", "color": "#000"},
+        "layers": [],
+    }
+    with pytest.raises(ValueError, match="adjacent"):
+        slice_agent_layout_summary_v1(full, [0, 2])
 
 
 def test_slice_out_of_range() -> None:

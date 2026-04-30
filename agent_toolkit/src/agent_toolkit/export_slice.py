@@ -38,6 +38,23 @@ def dedupe_preserve_order(values: list[int]) -> list[int]:
     return out
 
 
+def sorted_contiguous_panel_indexes(indexes: list[int]) -> list[int]:
+    """
+    Return unique panel indexes sorted ascending, or raise if they are not a
+    contiguous strip segment (e.g. ``[0, 1]``, ``[3, 4]``, ``[2, 3, 4]``).
+    """
+    if not indexes:
+        raise ValueError("panels list is empty")
+    uniq = sorted(set(indexes))
+    for i in range(len(uniq)):
+        if uniq[i] != uniq[0] + i:
+            raise ValueError(
+                "panel indexes must be adjacent columns on the strip (e.g. 0,1 or 3,4 or 2,3,4); "
+                f"after sorting deduplicated values: {uniq}",
+            )
+    return uniq
+
+
 def _single_panel_width_px(strip_width: float, screens: int, gap: float) -> float:
     if screens < 1:
         return float(strip_width)
@@ -51,9 +68,21 @@ def slice_agent_layout_summary_v1(
     """
     Build a multi-panel pull-export response from a full layout summary.
 
-    Each entry is a copy of ``AgentLayoutSummaryV1`` with ``canvas`` sized to one column,
-    ``layout.screens`` = 1, ``layout.gap`` = 0, and layers intersecting that column
-    (axis-aligned bbox overlap) with ``left`` / ``top`` shifted to panel-local coordinates.
+    ``panel_indexes`` must describe **adjacent** strip columns (same rule as
+    ``pull-preview --panels`` / ``render_panel_preview`` ``panel_indexes``): after
+    deduplication they must form one contiguous ascending run (e.g. ``[0, 1]``,
+    ``[3, 4]``, ``[2, 3, 4]``). Indexes are processed in **sorted** order.
+
+    Each entry includes:
+
+    - ``panelLocalRect`` — ``{ left, top, width, height }`` with origin ``(0, 0)``; same
+      size as ``summary.canvas``. Layer ``left`` / ``top`` in ``summary`` are relative to
+      this rectangle.
+    - ``stripRect`` — the same column as axis-aligned bounds on the **full strip**
+      (``sourceCanvas`` coordinates): ``left`` / ``top`` / ``width`` / ``height`` as integers.
+    - ``summary`` — ``AgentLayoutSummaryV1`` with ``canvas`` sized to one column,
+      ``layout.screens`` = 1, ``layout.gap`` = 0, and layers intersecting that column
+      (axis-aligned bbox overlap) with ``left`` / ``top`` shifted to panel-local coordinates.
 
     Layers that do not overlap the column are omitted.
     """
@@ -95,7 +124,7 @@ def slice_agent_layout_summary_v1(
         saved_at = ""
 
     background = full.get("background")
-    requested = dedupe_preserve_order(list(panel_indexes))
+    requested = sorted_contiguous_panel_indexes(list(panel_indexes))
     panels_out: list[dict[str, Any]] = []
 
     for pi in requested:
@@ -137,7 +166,16 @@ def slice_agent_layout_summary_v1(
             "background": background if isinstance(background, dict) else {},
             "layers": sliced_layers,
         }
-        panels_out.append({"panelIndex": pi, "summary": summary})
+        panel_local_rect = {"left": 0, "top": 0, "width": pw_i, "height": ph_i}
+        strip_rect = {"left": pl_i, "top": pt_i, "width": pw_i, "height": ph_i}
+        panels_out.append(
+            {
+                "panelIndex": pi,
+                "panelLocalRect": panel_local_rect,
+                "stripRect": strip_rect,
+                "summary": summary,
+            },
+        )
 
     return {
         "slicedExportVersion": 1,

@@ -105,8 +105,8 @@ How to use each layout command:
 
 - `session`
 - `enqueue-op --operation <op> --args-json '{...}'`
-- `pull-preview --out <file.png>`
-- `pull-export` (optional `--panels "0,2"`)
+- `pull-preview --out <file.png>` (optional `--panels` — contiguous columns only; see below)
+- `pull-export` (optional `--panels` — **adjacent** columns only, same as `pull-preview --panels`)
 
 How to use each designer command:
 
@@ -117,9 +117,10 @@ How to use each designer command:
   - Send only operations listed in this document.
 - `pull-preview --out <file.png>`
   - Use after `render_preview` or `render_panel_preview` to fetch latest agent PNG.
+  - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `3,4` or `2,3,4`). The CLI enqueues one `render_panel_preview` with `panel_indexes` (sorted), which captures a **single** PNG spanning those columns including gaps (requires an open Web UI tab on command-events), then polls until the preview bytes change. Use `--out` for the PNG path (or stdout for raw bytes).
 - `pull-export`
   - Use after `export_json` to fetch layer summary and resolve canonical `layer_id` values.
-  - With `--panels "i,j,…"`, the CLI still GETs the full summary from the server, then returns one `AgentLayoutSummaryV1` per column: layers whose bbox overlaps that column, with `left`/`top` shifted to panel-local coordinates (`slicedExportVersion` wrapper — see `agent_toolkit.export_slice`).
+  - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `2,3,4`). The CLI GETs the full summary, then returns one object per column (sorted order): **`panelLocalRect`** (`left`,`top`,`width`,`height` with origin `0,0` — same size as `summary.canvas`; layer geometry in `summary` is relative to this), **`stripRect`** (that column’s bounds on the full strip / `sourceCanvas` coordinates), plus **`summary`** (`AgentLayoutSummaryV1` with panel-local `left`/`top`). See `agent_toolkit.export_slice`.
 
 ## Core `enqueue-op` operations
 
@@ -192,7 +193,7 @@ How to use each core operation:
 - `match_size` — copy width/height/both from source to targets (text targets: width typographically; height not forced via scale).
 - `render_preview` — push full workspace PNG to agent preview store.
 - `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`).
-- `render_panel_preview` — push one panel PNG by panel index/number.
+- `render_panel_preview` — push one panel PNG by `panel_index` / `panel_number`, or a **contiguous** multi-column crop via **`panel_indexes`**: JSON array of 0-based integers (e.g. `[2,3,4]`); must be adjacent columns on the strip (duplicates removed, order does not matter).
 - `export_json` — push compact layout summary for `pull-export`.
 
 ## Required payload schemas (do not guess)
@@ -269,6 +270,7 @@ Use these exact operation names and argument shapes.
 - `render_panel_preview`
   - index form: `{"panel_index":2}` (0-based)
   - number form: `{"panel_number":3}` (1-based)
+  - contiguous segment: `{"panel_indexes":[1,2,3]}` (0-based, adjacent columns; one PNG including gaps between them)
 
 - `export_json`
   - `{}`

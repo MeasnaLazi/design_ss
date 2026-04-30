@@ -26,8 +26,10 @@ from agent_toolkit.designer_client import (
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
     ensure_publisher_dotenv_loaded,
+    poll_agent_preview_until_changed,
     resolve_designer_base_url,
     screenshot_designer_handoff,
+    try_designer_pull_agent_preview,
 )
 from agent_toolkit.paths import publisher_root
 from agent_toolkit.models import SessionCheckInput
@@ -260,21 +262,37 @@ def main(argv: list[str] | None = None) -> None:
 
     ds_pv = designer_sub.add_parser(
         "pull-preview",
-        help="GET .../agent-preview (PNG bytes last pushed by render_preview/render_panel_preview; optional --out path)",
+        help="GET .../agent-preview (PNG last pushed); optional --panels enqueues one render_panel_preview for a contiguous strip segment then polls",
     )
-    ds_pv.add_argument("--out", type=Path, default=None, help="Write PNG to this path")
-    ds_pv.add_argument("--timeout", type=float, default=60.0)
+    ds_pv.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Write PNG to this path (plain GET or after --panels); omit for stdout when using --panels",
+    )
+    ds_pv.add_argument(
+        "--panels",
+        default=None,
+        metavar="INDICES",
+        help='Comma-separated 0-based columns forming one connected segment (e.g. 0,1 or 3,4 or 2,3,4) — one combined PNG; requires Web UI listening',
+    )
+    ds_pv.add_argument(
+        "--timeout",
+        type=float,
+        default=60.0,
+        help="GET timeout, or wait budget after --panels enqueue",
+    )
     ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
 
     ds_expt = designer_sub.add_parser(
         "pull-export",
-        help="GET .../agent-export (layout summary JSON last pushed after export_json); optional --panels slices by column",
+        help="GET .../agent-export (layout summary JSON last pushed after export_json); optional --panels slices adjacent columns only",
     )
     ds_expt.add_argument(
         "--panels",
         default=None,
         metavar="INDICES",
-        help='Comma-separated 0-based strip column indexes, e.g. "0,2" — returns slicedExportVersion JSON (still requires prior export_json in the browser)',
+        help='Comma-separated 0-based adjacent columns only (e.g. "0,1" or "2,3,4") — slicedExportVersion JSON (requires prior export_json in the browser)',
     )
     ds_expt.add_argument("--timeout", type=float, default=60.0)
     ds_expt.set_defaults(handler=_cmd_designer_pull_export)
@@ -344,13 +362,50 @@ def _cmd_designer_enqueue_op(ns: argparse.Namespace, compact: bool) -> None:
     _json_print(out, compact)
 
 
-def _cmd_designer_pull_preview(ns: argparse.Namespace, _compact: bool) -> None:
-    data = designer_pull_agent_preview_http(resolve_designer_base_url(), timeout=ns.timeout)
+def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
+    base = resolve_designer_base_url()
+    if ns.panels is None or not str(ns.panels).strip():
+        data = designer_pull_agent_preview_http(base, timeout=ns.timeout)
+        if ns.out is not None:
+            ns.out.write_bytes(data)
+            print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
+        else:
+            sys.stdout.buffer.write(data)
+        return
+
+    parsed = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
+    contiguous = export_slice_mod.sorted_contiguous_panel_indexes(parsed)
+    previous: bytes | None = try_designer_pull_agent_preview(base, timeout=min(10.0, float(ns.timeout)))
+    out = designer_enqueue_command_http(
+        base,
+        "render_panel_preview",
+        {"panel_indexes": contiguous},
+        timeout=min(120.0, max(float(ns.timeout), 30.0)),
+    )
+    if not out.get("ok"):
+        raise ValueError(f"enqueue render_panel_preview failed: {out!r}")
+    png = poll_agent_preview_until_changed(base, previous, timeout=float(ns.timeout))
+
     if ns.out is not None:
-        ns.out.write_bytes(data)
-        print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
+        ns.out.write_bytes(png)
+        meta: dict[str, object] = {"ok": True, "bytes": len(png), "path": str(ns.out), "panelIndexes": contiguous}
+        if contiguous != parsed:
+            meta["requestedOrder"] = parsed
+            meta["note"] = "panel_indexes sorted to contiguous ascending range for the crop"
+        print(json.dumps(meta))
     else:
-        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.write(png)
+        if contiguous != parsed:
+            note_obj = {
+                "ok": True,
+                "note": "panel_indexes sorted to contiguous ascending range for the crop",
+                "requestedOrder": parsed,
+                "panelIndexes": contiguous,
+            }
+            if compact:
+                print(json.dumps(note_obj, separators=(",", ":")), file=sys.stderr)
+            else:
+                print(json.dumps(note_obj, indent=2), file=sys.stderr)
 
 
 def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:

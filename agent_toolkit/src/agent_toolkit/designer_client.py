@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -238,12 +239,15 @@ def designer_enqueue_command(
     return _json_request("POST", url, body=body, timeout=timeout)
 
 
-def designer_pull_agent_preview(
+def try_designer_pull_agent_preview(
     base_url: str,
     *,
     timeout: float = 60.0,
-) -> bytes:
-    """GET ``{base}/agent-preview`` — last PNG pushed from the browser (404 if none)."""
+) -> bytes | None:
+    """
+    GET ``{base}/agent-preview`` — returns PNG bytes, or ``None`` if the server responds 404
+    (``no_preview_yet``).
+    """
     base = validate_designer_base_url(base_url)
     url = f"{base}/agent-preview"
     req = Request(url, headers={"Accept": "image/png,*/*"}, method="GET")
@@ -251,6 +255,10 @@ def designer_pull_agent_preview(
         with urlopen(req, timeout=timeout) as resp:
             return resp.read()
     except HTTPError as e:
+        if e.code == 404:
+            if e.fp:
+                e.read()
+            return None
         err_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
         raise DesignerClientError(
             str(e.reason or e),
@@ -260,6 +268,56 @@ def designer_pull_agent_preview(
         ) from e
     except URLError as e:
         raise DesignerClientError(str(e.reason or e), url=url) from e
+
+
+def designer_pull_agent_preview(
+    base_url: str,
+    *,
+    timeout: float = 60.0,
+) -> bytes:
+    """GET ``{base}/agent-preview`` — last PNG pushed from the browser (404 if none)."""
+    data = try_designer_pull_agent_preview(base_url, timeout=timeout)
+    if data is None:
+        base = validate_designer_base_url(base_url)
+        url = f"{base}/agent-preview"
+        raise DesignerClientError(
+            "no_preview_yet",
+            status_code=404,
+            body="",
+            url=url,
+        )
+    return data
+
+
+def poll_agent_preview_until_changed(
+    base_url: str,
+    previous: bytes | None,
+    *,
+    timeout: float,
+    interval: float = 0.08,
+) -> bytes:
+    """
+    Poll ``agent-preview`` until a valid PNG appears that differs from ``previous``.
+
+    ``previous`` is ``None`` when there was no prior preview (e.g. first 404): the first
+    valid PNG returned after enqueue is accepted. Used after ``render_panel_preview`` so
+    the CLI can wait for the browser to POST the new crop.
+    """
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/agent-preview"
+    deadline = time.monotonic() + max(timeout, 0.1)
+    while time.monotonic() < deadline:
+        data = try_designer_pull_agent_preview(base_url, timeout=min(10.0, timeout))
+        if data is not None and len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
+            if previous is None or data != previous:
+                return data
+        time.sleep(max(interval, 0.01))
+    raise DesignerClientError(
+        "timed out waiting for agent preview to update after enqueue",
+        status_code=None,
+        body=None,
+        url=url,
+    )
 
 
 def designer_pull_agent_export(
