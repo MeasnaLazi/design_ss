@@ -1,6 +1,11 @@
 import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
-import { pushAgentExportJson, pushLiveCanvasPreview, pushLiveCanvasPreviewRect } from '../lib/agentContextApi'
+import {
+  pushAgentExportJson,
+  pushLiveCanvasPreview,
+  pushLiveCanvasPreviewRect,
+  resolveAgentPreviewMultiplier,
+} from '../lib/agentContextApi'
 
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
@@ -177,7 +182,7 @@ function panelIndexContainingPoint(cx: number, cy: number): number | null {
   return null
 }
 
-function panelIndexForLayerObject(canvas: Canvas, layerId: string, obj: FabricObject): number | null {
+function panelIndexForLayerObject(_canvas: Canvas, layerId: string, obj: FabricObject): number | null {
   const b = boundingRectForAlign(layerId, obj)
   const cx = b.left + b.width / 2
   const cy = b.top + b.height / 2
@@ -234,13 +239,6 @@ function getLayerTarget(canvas: Canvas, layerId: string): { obj: FabricObject; k
   const obj = findObjectOnCanvasByAppId(canvas, layerId)
   if (!obj || obj instanceof ActiveSelection) return null
   return { obj, kind: rec.kind }
-}
-
-function normalizeLayerPosition(x: unknown, y: unknown): { left: number; top: number } | null {
-  const nx = Number(x)
-  const ny = Number(y)
-  if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null
-  return { left: snapGrid(nx), top: snapGrid(ny) }
 }
 
 /**
@@ -1253,12 +1251,12 @@ export async function applyAgentCommand(
       const objs = canvas.getObjects()
       const maxIndex = Math.max(0, objs.length - 1)
       const clamped = Math.min(maxIndex, Math.max(0, zIndex))
-      const movable = target as FabricObject & { moveTo?: (index: number) => void }
-      if (typeof movable.moveTo !== 'function') {
-        useToastStore.getState().showToast('set_z_index: target does not support moveTo.', 'warning')
+      // Fabric v6+ removed object.moveTo; stack order is controlled on the canvas.
+      if (typeof canvas.moveObjectTo !== 'function') {
+        useToastStore.getState().showToast('set_z_index: canvas does not support moveObjectTo.', 'warning')
         return
       }
-      movable.moveTo(clamped)
+      canvas.moveObjectTo(target, clamped)
       target.setCoords()
       fireObjectModified(canvas, target)
       return
@@ -1486,7 +1484,8 @@ export async function applyAgentCommand(
 
     case 'render_preview':
     case 'render_workspace_preview': {
-      await pushLiveCanvasPreview(canvas, 2)
+      const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
+      await pushLiveCanvasPreview(canvas, mult)
       return
     }
 
@@ -1539,7 +1538,8 @@ export async function applyAgentCommand(
           width: r1.left + r1.width - r0.left,
           height: r0.height,
         }
-        await pushLiveCanvasPreviewRect(canvas, rect, 2)
+        const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
+        await pushLiveCanvasPreviewRect(canvas, rect, mult)
         return
       }
 
@@ -1573,7 +1573,8 @@ export async function applyAgentCommand(
       }
       const { width, height } = getArtboardDimensionsFromConfig(config)
       const rect = screenExportRect(panelIndex, config.gap, width, height)
-      await pushLiveCanvasPreviewRect(canvas, rect, 2)
+      const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
+      await pushLiveCanvasPreviewRect(canvas, rect, mult)
       return
     }
 

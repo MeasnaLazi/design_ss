@@ -6,6 +6,7 @@ export const PRESET_FONT_FAMILIES = [
   'Arial, Helvetica, sans-serif',
   '"Helvetica Neue", Helvetica, sans-serif',
   '"Courier New", monospace',
+  'Inter, sans-serif',
 ] as const
 
 export const DEFAULT_TEXT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif' as const

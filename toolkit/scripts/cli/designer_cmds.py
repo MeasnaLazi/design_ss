@@ -97,6 +97,21 @@ def register_designer(sub: Any) -> None:
         default=60.0,
         help="GET timeout, or wait budget after --panels enqueue",
     )
+    ds_pv.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.08,
+        metavar="SEC",
+        help="Sleep between GETs when waiting for new PNG after --panels (default: 0.08)",
+    )
+    ds_pv.add_argument(
+        "--preview-multiplier",
+        type=int,
+        choices=[1, 2],
+        default=None,
+        help="With --panels: pass preview_multiplier to render_panel_preview (1=faster, 2=sharper); "
+        "omit to use web_ui VITE_AGENT_PREVIEW_MULTIPLIER / default 2",
+    )
     ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
 
     ds_expt = designer_sub.add_parser(
@@ -177,19 +192,30 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
     parsed = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
     contiguous = export_slice_mod.sorted_contiguous_panel_indexes(parsed)
     previous: bytes | None = try_designer_pull_agent_preview(base, timeout=min(10.0, float(ns.timeout)))
+    render_args: dict[str, object] = {"panel_indexes": contiguous}
+    if ns.preview_multiplier is not None:
+        render_args["preview_multiplier"] = int(ns.preview_multiplier)
+    validate_positional_enqueue_args("render_panel_preview", render_args)
     out = designer_enqueue_command_http(
         base,
         "render_panel_preview",
-        {"panel_indexes": contiguous},
+        render_args,
         timeout=min(120.0, max(float(ns.timeout), 30.0)),
     )
     if not out.get("ok"):
         raise ValueError(f"enqueue render_panel_preview failed: {out!r}")
-    png = poll_agent_preview_until_changed(base, previous, timeout=float(ns.timeout))
+    png = poll_agent_preview_until_changed(
+        base,
+        previous,
+        timeout=float(ns.timeout),
+        interval=float(ns.poll_interval),
+    )
 
     if ns.out is not None:
         ns.out.write_bytes(png)
         meta: dict[str, object] = {"ok": True, "bytes": len(png), "path": str(ns.out), "panelIndexes": contiguous}
+        if ns.preview_multiplier is not None:
+            meta["previewMultiplier"] = int(ns.preview_multiplier)
         if contiguous != parsed:
             meta["requestedOrder"] = parsed
             meta["note"] = "panel_indexes sorted to contiguous ascending range for the crop"

@@ -28,6 +28,16 @@ def _finite_pair_xy(args: dict[str, Any]) -> bool:
     return math.isfinite(float(x)) and math.isfinite(float(y))
 
 
+def _preview_multiplier_ok(value: Any) -> bool:
+    if value is None or value == "":
+        return True
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return False
+    return n in (1, 2)
+
+
 def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> None:
     """
     Ensure panel column is declared when the Web UI expects panel-local coordinates.
@@ -35,6 +45,13 @@ def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> No
     Raises ValueError with a short message on violation (mirrors designer toasts).
     """
     op = operation.strip()
+
+    if op in ("render_panel_preview", "render_preview", "render_workspace_preview"):
+        if not _preview_multiplier_ok(args.get("preview_multiplier")):
+            raise ValueError(
+                f"{op}: preview_multiplier must be 1 or 2 when set (got {args.get('preview_multiplier')!r})."
+            )
+        return
 
     if op in ("add_device_frame", "add_text", "device_set_position"):
         if not _has_panel_column(args):

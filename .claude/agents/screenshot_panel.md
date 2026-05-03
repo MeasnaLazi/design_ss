@@ -21,6 +21,8 @@ You are the **screenshot panel** agent. Run **after** **`screenshot_background`*
 
 **Prerequisites:** **`creative_plan.user_approved`**; **`background.user_approved`**. Implement **`creative_plan.panels`** in index order.
 
+**Per-layer `layout`:** When **`creative_plan.panels[i].layers[j].layout`** is present, use **`layout.text`** / **`layout.device`** / **`layout.spatial`** / **`layout.stack`** to drive **`add_text`**, **`add_device_frame`**, **`layer_patch`**, **`device_set_angle`**, **`set_z_index`**, etc., for that layer instead of inferring only from **`role`** + Step 6 tiers. See **`screenshot_design_brief.md`** for the optional schema.
+
 **Automation:** Lock typography (**Step 6** in phase doc), then build each panel; **`render_panel_preview` + pull-preview`** per panel; save previews under **`datasource/temp/`**; update **`completed_panel_indexes`** and **`current_panel_index`**; bump **`updatedAt`**. **No** “proceed to next panel?” prompts. **On failure** → stop with error.
 
 **Optional:** Full-strip **`render_preview`** at milestones / final per phase doc.

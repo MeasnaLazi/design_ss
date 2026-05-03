@@ -19,7 +19,9 @@ Persist previews and scratch JSON under **`datasource/temp/`**.
 
 ## Plan-driven execution
 
-Read **`creative_plan.panels[i]`** for each index. Implement **`looks_like`** and **`layers`** with **`add_text`**, **`add_device_frame`**, **`align`**, etc. Resolve **`content_source`** against **`requirements.store.screenshots`**.
+Read **`creative_plan.panels[i]`** for each index. Implement **`looks_like`** and **`layers`** with **`add_text`**, **`add_device_frame`**, **`align`**, **`device_set_angle`**, **`layer_patch`**, **`set_z_index`**, etc. Resolve **`content_source`** against **`requirements.store.screenshots`**.
+
+When a layer defines **`layout`**, prefer **`layout.text`** / **`layout.device`** / **`layout.spatial`** / **`layout.stack`** for that layer’s **`add_*`**, **`layer_patch`**, and positioning instead of inferring solely from **`role`** + strip-wide tiers.
 
 **Default order:** `i = 0 … n-1` linearly. **No** “proceed to next panel?” prompts. After each panel reaches internal **Ship bar**, merge **`completed_panel_indexes`**, advance **`current_panel_index`**, continue until all planned panels are done.
 
@@ -31,8 +33,17 @@ Read **`creative_plan.panels[i]`** for each index. Implement **`looks_like`** an
 
 Treat the **active column** as its own artboard (origin top-left of that panel). Use **`panel_index`** / **`panel_number`** on **`add_text`**, **`add_device_frame`**, **`align`** with **`reference: "panel"`**. Snap **`x`/`y`** to **16** px within the panel. After **`pull-export --panels "<i>"`**, use **`panelLocalRect`** and per-layer **`left`/`top`** as **local** geometry.
 
-- **Variety** across panels; **do not** change font/size/weight for the **same role** across columns — use strip-wide tiers (Step 6).
-- **Previews:** Default **`render_panel_preview` + `pull-preview`** for the active index. Full **`render_preview`** at milestones / final strip only.
+- **Variety** across panels; **default:** do not change font/size/weight for the **same role** across columns — use strip-wide tiers (Step 6). **Exception:** when **`creative_plan.panels[i].layers[j].layout.text`** is set for a layer, use those values for that layer (overrides tier-by-role for that instance).
+- **Previews:** Default **`render_panel_preview` for the active index. Full **`render_preview`** at milestones / final strip only.
+
+### Preview performance (speed)
+
+- **Strip default scale:** In `web_ui`, set **`VITE_AGENT_PREVIEW_MULTIPLIER=1`** in `.env` for faster PNG capture during iteration; use **`2`** (or omit) when you want maximum sharpness for the agent. Restart Vite after changing env.
+- **CLI override:** **`designer pull-preview --panels "<i>" --preview-multiplier 1`** forwards **`preview_multiplier`** on the enqueued **`render_panel_preview`** without changing the global env.
+- **Polling:** **`--poll-interval`** (seconds) on **`pull-preview --panels`** adjusts how often the CLI GETs **`agent-preview`** while waiting for new bytes (default **0.08**).
+- **Fewer round-trips:** Prefer **`batch`** / **`layers_patch_bulk`** so many canvas mutations run in **one** SSE delivery before a single preview pull.
+- **`export_json` + `pull-export`:** Run at **panel boundaries** when you need canonical **`layer_id`** / geometry for column **`i`** — not between every micro-tweak (saves work around previews, not the PNG encode itself).
+- **Benchmark:** From publisher root, **`python toolkit/scripts/benchmark_agent_preview.py --panels 0`** prints wall-clock ms and PNG size for one enqueue + poll cycle (requires Web UI + designer tab).
 
 ### Caution — CLI `--panels` when **more than one** column
 
@@ -55,8 +66,8 @@ Use **multiple** indexes **only** if **`creative_plan`** explicitly calls for ad
 
 ## Creative layout rules
 
-- **One panel = one beat** from **`screenshots[i]`** and **`creative_plan.panels[i]`**.
-- **Strip-wide typography (Step 6):** lock **title**, **subtitle**, optional **body** tiers before panel **0** copy ops.
+- **One panel = one primary listing beat** from **`screenshots[i]`** and **`creative_plan.panels[i]`** — the main title/subtitle pair should still map to that store row. **Secondary** copy layers (`title_secondary`, `kicker`, extra **`device_frame`** entries, etc.) are allowed when **`creative_plan`** declares them.
+- **Strip-wide typography (Step 6):** lock **title**, **subtitle**, optional **body** tiers before panel **0** copy ops — these are **defaults** when a text layer has **no** **`layout.text`**. Layers **with** **`layout.text`** use the plan’s **`font_token`** / **`size_px`** / etc. for that layer.
 - **Geometry:** **`layout safe-zone`**, **`layout estimate-text-width`**, **`layout estimate-text-height`**. **`layer_patch`** width sets wrap; **`height`** required by API.
 
 ---
@@ -72,9 +83,9 @@ Record in **`panel`:** **`typography_locked: true`**, **`title_tier`**, **`subti
 1. **`designer session`** → presetId, dimensions, **`design.config.screens`**, **`design.config.gap`**.
 2. **`export_json`** + **`pull-export --panels "<i>"`** for **`layer_id`** ground truth for column **`i`**.
 3. For each **`i`** in order:
-   - **`add_device_frame`** with **`panel_index`** = **`i`**.
-   - **`add_text`** / **`align`** / position ops: always **`panel_index`** = **`i`**; panel-local **`x`/`y`**.
-4. After each **`i`**: **`render_panel_preview` + pull-preview`**; save preview path under **`datasource/temp/`**; append **`i`** to **`completed_panel_indexes`**; bump **`updatedAt`**.
+   - For **each** `device_frame` in **`creative_plan.panels[i].layers`** (in plan order): **`add_device_frame`** using **`layout.device.anchor_panel_index`** when set, else **`panel_index`** = **`i`**. Apply **`tilt_deg`**, size, and z from **`layout.device`** / **`layout.stack`** via **`device_set_angle`**, **`device_set_size`** / **`layer_patch`**, **`set_z_index`** as needed.
+   - **`add_text`** / **`align`** / position ops: **`panel_index`** matches the layer’s column (usually **`i`**); panel-local **`x`/`y`**. Multiple text layers per column are expected when the plan lists them.
+4. After each **`i`**: **`render_panel_preview` + pull-preview`** (optional **`designer pull-preview --preview-multiplier 1`** for speed; see **Preview performance** above); save preview path under **`datasource/temp/`**; append **`i`** to **`completed_panel_indexes`**; bump **`updatedAt`**.
 
 ---
 
@@ -82,7 +93,7 @@ Record in **`panel`:** **`typography_locked: true`**, **`title_tier`**, **`subti
 
 1. Text inside safe-zone; thumbnail-readable.
 2. Clean composition; hierarchy.
-3. Typography matches locked tiers / spacing ladder.
+3. Typography matches locked tiers / spacing ladder **or** per-layer **`layout.text`** when present.
 4. Variety vs near-duplicate layouts.
 5. **`layout predict-checks`** clean when used.
 6. At least one full **`render_preview`** when structure is complete + **final** strip.
@@ -98,6 +109,7 @@ Merge **`completed_panel_indexes`**; set **`updatedAt`**. Report preset, frames 
 ## Panel-phase checklist
 
 - [ ] **`creative_plan`** read for every panel index.
+- [ ] Per-layer **`layout`** applied when present (text + device + stack).
 - [ ] **`align`** uses **`reference: "panel"`** for column anchors.
 - [ ] Positional ops include **`panel_index`** matching the active column.
 - [ ] **`typography_locked`** before copy placement.

@@ -3,6 +3,43 @@ export const AGENT_PREVIEW_ENDPOINT = '/__api/screenshot-designer/agent-preview'
 export const AGENT_EXPORT_ENDPOINT = '/__api/screenshot-designer/agent-export'
 
 /**
+ * Default multiplier when `VITE_AGENT_PREVIEW_MULTIPLIER` is unset or invalid.
+ * `1` = faster iteration; `2` = sharper agent vision (more pixels + retina factor).
+ */
+const FALLBACK_AGENT_PREVIEW_MULTIPLIER = 2
+
+/**
+ * Read strip-wide default from Vite env (`web_ui/.env`: `VITE_AGENT_PREVIEW_MULTIPLIER=1|2`).
+ */
+export function readDefaultAgentPreviewMultiplier(): number {
+  const raw = import.meta.env.VITE_AGENT_PREVIEW_MULTIPLIER
+  const n = Number(raw)
+  if (n === 1 || n === 2) {
+    return n
+  }
+  return FALLBACK_AGENT_PREVIEW_MULTIPLIER
+}
+
+/**
+ * Per-operation override from `render_preview` / `render_panel_preview` args (`preview_multiplier`: 1 | 2).
+ * Invalid values yield `undefined` so callers fall back to {@link readDefaultAgentPreviewMultiplier}.
+ */
+export function parsePreviewMultiplierOverride(override: unknown): number | undefined {
+  if (override === undefined || override === null || override === '') {
+    return undefined
+  }
+  const n = Number(override)
+  if (Number.isFinite(n) && (n === 1 || n === 2)) {
+    return n
+  }
+  return undefined
+}
+
+export function resolveAgentPreviewMultiplier(override: unknown): number {
+  return parsePreviewMultiplierOverride(override) ?? readDefaultAgentPreviewMultiplier()
+}
+
+/**
  * Upload a PNG (e.g. from {@link HTMLCanvasElement.toBlob}) as the latest agent preview.
  */
 export async function pushAgentPreviewBlob(blob: Blob): Promise<{ ok: boolean; bytes?: number }> {
@@ -18,19 +55,21 @@ export async function pushAgentPreviewBlob(blob: Blob): Promise<{ ok: boolean; b
   return { ok: true, bytes: j.bytes }
 }
 
+type FabricCanvas = import('fabric').Canvas
+
 /**
  * Upload the current Fabric canvas as PNG (multiplier for sharper agent vision).
+ * Uses `canvas.toBlob` to avoid an extra data-URL string round-trip.
  */
-export async function pushLiveCanvasPreview(
-  canvas: import('fabric').Canvas,
-  multiplier = 2,
-): Promise<void> {
-  const dataUrl = canvas.toDataURL({
+export async function pushLiveCanvasPreview(canvas: FabricCanvas, multiplier: number): Promise<void> {
+  const blob = await canvas.toBlob({
     format: 'png',
     multiplier,
     enableRetinaScaling: true,
   })
-  const blob = await (await fetch(dataUrl)).blob()
+  if (!blob) {
+    throw new Error('canvas.toBlob returned null for agent preview')
+  }
   await pushAgentPreviewBlob(blob)
 }
 
@@ -38,11 +77,11 @@ export async function pushLiveCanvasPreview(
  * Upload a cropped region of the current Fabric canvas as PNG.
  */
 export async function pushLiveCanvasPreviewRect(
-  canvas: import('fabric').Canvas,
+  canvas: FabricCanvas,
   rect: { left: number; top: number; width: number; height: number },
-  multiplier = 2,
+  multiplier: number,
 ): Promise<void> {
-  const dataUrl = canvas.toDataURL({
+  const blob = await canvas.toBlob({
     format: 'png',
     multiplier,
     enableRetinaScaling: true,
@@ -51,7 +90,9 @@ export async function pushLiveCanvasPreviewRect(
     width: rect.width,
     height: rect.height,
   })
-  const blob = await (await fetch(dataUrl)).blob()
+  if (!blob) {
+    throw new Error('canvas.toBlob returned null for agent preview (rect)')
+  }
   await pushAgentPreviewBlob(blob)
 }
 

@@ -18,7 +18,7 @@ flowchart LR
 ```
 
 1. **`screenshot_requirements`** — **`python toolkit/scripts/layout.py`** only (no Web UI): go-ahead, device platform, pack, **`store-json`** / **`load-frame`**, user confirmations, seed **`requirements`** in **`datasource/temp/design_brief.json`**.
-2. **`screenshot_planning`** — **No** Web UI / **`designer.py`**: creative **`creative_plan`** (background intent + per-panel layers / **`looks_like`**); **user approves** **`creative_plan.user_approved`** here only.
+2. **`screenshot_planning`** — **No** Web UI / **`designer.py`**: creative **`creative_plan`** (background intent + per-panel layers / **`looks_like`** + optional per-layer **`layout`**); reads **`datasource/few_shots/*.md`** pattern files (exclude `README.md`, `_TEMPLATE.md`) for composition vocabulary; **user approves** **`creative_plan.user_approved`** here only.
 3. **`toolkit_runner`** — Python **`toolkit`**, Node/`web_ui`, Vite on port **4713** (**after** planning is approved, **before** designer execution).
 4. **`screenshot_background`** — **`designer.py handoff`**; **`set_background`** from **`creative_plan`** + theme (**full auto** after plan lock — no proceed gates; previews saved under **`datasource/temp/`**).
 5. **`screenshot_panel`** — Typography lock + **`creative_plan.panels`** in order (**full auto**; user only on errors).
@@ -28,6 +28,7 @@ flowchart LR
 | Path | Purpose |
 |------|---------|
 | [`datasource/temp/design_brief.json`](../../../../datasource/temp/design_brief.json) | Mergeable JSON between agents |
+| [`datasource/few_shots/`](../../../../datasource/few_shots/) | Layout-only pattern `*.md` for **screenshot_planning** (exclude `README.md`, `_TEMPLATE.md`) |
 | `datasource/temp/*.png` | Preview images from `pull-preview` |
 | `datasource/temp/*.json` (other) | Intermediate API payloads |
 

@@ -599,6 +599,52 @@ export function datasourceApiPlugin(): Plugin {
           return
         }
 
+        if (pathname === '/__api/screenshot-designer/command-result' && req.method === 'POST') {
+          try {
+            const body = await readBody(req as IncomingMessage)
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            const slug = String(parsed.slug ?? '')
+            const operation = String(parsed.operation ?? '')
+            const requestId = typeof parsed.requestId === 'string' ? parsed.requestId : undefined
+            const ok = parsed.ok === true
+            const errorRaw = parsed.error
+            const error = typeof errorRaw === 'string' ? errorRaw : undefined
+            if (!slug || !isDisplayFileSlug(slug)) {
+              nodeRes.statusCode = 400
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'invalid_display_slug' }))
+              return
+            }
+            if (!operation) {
+              nodeRes.statusCode = 400
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'missing_operation' }))
+              return
+            }
+            const base = {
+              slug,
+              operation,
+              requestId: requestId ?? null,
+            }
+            if (ok) {
+              console.info('[screenshot-designer] command-result (applied)', base)
+            } else {
+              const errMsg = error?.trim() || '(no error message)'
+              const truncated = errMsg.length > 500 ? `${errMsg.slice(0, 500)}…` : errMsg
+              console.warn('[screenshot-designer] command-result (failed)', { ...base, error: truncated })
+            }
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true }))
+          } catch (e: unknown) {
+            const err = e as Error
+            nodeRes.statusCode = 400
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
         const agentPreviewPath = path.join(datasourceDir, AGENT_PREVIEW_FILENAME)
         const agentExportPath = path.join(datasourceDir, AGENT_EXPORT_FILENAME)
 

@@ -133,6 +133,9 @@ How to use each designer command:
 - `pull-preview --out <file.png>`
   - Use after `render_preview` or `render_panel_preview` to fetch latest agent PNG.
   - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `3,4` or `2,3,4`). The CLI enqueues one `render_panel_preview` with `panel_indexes` (sorted), which captures a **single** PNG spanning those columns including gaps (requires an open Web UI tab on command-events), then polls until the preview bytes change. Use `--out` for the PNG path (or stdout for raw bytes).
+  - **`--preview-multiplier 1|2`** (with `--panels` only): passed as `preview_multiplier` on the enqueued `render_panel_preview` ( **`1`** = faster capture, **`2`** = sharper; omit to use `web_ui` **`VITE_AGENT_PREVIEW_MULTIPLIER`** or default **2**).
+  - **`--poll-interval SEC`**: sleep between GET polls while waiting for new PNG after `--panels` (default **0.08**).
+  - **Benchmark:** `python toolkit/scripts/benchmark_agent_preview.py --panels 0` — prints elapsed ms and PNG bytes (requires running `web_ui`).
 - `pull-export`
   - Use after `export_json` to fetch layer summary and resolve canonical `layer_id` values.
   - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `2,3,4`). The CLI GETs the full summary, then returns one object per column (sorted order): **`panelLocalRect`** (`left`,`top`,`width`,`height` with origin `0,0` — same size as `summary.canvas`; layer geometry in `summary` is relative to this), **`stripRect`** (that column’s bounds on the full strip / `sourceCanvas` coordinates), plus **`summary`** (`AgentLayoutSummaryV1` with panel-local `left`/`top`). See `designer.export_slice`.
@@ -207,9 +210,9 @@ How to use each core operation:
 - `distribute_layers` — evenly distribute layer positions along axis (all targets must be in **one** column; optional **`panel_index`** asserts it).
 - `set_equal_spacing` — enforce fixed gap along axis (same column rule as `distribute_layers`).
 - `match_size` — copy width/height/both from source to targets (text targets: width typographically; height not forced via scale).
-- `render_preview` — push full workspace PNG to agent preview store.
-- `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`).
-- `render_panel_preview` — push one panel PNG by `panel_index` / `panel_number`, or a **contiguous** multi-column crop via **`panel_indexes`**: JSON array of 0-based integers (e.g. `[2,3,4]`); must be adjacent columns on the strip (duplicates removed, order does not matter).
+- `render_preview` — push full workspace PNG to agent preview store. Optional **`preview_multiplier`**: **`1`** or **`2`** (default from **`VITE_AGENT_PREVIEW_MULTIPLIER`** in `web_ui` env, else **2**). Export uses Fabric `toBlob` (no data-URL round-trip).
+- `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`). Same optional **`preview_multiplier`**.
+- `render_panel_preview` — push one panel PNG by `panel_index` / `panel_number`, or a **contiguous** multi-column crop via **`panel_indexes`**: JSON array of 0-based integers (e.g. `[2,3,4]`); must be adjacent columns on the strip (duplicates removed, order does not matter). Optional **`preview_multiplier`**: **`1`** or **`2`** (same default resolution as above).
 - `export_json` — push compact layout summary for `pull-export`.
 
 ## Required payload schemas (do not guess)
@@ -279,14 +282,17 @@ Use these exact operation names and argument shapes.
 
 - `render_preview`
   - `{}`
+  - optional faster capture: `{"preview_multiplier":1}`
 
 - `render_workspace_preview`
   - `{}`
+  - optional: `{"preview_multiplier":1}`
 
 - `render_panel_preview`
   - index form: `{"panel_index":2}` (0-based)
   - number form: `{"panel_number":3}` (1-based)
   - contiguous segment: `{"panel_indexes":[1,2,3]}` (0-based, adjacent columns; one PNG including gaps between them)
+  - optional on any form: `"preview_multiplier":1` or `2` (overrides `web_ui` **`VITE_AGENT_PREVIEW_MULTIPLIER`** / default **2**)
 
 - `export_json`
   - `{}`
@@ -437,6 +443,6 @@ python toolkit/scripts/designer.py enqueue-op --operation set_z_index --args-jso
 
 ## Notes
 
-- `render_preview`/`render_panel_preview` output comes from live Fabric canvas capture.
+- `render_preview`/`render_panel_preview` output comes from live Fabric canvas capture (`toBlob` → POST `agent-preview`); scale is **`preview_multiplier`** (op arg) or **`VITE_AGENT_PREVIEW_MULTIPLIER`** / default **2**.
 - `enqueue-op` does not return new layer IDs for added layers; use `export_json` + `pull-export`.
 - The **`toolkit` CLI** rejects some malformed positional payloads before the HTTP round-trip (missing `panel_index` where required, `align` + `canvas`, etc.) — match this document to avoid `ValueError` from `designer enqueue-op`.
