@@ -1,0 +1,4 @@
+pydantic>=2.5
+pillow>=10.2
+python-dotenv>=1.0
+pytest>=8.0

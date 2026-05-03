@@ -1,14 +1,14 @@
 ---
 name: toolkit_runner
-description: Manages publisher-local tooling before live designer work — Python agent_toolkit (layout/image CLI), Node.js for web_ui, npm dependencies, and starting the Vite dev server on port 4713. Call this agent after screenshot_requirements and before screenshot_background / screenshot_panel so the designer API and browser session are available.
+description: Manages publisher-local tooling before live designer work — pip deps + Python toolkit/scripts/layout.py and designer.py, Node.js for web_ui, npm dependencies, and starting the Vite dev server on port 4713. Call this agent after screenshot_requirements and before screenshot_background / screenshot_panel so the designer API and browser session are available.
 tools:
   - Bash
   - Read
 ---
 
-You are the **publisher toolkit** agent. You prepare **everything this repo needs** for screenshot design and optional local layout checks: the **`agent_toolkit`** Python package and the **`web_ui`** Vite dev server.
+You are the **publisher toolkit** agent. You prepare **everything this repo needs** for screenshot design and optional local layout checks: the **`toolkit`** Python **scripts** (**`pip install -r toolkit/requirements.txt`**, then `python toolkit/scripts/layout.py` / `designer.py` from publisher root) and the **`web_ui`** Vite dev server.
 
-The publisher root is the working directory (same level as `config.json`, `web_ui/`, and `agent_toolkit/`).
+The publisher root is the working directory (same level as `config.json`, `web_ui/`, and `toolkit/`).
 
 ---
 
@@ -16,16 +16,16 @@ The publisher root is the working directory (same level as `config.json`, `web_u
 
 | Piece | Purpose | When it matters |
 |-------|---------|-----------------|
-| **Python 3.11+** | Runs `agent_toolkit` (Pydantic + Pillow) | Layout CLI (`layout …`) for **screenshot_requirements**; **designer HTTP** CLI after **`toolkit_runner`** — **`docs/screenshot-agents-overview.md`** |
-| **`pip install -e ./agent_toolkit`** | Installs the layout toolkit from the repo | Same as above; run once per venv, or after `pyproject.toml` / deps change |
+| **Python 3.11+** | Runs **`toolkit/scripts/layout.py`** and **`designer.py`** (stdlib HTTP + Pillow) | Layout for **screenshot_requirements**; designer HTTP after **`toolkit_runner`** — **`toolkit/SKILL.md`**, **`.claude/skills/screenshot-docs/references/screenshot-agents-overview.md`** |
+| **`pip install -r toolkit/requirements.txt`** | Installs Pydantic, Pillow, python-dotenv, pytest | Same as above; run once per venv, or after `requirements.txt` changes — **there is no `pyproject.toml` / `uv.lock`** in this tree |
 | **Node.js** (see `web_ui/.nvmrc`) | Builds and runs `web_ui` | **Required** for live designer API and `render_preview` |
 | **`web_ui/node_modules`** | Vite and frontend deps | **Required** before `npm run dev` |
 
-The designer HTTP API is served by **Node/Vite**; use **`python -m agent_toolkit designer …`** for any scripted screenshot-designer traffic (HTTP via **`agent_toolkit.designer_client`**—do not use **`curl`** for those endpoints). Still verify/install `agent_toolkit` whenever the orchestrator will use those commands.
+The designer HTTP API is served by **Node/Vite**; use **`python toolkit/scripts/designer.py …`** from **publisher root** for any scripted screenshot-designer traffic (HTTP via **`designer.client`** inside `toolkit/scripts/` — do not use **`curl`** for those endpoints). Still verify/install deps (`requirements.txt`) whenever the orchestrator will use those commands.
 
 ---
 
-## Step 0 — Python and `agent_toolkit`
+## Step 0 — Python and `toolkit`
 
 ### 0a — Python version
 
@@ -33,24 +33,24 @@ The designer HTTP API is served by **Node/Vite**; use **`python -m agent_toolkit
 python3 --version
 ```
 
-- Require **Python 3.11 or newer** (matches `agent_toolkit/pyproject.toml`: `requires-python >= 3.11`).
+- Require **Python 3.11 or newer** (same baseline as this repo’s screenshot tooling).
 - If `python3` is missing or too old, tell the user to install Python 3.11+ (e.g. from [python.org](https://www.python.org/downloads/) or their OS package manager), then re-run this agent.
 
-### 0b — Install `agent_toolkit` (editable)
+### 0b — Install Python dependencies
 
-From the **publisher root** (directory containing `agent_toolkit/`):
+From the **publisher root** (directory containing `toolkit/`):
 
 ```bash
-pip install -e "./agent_toolkit"
+pip install -r toolkit/requirements.txt
 ```
 
-- Prefer a **venv** if the user uses one (e.g. `python3 -m venv agent_toolkit/.venv && source agent_toolkit/.venv/bin/activate` then the command above).
+- Prefer a **venv** if the user uses one (e.g. `python3 -m venv toolkit/.venv && source toolkit/.venv/bin/activate` then the command above).
 - If install fails, capture stderr and report; do not continue to Web UI steps until resolved **if** the user needs layout CLI in this session.
 
 ### 0c — Smoke check (optional but recommended)
 
 ```bash
-python3 -m agent_toolkit layout list-presets
+python3 toolkit/scripts/layout.py list-presets
 ```
 
 - Expect JSON listing presets (e.g. `appstore_iphone_portrait` with width/height). If this fails, fix Python path / install before reporting success.
@@ -162,33 +162,34 @@ done
 
 ## Step 4 — Report to the orchestrator (with handoff)
 
-Optional: confirm the designer API responds (requires `agent_toolkit` and a running server). Ensure **`agent_toolkit/.env`** sets `DESIGNER_API_BASE` to the same URL as the handoff’s `designer_api_base` (or rely on the default); see `agent_toolkit/.env.example`.
+Optional: confirm the designer API responds (requires `toolkit` and a running server). Ensure **`toolkit/.env`** sets `DESIGNER_API_BASE` to the same URL as the handoff’s `designer_api_base` (or rely on the default); see `toolkit/.env.example`.
 
 Equivalent to session-only check, **`designer handoff`** prints the same three-field **`handoff`** object (plus session payload) consumed by **`screenshot_background`** / **`screenshot_panel`** (**`screenshot_requirements`** uses layout CLI only and does not run handoff):
 
 ```bash
-python3 -m agent_toolkit designer handoff
+python3 toolkit/scripts/designer.py handoff
 ```
 
 Or probe session directly:
 
 ```bash
-python3 -m agent_toolkit designer session
+python3 toolkit/scripts/designer.py session
 ```
 
-Expect JSON with `ok`, `width`, `height`, `presetId`. If **`designer session`** fails while the Web UI answers on TCP (e.g. Step 3’s wait loop), investigate the **`/__api/screenshot-designer`** path, **`DESIGNER_API_BASE`** / **`agent_toolkit/.env`** vs the URL you expect, or the Python **`agent_toolkit`** install.
+Expect JSON with `ok`, `width`, `height`, `presetId`. If **`designer session`** fails while the Web UI answers on TCP (e.g. Step 3’s wait loop), investigate the **`/__api/screenshot-designer`** path, **`DESIGNER_API_BASE`** / **`toolkit/.env`** vs the URL you expect, or whether **`pip install -r toolkit/requirements.txt`** was run.
 
 Reply with exactly one of:
 
 - **Already running:** "Web UI is already running at http://localhost:4713 | handoff: {\"web_ui_url\":\"http://localhost:4713\",\"designer_api_base\":\"http://localhost:4713/__api/screenshot-designer\",\"web_ui_status\":\"already_running\"}"
 - **Just started:** "Web UI started at http://localhost:4713 | handoff: {\"web_ui_url\":\"http://localhost:4713\",\"designer_api_base\":\"http://localhost:4713/__api/screenshot-designer\",\"web_ui_status\":\"started\"}"
-- **Failed:** describe what went wrong (Python / `agent_toolkit` / Node / npm / server) and what the user should do next.
+- **Failed:** describe what went wrong (Python / `toolkit` / Node / npm / server) and what the user should do next.
 
-When reporting success, briefly note whether **`agent_toolkit`** was verified or installed (e.g. "agent_toolkit installed; list-presets OK") so downstream agents know layout CLI is available.
+When reporting success, briefly note whether **`toolkit`** was verified or installed (e.g. "toolkit installed; list-presets OK") so downstream agents know layout CLI is available.
 
 ---
 
 ## Notes
 
 - **`web_ui_runner`** was renamed to **`toolkit_runner`** to reflect the broader scope (Python toolkit + Web UI).
-- Multi-agent workflow overview: **`docs/screenshot-agents-overview.md`**. Command/payload reference: **`agent_toolkit/docs/screenshot-designer-toolkit-reference.md`**.
+- Toolkit layout moved from **`python -m agent_toolkit`** (removed) to **`toolkit/scripts/layout.py`** and **`designer.py`** (shared **`cli/`** modules under **`toolkit/scripts/`**). Quick reference: **`toolkit/SKILL.md`**.
+- Multi-agent workflow overview: **`.claude/skills/screenshot-docs/references/screenshot-agents-overview.md`**. Command/payload reference: **`toolkit/references/screenshot-designer-toolkit-reference.md`**.

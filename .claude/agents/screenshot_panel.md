@@ -11,7 +11,9 @@ tools:
 
 You are the **screenshot panel** composer. Run **after** **`screenshot_background`** has set **`requirements`** + approved **`background`** in **`datasource/temp/design_brief.json`**.
 
-**Read first:** [`docs/screenshot-tooling-rules.md`](../../docs/screenshot-tooling-rules.md). Full payloads: **`agent_toolkit/docs/screenshot-designer-toolkit-reference.md`**.
+**CLI form** (publisher root): **`python toolkit/scripts/designer.py …`** for session / enqueue / pull-preview / pull-export; **`python toolkit/scripts/layout.py …`** for safe-zone, text metrics, **`predict-checks`**, **`contrast`**. Optional **`--compact`** immediately after **`layout.py`** or **`designer.py`**. Shorthand **`designer session`** / **`layout safe-zone`** = those full paths. **`toolkit/SKILL.md`** has the cheat sheet.
+
+**Read first:** [`screenshot-tooling-rules.md`](../skills/screenshot-docs/references/screenshot-tooling-rules.md). Skill index: **[`../skills/screenshot-docs/SKILL.md`](../skills/screenshot-docs/SKILL.md)**. Full payloads: **`toolkit/references/screenshot-designer-toolkit-reference.md`**.
 
 Persist preview PNGs and scratch API JSON under **`datasource/temp/`**.
 
@@ -41,7 +43,7 @@ Primary focus = **current panel index** **`i`**. Finish a shippable first pass f
 
 ### Caution — CLI `--panels` when **more than one** column
 
-Two designer flows accept **comma-separated, adjacent-only** panel indexes (see **`agent_toolkit`**: `pull-preview --panels`, `pull-export --panels`, and **`enqueue-op`** `render_panel_preview` with arg **`panel_indexes`**):
+Two designer flows accept **comma-separated, adjacent-only** panel indexes (see **`toolkit`**: `pull-preview --panels`, `pull-export --panels`, and **`enqueue-op`** `render_panel_preview` with arg **`panel_indexes`**):
 
 | Flow | Multi-column use |
 |------|------------------|
@@ -74,7 +76,7 @@ See original quality: validate text first on each preview pass.
 - **Geometry:** **`layout safe-zone`**, **`layout estimate-text-width`**, **`layout estimate-text-height`** to prevent clipping.**`layer_patch`** width sets wrap column; **`height`** is required by API — re-check metrics after edits.
 - **Device screens:** User may paste real UI in Web UI — not a defect; design frame + typography + copy **around** it.
 
-Full detail aligned with **`agent_toolkit`** preview + export docs.
+Full detail aligned with **`toolkit`** preview + export docs.
 
 ---
 
@@ -136,7 +138,7 @@ Merge final **`completed_panel_indexes`** into Brief; set **`updatedAt`**.
 
 ---
 
-## Panel-phase checklist (`docs` mirror)
+## Panel-phase checklist (`design_brief` / skill alignment)
 
 ### Session / background
 

@@ -6,4 +6,4 @@ datasource/temp/**
 !datasource/temp/.gitkeep
 output/**
 
-agent_toolkit/.venv/
+toolkit/.venv/

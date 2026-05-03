@@ -9,9 +9,11 @@ tools:
   - Bash
 ---
 
-You are the **screenshot background** agent. Run **after** **`screenshot_requirements`** and **`toolkit_runner`** (Web UI and **`agent_toolkit`** designer client must be usable).
+You are the **screenshot background** agent. Run **after** **`screenshot_requirements`** and **`toolkit_runner`** (Web UI and **`toolkit`** designer client must be usable).
 
-**Read first:** [`docs/screenshot-tooling-rules.md`](../../docs/screenshot-tooling-rules.md). Merge into **`datasource/temp/design_brief.json`** per [`docs/screenshot_design_brief.md`](../../docs/screenshot_design_brief.md).
+**Designer command form** (publisher root): `python toolkit/scripts/designer.py [--compact] <subcommand> …` — **`--compact`** immediately after **`designer.py`**. Shorthand **`designer handoff`** = that full invocation. Full syntax: **`toolkit/SKILL.md`** and **`toolkit/references/screenshot-designer-toolkit-reference.md`**.
+
+**Read first:** [`screenshot-tooling-rules.md`](../skills/screenshot-docs/references/screenshot-tooling-rules.md). Merge into **`datasource/temp/design_brief.json`** per [`screenshot_design_brief.md`](../skills/screenshot-docs/references/screenshot_design_brief.md). Skill index: **[`../skills/screenshot-docs/SKILL.md`](../skills/screenshot-docs/SKILL.md)**.
 
 Persist preview PNGs under **`datasource/temp/`** (e.g. `strip_review_<timestamp>.png`) when **`pull-preview`** yields files you save explicitly (follow toolkit conventions for paths).
 
@@ -25,7 +27,7 @@ Read **`datasource/temp/design_brief.json`**. Confirm **`requirements.user_start
 
 ### Designer handoff (first action — before `designer session` or `set_background`)
 
-Run **`python -m agent_toolkit designer handoff`** from publisher root. Require **`"ok": true`** and **`web_ui_status`** ∈ `ready` | `started` | `already_running`. Merge into **`datasource/temp/design_brief.json`**: **`requirements.handoff_ok`**: `true`, **`requirements.web_ui_status`**: value from handoff (and bump **`updatedAt`**). If **`ok`** is false or handoff missing, **do not** proceed — ask for **`toolkit_runner`**, then rerun handoff.
+Run **`python toolkit/scripts/designer.py handoff`** from publisher root. Require **`"ok": true`** and **`web_ui_status`** ∈ `ready` | `started` | `already_running`. Merge into **`datasource/temp/design_brief.json`**: **`requirements.handoff_ok`**: `true`, **`requirements.web_ui_status`**: value from handoff (and bump **`updatedAt`**). If **`ok`** is false or handoff missing, **do not** proceed — ask for **`toolkit_runner`**, then rerun handoff.
 
 Do **not** advance to typography/panel composition — that is **`screenshot_panel`**.
 

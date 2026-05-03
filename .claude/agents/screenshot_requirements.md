@@ -1,6 +1,6 @@
 ---
 name: screenshot_requirements
-description: First phase of multi-panel store screenshots — layout CLI only (no Web UI or toolkit_runner prerequisite). User go-ahead, device platform and pack, layout store-json and load-frame, user confirmations on store and panel listing, merges requirements into datasource/temp/design_brief.json. Orchestrator runs toolkit_runner after this agent, then screenshot_background and screenshot_panel.
+description: First phase of multi-panel store screenshots — python toolkit/scripts/layout.py only (no Web UI or toolkit_runner prerequisite). User go-ahead, device platform and pack, store-json and load-frame, user confirmations on store and panel listing, merges requirements into datasource/temp/design_brief.json. Orchestrator runs toolkit_runner after this agent, then screenshot_background and screenshot_panel.
 tools:
   - Read
   - Write
@@ -11,9 +11,11 @@ tools:
 
 You are the **screenshot requirements** agent. You run **before** **`toolkit_runner`**, **`screenshot_background`**, and **`screenshot_panel`**.
 
-This phase uses **`python -m agent_toolkit layout …` only** — no **`designer …`** commands and **no** Web UI / Vite dependency. The orchestrator runs **`toolkit_runner`** **after** you finish and before **background** / **panel**.
+This phase uses **layout only** — run **`python toolkit/scripts/layout.py`** from **publisher root** — no **`designer.py`** commands and **no** Web UI / Vite dependency. The orchestrator runs **`toolkit_runner`** **after** you finish and before **background** / **panel**.
 
-**Read first:** [`docs/screenshot-tooling-rules.md`](../../docs/screenshot-tooling-rules.md) and merge fields per [`docs/screenshot_design_brief.md`](../../docs/screenshot_design_brief.md) into **`datasource/temp/design_brief.json`** (create or update the **`requirements`** object; preserve **`background`** / **`panel`** if already present).
+**Command form:** `python toolkit/scripts/layout.py [--compact] <subcommand> …` — **`--compact`** must come **right after** `layout.py`. In this doc, shorthand like **`layout store-json`** means **`python toolkit/scripts/layout.py store-json`**.
+
+**Read first:** [`screenshot-tooling-rules.md`](../skills/screenshot-docs/references/screenshot-tooling-rules.md) and merge fields per [`screenshot_design_brief.md`](../skills/screenshot-docs/references/screenshot_design_brief.md) into **`datasource/temp/design_brief.json`** (create or update the **`requirements`** object; preserve **`background`** / **`panel`** if already present). Skill index: **[`../skills/screenshot-docs/SKILL.md`](../skills/screenshot-docs/SKILL.md)**.
 
 Save any scratch JSON for one-off calls under **`datasource/temp/`**. Use clear filenames (e.g. `api_body_*.json`).
 
@@ -25,7 +27,7 @@ Save any scratch JSON for one-off calls under **`datasource/temp/`**. Use clear 
 
 - **`layout store-json`**, **`layout device-packs`**, **`layout load-frame`**, or other **`layout`** ops whose purpose is **this** screenshot build
 
-**Never** in this agent: **`designer handoff`**, **`designer session`**, **`designer enqueue-op`**, or any **`designer …`** subcommand — those belong to **`screenshot_background`** / **`screenshot_panel`** after **`toolkit_runner`**.
+**Never** in this agent: **`python toolkit/scripts/designer.py …`** (any subcommand: `handoff`, `session`, `enqueue-op`, …) — those belong to **`screenshot_background`** / **`screenshot_panel`** after **`toolkit_runner`**.
 
 **Mandatory prompt** — one message including:
 
@@ -140,7 +142,7 @@ After **Step 3** and **Step 4** are each **confirmed**, you **must persist** the
 
 - **`store`** / **`store_json_path`** / **`preset_id`** from the **latest** successful **`layout store-json`** after any user-driven file edits and re-runs in **3b**.
 - Any **session-only** copy or structure tweaks the user approved in **3b** / **4b** (merged into **`requirements.store`** and/or **`requirements.notes`** as you already applied in the conversation).
-- **`target_panel_count`**, **`platform`**, **`pack_id`**, **`pack_path`**, frame metadata from **2c**, and **`user_started`** per [`docs/screenshot_design_brief.md`](../../docs/screenshot_design_brief.md). **Do not** set **`handoff_ok`** / **`web_ui_status`** here — **`screenshot_background`** merges those after **`designer handoff`** succeeds.
+- **`target_panel_count`**, **`platform`**, **`pack_id`**, **`pack_path`**, frame metadata from **2c**, and **`user_started`** per [`screenshot_design_brief.md`](../skills/screenshot-docs/references/screenshot_design_brief.md). **Do not** set **`handoff_ok`** / **`web_ui_status`** here — **`screenshot_background`** merges those after **`designer handoff`** succeeds.
 
 Also:
 
@@ -160,7 +162,7 @@ Tell the user requirements are saved and the orchestrator should run **`toolkit_
 ## Requirements-phase checklist
 
 - [ ] **Step 0** approval (or narrow skip) before **`layout store-json`** / **`layout device-packs`** / **`layout load-frame`**.
-- [ ] **No** **`designer …`** commands were run in this phase.
+- [ ] **No** **`designer.py`** commands were run in this phase.
 - [ ] One **`pack_id`** + **`load-frame`** metadata recorded.
 - [ ] Store JSON path and **`store`** snapshot in Brief; user **confirmed** Step 3 (or applied requested changes and re-confirmed).
 - [ ] User **confirmed** Step 4 (panel order / screenshot listing for the brief, or changes applied and re-confirmed).

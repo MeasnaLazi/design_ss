@@ -4,7 +4,7 @@ import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { getFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 
-/** Match `agent_toolkit/constants.py` — App Store–style headline margins per panel. */
+/** Match `toolkit/scripts/core/constants.py` — App Store–style headline margins per panel. */
 export const TEXT_SAFE_ZONE_TOP = 120
 export const TEXT_SAFE_ZONE_BOTTOM = 120
 export const TEXT_SAFE_ZONE_SIDES = 60
