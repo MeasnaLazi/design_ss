@@ -8,6 +8,7 @@
       "Bash",
       "WebFetch",
       "Agent(app_optimizer)",
+      "Agent(screenshot_planning)",
       "Agent(screenshot_requirements)",
       "Agent(screenshot_background)",
       "Agent(screenshot_panel)",

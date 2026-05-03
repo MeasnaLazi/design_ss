@@ -1,6 +1,6 @@
 # Screenshot agents — shared tooling rules
 
-Referenced by **`screenshot_requirements`**, **`screenshot_background`**, and **`screenshot_panel`**. Keeps CLI boundaries consistent across agents.
+Referenced by **`screenshot_requirements`**, **`screenshot_planning`**, **`screenshot_background`**, and **`screenshot_panel`**. Keeps CLI boundaries consistent across agents.
 
 ---
 

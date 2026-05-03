@@ -6,6 +6,8 @@ Layout math and image helpers aligned with `web_ui/screenshot-designer-server.ts
 
 Use this skill whenever a screenshot agent needs **layout / parity checks**, **image helpers**, or **designer HTTP calls** against the Web UI on port **4713** (after `toolkit_runner` has started or verified the server).
 
+**Environment (pip, Node, Vite, smoke checks):** see **`.claude/skills/publisher-toolchain/`** — the **`toolkit_runner`** agent executes that playbook.
+
 ## Setup
 
 From repo root:
@@ -56,4 +58,4 @@ python toolkit/scripts/designer.py pull-export --panels "0,1"
 ## References
 
 - Full payloads and command reference: **`references/screenshot-designer-toolkit-reference.md`**
-- Multi-agent workflow and **`datasource/temp/design_brief.json`**: **`.claude/skills/screenshot-docs/`** (**`SKILL.md`** index + **`references/`**) and **`.claude/agents/screenshot_*.md`**
+- Multi-agent workflow and **`datasource/temp/design_brief.json`**: **`.claude/skills/screenshot-docs/`** (**`SKILL.md`** index + **`references/`**, order **requirements → screenshot_planning → toolkit_runner → background → panel**) and **`.claude/agents/screenshot_*.md`**
