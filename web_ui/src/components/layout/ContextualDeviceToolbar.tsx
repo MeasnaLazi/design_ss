@@ -89,9 +89,16 @@ export function ContextualDeviceToolbar() {
     const rec = useDesignStore.getState().objects.find((x) => x.id === selectedObject)
     if (rec?.kind !== 'device') return
 
-    const wRaw = Number(widthText)
-    const hRaw = Number(heightText)
-    if (!Number.isFinite(wRaw) || !Number.isFinite(hRaw)) {
+    const trimmedW = widthText.trim()
+    const trimmedH = heightText.trim()
+    if (trimmedW === '' || trimmedH === '') {
+      setWidthText(String(Math.round(o.getScaledWidth())))
+      setHeightText(String(Math.round(o.getScaledHeight())))
+      return
+    }
+    const wRaw = Number(trimmedW)
+    const hRaw = Number(trimmedH)
+    if (!Number.isFinite(wRaw) || !Number.isFinite(hRaw) || wRaw <= 0 || hRaw <= 0) {
       setWidthText(String(Math.round(o.getScaledWidth())))
       setHeightText(String(Math.round(o.getScaledHeight())))
       return

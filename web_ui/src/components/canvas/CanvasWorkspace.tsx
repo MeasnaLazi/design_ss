@@ -80,13 +80,11 @@ function isFabricActiveSelection(active: FabricObject | undefined): boolean {
 }
 
 function attachSelectionSync(canvas: Canvas): void {
-  const pushSelectionToStore = (eventName: string) => {
+  const pushSelectionToStore = () => {
     const active = canvas.getActiveObject()
-    console.log(`[CanvasWorkspace] ${eventName}`, { activeType: active?.type })
 
     if (active && isFabricActiveSelection(active)) {
       useDesignStore.getState().setSelectedObject(null)
-      console.log('[CanvasWorkspace] activeSelection — store cleared')
       return
     }
 
@@ -97,13 +95,11 @@ function attachSelectionSync(canvas: Canvas): void {
 
     const id = getFabricObjectId(active)
     useDesignStore.getState().setSelectedObject(id ?? null)
-    console.log('[CanvasWorkspace] selected layer id', id)
   }
 
-  canvas.on('selection:created', () => pushSelectionToStore('selection:created'))
-  canvas.on('selection:updated', () => pushSelectionToStore('selection:updated'))
+  canvas.on('selection:created', pushSelectionToStore)
+  canvas.on('selection:updated', pushSelectionToStore)
   canvas.on('selection:cleared', () => {
-    console.log('[CanvasWorkspace] selection:cleared')
     useDesignStore.getState().setSelectedObject(null)
   })
 }

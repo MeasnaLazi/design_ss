@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 from image.color import contrast_ratio, is_hex_color
@@ -9,7 +10,7 @@ from core.constants import (
     MIN_CONTRAST,
     MIN_HEADLINE_SIZE,
 )
-from layout.geometry import rects_overlap
+from layout.geometry import dominant_panel_index_for_rect, rects_overlap
 from core.models import BackgroundModel, DeviceLayerModel, SessionCheckInput, TextLayerModel
 from layout.safe import (
     layer_within_canvas,
@@ -47,7 +48,12 @@ def _bg_for_contrast(background: BackgroundModel) -> str:
 
 
 def predict_checks(session: SessionCheckInput) -> QualityResult:
-    """Mirror qualityChecks(session) in screenshot-designer-server.ts."""
+    """Layout-side quality gate (CLI ``predict-checks``).
+
+    Checks safe-zone, canvas bounds, contrast, headline-size heuristic, device height
+    ratios, text–device overlap, and **text–text bbox overlap within the same strip
+    column** (when ``screens`` > 1, grouping uses ``dominant_panel_index_for_rect``).
+    """
     errors: list[str] = []
     contrast_issues: list[ContrastIssue] = []
     w, h = session.width, session.height
@@ -105,6 +111,41 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
                 device.height,
             ):
                 errors.append(f"Text layer {text.id} overlaps device frame {device.id}.")
+
+    # Pairwise text–text overlap within the same strip column (panel-local story).
+    by_panel: dict[int | str, list[TextLayerModel]] = defaultdict(list)
+    for t in text_layers:
+        pi = dominant_panel_index_for_rect(
+            t.x,
+            t.y,
+            t.width,
+            t.height,
+            float(w),
+            float(h),
+            screens_ct,
+            gap_px,
+        )
+        key: int | str = pi if pi is not None else "__no_panel__"
+        by_panel[key].append(t)
+    for _key, group in by_panel.items():
+        if len(group) < 2:
+            continue
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                a, b = group[i], group[j]
+                if rects_overlap(
+                    a.x,
+                    a.y,
+                    a.width,
+                    a.height,
+                    b.x,
+                    b.y,
+                    b.width,
+                    b.height,
+                ):
+                    errors.append(
+                        f"Text layer {a.id} overlaps text layer {b.id} in the same strip column.",
+                    )
 
     if contrast_issues:
         errors.append("One or more text layers fail minimum contrast ratio 4.5:1.")

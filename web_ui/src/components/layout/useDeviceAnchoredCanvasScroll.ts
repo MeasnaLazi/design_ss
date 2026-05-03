@@ -1,7 +1,6 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Canvas } from 'fabric'
-import type { TPointerEventInfo } from 'fabric'
 
 import { deviceGroupFrameUnionBBox } from '../../canvas/deviceFramesUnionBBox'
 import { getArtboardDimensionsFromConfig } from '../../constants/artboardPresets'
@@ -14,6 +13,27 @@ const SCROLL_END_PAD_PX = 24
 
 /** Extra space (CSS px) around the canvas so bezels / edges stay clear of the scroll edge. */
 const DEVICE_FRAME_SCROLL_MARGIN_CSS_PX = 50
+
+/** Ignore sub-pixel jitter on `object:moving` before freezing layout (screen px). */
+const MOVE_FREEZE_THRESHOLD_PX = 5
+
+function pointerClient(e: unknown): { x: number; y: number } | null {
+  if (!e || typeof e !== 'object') return null
+  if ('clientX' in e && 'clientY' in e) {
+    const cx = (e as { clientX: unknown }).clientX
+    const cy = (e as { clientY: unknown }).clientY
+    if (typeof cx === 'number' && typeof cy === 'number' && Number.isFinite(cx) && Number.isFinite(cy)) {
+      return { x: cx, y: cy }
+    }
+  }
+  if ('touches' in e) {
+    const t = (e as TouchEvent).touches?.[0]
+    if (t && Number.isFinite(t.clientX) && Number.isFinite(t.clientY)) {
+      return { x: t.clientX, y: t.clientY }
+    }
+  }
+  return null
+}
 
 export type DeviceAnchoredCanvasLayout = {
   deviceAnchored: boolean
@@ -89,6 +109,8 @@ export function useDeviceAnchoredCanvasScroll(
 
   const rafRef = useRef<number | null>(null)
   const freezeAnchoredLayoutRef = useRef(false)
+  /** First `object:moving` screen position — freeze only after real drag distance. */
+  const moveScreenStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const bump = useCallback(() => {
     if (freezeAnchoredLayoutRef.current) return
@@ -100,16 +122,22 @@ export function useDeviceAnchoredCanvasScroll(
     })
   }, [])
 
+  const beginFreezeForDrag = useCallback(() => {
+    if (freezeAnchoredLayoutRef.current) return
+    freezeAnchoredLayoutRef.current = true
+  }, [])
+
   const unlockScrollAndRelayout = useCallback(() => {
+    moveScreenStartRef.current = null
     if (!freezeAnchoredLayoutRef.current) return
     freezeAnchoredLayoutRef.current = false
-    viewportRef.current?.style.removeProperty('overflow')
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    setTick((t) => t + 1)
-  }, [viewportRef])
+    /** One coalesced relayout; avoids double `setTick` when `object:modified` also calls `bump`. */
+    bump()
+  }, [bump])
 
   useEffect(() => {
     const el = viewportRef.current
@@ -140,31 +168,57 @@ export function useDeviceAnchoredCanvasScroll(
     }
   }, [fabricCanvas, bump])
 
+  /**
+   * While dragging, skip `bump()` relayout (see `bump` guard). We intentionally **do not** toggle
+   * `overflow` on the scroll viewport: that hides/shows scrollbars, `ResizeObserver` updates
+   * `viewportW`, and `contentW` in the anchored layout jumps by ~scrollbar width (intermittent
+   * vertical shift). Scale/rotate/skew freeze immediately; move uses a small pointer threshold so
+   * Fabric’s first `object:moving` tick doesn’t freeze on selection jitter.
+   */
   useEffect(() => {
     const c = fabricCanvas
     if (!c) return
 
-    const onDown = (opt: TPointerEventInfo) => {
-      if (opt.target == null) return
-      const e = opt.e
-      if (e instanceof MouseEvent && e.button !== 0) return
-      freezeAnchoredLayoutRef.current = true
-      /** Imperative lock avoids a React commit + `CanvasArea` re-render on drag start (layout thrash). */
-      viewportRef.current?.style.setProperty('overflow', 'hidden')
+    const onMoving = (opt?: { e?: unknown }) => {
+      const p = pointerClient(opt?.e)
+      if (!p) return
+      const start = moveScreenStartRef.current
+      if (!start) {
+        moveScreenStartRef.current = p
+        return
+      }
+      if (Math.hypot(p.x - start.x, p.y - start.y) < MOVE_FREEZE_THRESHOLD_PX) return
+      beginFreezeForDrag()
     }
 
-    c.on('mouse:down', onDown)
-    window.addEventListener('pointerup', unlockScrollAndRelayout)
-    window.addEventListener('pointercancel', unlockScrollAndRelayout)
+    const onControlTransform = () => {
+      beginFreezeForDrag()
+    }
+
+    const onTransformEnd = () => {
+      unlockScrollAndRelayout()
+    }
+
+    c.on('object:moving', onMoving)
+    for (const ev of ['object:scaling', 'object:rotating', 'object:skewing'] as const) {
+      c.on(ev, onControlTransform)
+    }
+    c.on('object:modified', onTransformEnd)
+    window.addEventListener('pointerup', onTransformEnd)
+    window.addEventListener('pointercancel', onTransformEnd)
 
     return () => {
-      c.off('mouse:down', onDown)
-      window.removeEventListener('pointerup', unlockScrollAndRelayout)
-      window.removeEventListener('pointercancel', unlockScrollAndRelayout)
+      c.off('object:moving', onMoving)
+      for (const ev of ['object:scaling', 'object:rotating', 'object:skewing'] as const) {
+        c.off(ev, onControlTransform)
+      }
+      c.off('object:modified', onTransformEnd)
+      window.removeEventListener('pointerup', onTransformEnd)
+      window.removeEventListener('pointercancel', onTransformEnd)
+      moveScreenStartRef.current = null
       freezeAnchoredLayoutRef.current = false
-      viewportRef.current?.style.removeProperty('overflow')
     }
-  }, [fabricCanvas, unlockScrollAndRelayout, viewportRef])
+  }, [fabricCanvas, unlockScrollAndRelayout, beginFreezeForDrag])
 
   useEffect(() => {
     return () => {

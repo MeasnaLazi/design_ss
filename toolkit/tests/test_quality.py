@@ -119,6 +119,81 @@ def test_predict_checks_multi_panel_text_bleeds_into_gap() -> None:
     assert any("outside safe zones" in e for e in r.errors)
 
 
+def test_predict_checks_text_text_overlap_same_panel() -> None:
+    """Two text boxes in the same column with overlapping bboxes must fail."""
+    s = SessionCheckInput(
+        width=6610,
+        height=2796,
+        screens=5,
+        gap=40,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t_title",
+                x=100,
+                y=128,
+                width=800,
+                height=120,
+                content="Title line",
+                size=72,
+                color="#ffffff",
+            ),
+            TextLayerModel(
+                kind="text",
+                id="t_sub",
+                x=100,
+                y=180,
+                width=800,
+                height=100,
+                content="one two three four five six seven eight",
+                size=36,
+                color="#e2e8f0",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert r.ok is False
+    assert any("overlaps text layer" in e and "same strip column" in e for e in r.errors)
+
+
+def test_predict_checks_text_text_no_overlap_adjacent_panels() -> None:
+    """Same vertical band in two different columns must not trip text–text overlap."""
+    s = SessionCheckInput(
+        width=6610,
+        height=2796,
+        screens=5,
+        gap=40,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t_a",
+                x=100,
+                y=128,
+                width=800,
+                height=80,
+                content="Col zero",
+                size=72,
+                color="#ffffff",
+            ),
+            TextLayerModel(
+                kind="text",
+                id="t_b",
+                x=1420,
+                y=128,
+                width=800,
+                height=80,
+                content="Col one",
+                size=72,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert r.ok is True
+
+
 def test_predict_checks_headline_too_small() -> None:
     s = SessionCheckInput(
         width=1290,

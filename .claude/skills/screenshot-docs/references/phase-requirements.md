@@ -132,6 +132,7 @@ After **Step 3** and **Step 4** are each **confirmed**, **write or merge** **`da
 - **`store`** / **`store_json_path`** / **`preset_id`** from the latest successful **`layout store-json`** after any **3b** re-runs.
 - Session tweaks from **3b** / **4b** in **`requirements.store`** / **`requirements.notes`**.
 - **`target_panel_count`**, **`platform`**, **`pack_id`**, **`pack_path`**, frame metadata from **2c**, **`user_started`** per **`screenshot_design_brief.md`**. **Do not** set **`handoff_ok`** / **`web_ui_status`** here.
+- For **5+** screenshots on one strip, optionally set **`requirements.notes`** with legibility guardrails (e.g. minimum title/subtitle **`size_px`** intent, vertical band summary) so **`screenshot_planning`** inherits strip-wide expectations before drafting **`creative_plan`**.
 
 Also:
 

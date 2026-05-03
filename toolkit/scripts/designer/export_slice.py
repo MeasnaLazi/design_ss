@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from layout.geometry import panel_rect, rects_overlap
+from layout.geometry import panel_rect, rects_overlap, strip_panel_width
 
 
 def parse_panel_indexes_arg(raw: str) -> list[int]:
@@ -53,12 +53,6 @@ def sorted_contiguous_panel_indexes(indexes: list[int]) -> list[int]:
                 f"after sorting deduplicated values: {uniq}",
             )
     return uniq
-
-
-def _single_panel_width_px(strip_width: float, screens: int, gap: float) -> float:
-    if screens < 1:
-        return float(strip_width)
-    return (float(strip_width) - float(gap) * (screens - 1)) / float(screens)
 
 
 def slice_agent_layout_summary_v1(
@@ -114,7 +108,7 @@ def slice_agent_layout_summary_v1(
     if not isinstance(preset, str):
         raise ValueError("layout.artboardPresetId must be a string")
 
-    panel_w = _single_panel_width_px(float(strip_w), screens, float(gap))
+    panel_w = strip_panel_width(float(strip_w), screens, float(gap))
     panel_h = float(strip_h)
     if panel_w <= 0 or panel_h <= 0:
         raise ValueError("derived panel width/height must be positive")

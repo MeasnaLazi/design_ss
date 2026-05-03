@@ -27,6 +27,7 @@ Canonical reference files live in **`references/`** next to this file. **Read th
 | [`references/screenshot-agents-overview.md`](references/screenshot-agents-overview.md) | Flow diagram, agent order, **`designer handoff`** ownership |
 | [`references/screenshot-tooling-rules.md`](references/screenshot-tooling-rules.md) | Allowed `layout.py` / `designer.py` commands; forbidden `web_ui/` bash |
 | [`references/screenshot_design_brief.md`](references/screenshot_design_brief.md) | **`requirements`**, **`creative_plan`**, **`background`**, **`panel`** |
+| [`references/design_brief_dense_strip_example.json`](references/design_brief_dense_strip_example.json) | Optional full brief JSON: dense 5-panel **`creative_plan`** with **`layout`** (copy to **`datasource/temp/design_brief.json`**) |
 | [`references/phase-requirements.md`](references/phase-requirements.md) | Requirements-phase steps and merges |
 | [`references/phase-planning.md`](references/phase-planning.md) | Creative plan structure and approval gate |
 | [`references/phase-background.md`](references/phase-background.md) | Preset catalog, theme math, auto background apply |

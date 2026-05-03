@@ -22,8 +22,9 @@ Horizontal **five-column** phone-strip layout on one canvas: each column is a **
 
 ## Text layers
 
+- **Vertical bands (column height = 100%):** treat the **top ~25–30%** of the column as the **marketing type band** (headline + subtitle + any kicker). Keep **≥40–48px** clear vertical space (plan as **`text_to_device_clearance_px`**) between the last text line and the top of device glass. Bias the **hero device** into the **lower ~55–65%** of the column so the layout is not stuck in the top 40% with empty lower space.
 - **Placement:** in **each** column, a **headline** sits **upper area** (typically upper-left alignment within the column), with a **subtitle** directly beneath. Both live in **negative space** above the device cluster.
-- **Hierarchy:** headline is **largest and boldest**; subtitle is **smaller and lighter**, with consistent vertical rhythm between the two.
+- **Hierarchy:** headline is **largest and boldest**; subtitle is **smaller and lighter** than the headline but still **subheadline-class** at export (not caption-sized); consistent vertical rhythm between the two.
 - **Margins:** generous **top** breathing room within the column before the headline; lateral margins keep type clear of column edges and gutters.
 - **Wrapping:** headline may use **multi-line** wrap; subtitle usually **one or two lines** at this width.
 - **Count:** **one** headline + **one** subtitle pair per column (no second competing headline stack in the same column).
@@ -52,3 +53,4 @@ Horizontal **five-column** phone-strip layout on one canvas: each column is a **
 - **Five beats** compress horizontal space per column versus a three-column strip: favor **one clear focal phone** whenever using a single device so UI remains readable at export scale.
 - **Rhythm:** alternate **two-device density** with **single-device clarity** down the strip to avoid visual fatigue.
 - Avoid placing headline blocks in the **lower half** of a column unless the plan proves **safe-zone** clearance above the device cluster.
+- When translating this pattern into **`creative_plan`**, encode bands and gaps with **`looks_like`** plus measurable **`layout.text`**, **`layout.spatial`**, and **`layout.device`** so **screenshot_panel** does not guess geometry on a narrow column.

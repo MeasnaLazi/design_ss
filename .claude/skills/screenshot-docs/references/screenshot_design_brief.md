@@ -247,3 +247,11 @@ After **`screenshot_planning`** with an approved plan (before **`toolkit_runner`
   }
 }
 ```
+
+---
+
+## Full-file example: dense five-column strip
+
+Copy-paste starting point: five panels with explicit **`layout.text`**, **`layout.spatial`**, **`layout.device`**, and banded **`looks_like`** — **[`design_brief_dense_strip_example.json`](design_brief_dense_strip_example.json)** (same directory as this doc). Merge into **`datasource/temp/design_brief.json`** for a session (set real paths, store copy, and **`creative_plan.user_approved`** per workflow).
+
+**Layout QA:** from publisher root, **`python toolkit/scripts/layout.py --compact predict-checks --json <session.json>`** where `<session.json>` comes from **`designer pull-export`** (see **`toolkit/references/screenshot-designer-toolkit-reference.md`**). **`predict_checks`** includes text–device overlap, **text–text overlap within the same strip column**, safe-zone, contrast, and headline-size heuristics.

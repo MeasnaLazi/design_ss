@@ -67,6 +67,16 @@ Typography **policy** belongs in planning outputs and **`screenshot_design_brief
 - **Each device:** `anchor_panel_index`, **`target_width_px`** (or scale hint), **`tilt_deg`**, **`z_index_hint`** / **`stack_order`**, screen **role** (not literal UI strings).
 - **Text–text gap** and **text–device clearance** in **`layout.spatial`** so copy never sits behind bezels.
 
+### Dense strip mandatory gate (`target_panel_count` ≥ 5 or `screenshots.length` ≥ 5)
+
+When the strip has **five or more** columns/beats on one canvas, default typography and guessed geometry usually read **too small** or **top-heavy**. The approved **`creative_plan`** MUST satisfy:
+
+- **Every** **`title`**, **`subtitle`**, and **`kicker`** layer includes **`layout.text.size_px`** (and supporting **`layout.text`** keys per [screenshot_design_brief.md](screenshot_design_brief.md)).
+- **Every** panel with **2+** marketing text layers includes **`layout.spatial`** with **`text_to_text_gap_px`** and **`text_to_device_clearance_px`** (documented on at least the subtitle stack or each text layer as appropriate).
+- **`looks_like`** states **percentage-style vertical bands** (e.g. copy in top ~25–30% of column height, hero device in lower ~55–65%, **≥40–48px** subtitle-to-glass gap expressed as **`text_to_device_clearance_px`**), backed by **`layout.device`** (**`target_width_px`**, **`center_y_px`** / pose hints) so phones are not toy-sized or stacked under type.
+
+Downstream **screenshot_panel** Step 6: **`panel.title_tier` / `panel.subtitle_tier`** should match the **magnitudes** implied by **`layout.text.size_px`** so layers without explicit **`layout.text`** still inherit dense-strip-appropriate tiers.
+
 ### Cross-panel validation note
 
 When **`spanning_panel_indexes`** spans **2+** adjacent columns, **screenshot_panel** should use **`render_panel_preview`** / **`pull-preview --panels`** with that **adjacent index set** for a single combined PNG during checks — see **`phase-panel.md`** multi-column caution.
@@ -97,5 +107,6 @@ When **`spanning_panel_indexes`** spans **2+** adjacent columns, **screenshot_pa
 - [ ] Every **`panels[i].index`** matches **`store.screenshots[i]`** semantics.
 - [ ] **Few-shots** read (pattern `*.md` only) when shaping layout vocabulary.
 - [ ] **Text invariants** satisfied in the written plan (safe zone, no overlap, no type behind devices).
+- [ ] **Dense strip gate** satisfied when `target_panel_count` ≥ 5 or equivalent screenshot count (explicit **`layout.text.size_px`**, **`layout.spatial`** gaps, banded **`looks_like`**, device **`layout`**).
 - [ ] **`creative_plan.user_approved`** is **`true`** only after explicit user approval.
 - [ ] No **`designer.py`** calls from this phase.

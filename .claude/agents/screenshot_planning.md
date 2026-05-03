@@ -38,6 +38,15 @@ You are the **screenshot planning** agent. Run **after** **`screenshot_requireme
 - **Cross-panel** devices (anchor column + horizontal span into adjacent columns); document in **`layout.device`** per **`screenshot_design_brief.md`**.
 - Optional **`layout`** on each layer so **screenshot_panel** is not guessing geometry or typography for that layer.
 
+## Dense strips (mandatory layout detail)
+
+When **`requirements.target_panel_count` ≥ 5** or **`requirements.store.screenshots.length` ≥ 5**:
+
+- Every **`title`**, **`subtitle`**, and **`kicker`** layer in **`creative_plan.panels[]`** MUST include **`layout.text`** with explicit **`size_px`** (plus **`font_token`**, **`weight`**, **`color_hex`**, **`max_width_px`** as needed for wrap and contrast).
+- Every panel that has **two or more** marketing text layers MUST specify **`layout.spatial.text_to_text_gap_px`** and **`text_to_device_clearance_px`** (on the subtitle layer and/or consistently on each text layer per [phase-planning.md](../skills/screenshot-docs/references/phase-planning.md)).
+- **`looks_like`** MUST describe vertical bands (e.g. type in top ~25–30% of column, hero device in lower ~55–65%, px gap before glass) so composition matches **`layout`**.
+- After drafting sizes, align with **`panel` Step 6**: **screenshot_panel** should record **`title_tier` / `subtitle_tier`** consistent with those **`size_px`** values so tiers match per-layer overrides.
+
 ## Stop conditions
 
 - If **`requirements`** is missing or incomplete → stop; orchestrator should run **`screenshot_requirements`** first.

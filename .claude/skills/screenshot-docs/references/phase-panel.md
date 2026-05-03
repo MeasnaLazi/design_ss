@@ -95,7 +95,7 @@ Record in **`panel`:** **`typography_locked: true`**, **`title_tier`**, **`subti
 2. Clean composition; hierarchy.
 3. Typography matches locked tiers / spacing ladder **or** per-layer **`layout.text`** when present.
 4. Variety vs near-duplicate layouts.
-5. **`layout predict-checks`** clean when used.
+5. **`layout predict-checks`** clean when used — includes **text–text** bbox overlap within the **same strip column** (pairwise), text–device overlap, safe-zone, contrast, and headline-size heuristics per **`toolkit/scripts/layout/quality.py`**.
 6. At least one full **`render_preview`** when structure is complete + **final** strip.
 
 ---
@@ -112,5 +112,6 @@ Merge **`completed_panel_indexes`**; set **`updatedAt`**. Report preset, frames 
 - [ ] Per-layer **`layout`** applied when present (text + device + stack).
 - [ ] **`align`** uses **`reference: "panel"`** for column anchors.
 - [ ] Positional ops include **`panel_index`** matching the active column.
-- [ ] **`typography_locked`** before copy placement.
+- [ ] **`typography_locked`** before copy placement; **`panel.title_tier` / `panel.subtitle_tier`** magnitudes align with **`creative_plan`** **`layout.text.size_px`** where the plan specifies sizes (dense strips).
+- [ ] **`layout predict-checks`** run where applicable; fix **text–text** or **text–device** overlap errors before treating a panel as shippable.
 - [ ] Brief reflects **`current_panel_index`** and **`completed_panel_indexes`**.
