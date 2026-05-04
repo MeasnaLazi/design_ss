@@ -86,7 +86,7 @@ If handoff is not ready, run `toolkit_runner` first.
 - `safe-zone --canvas-size <iphone|ipad|phone|tablet>`
 - `estimate-text-width --content "..." --size <n>`
 - `estimate-text-height --size <n>`
-- `predict-checks --json session.json`
+- `predict-checks --json <file.json>` (optional `--from-export` for designer `pull-export` JSON)
 - `contrast --a "#ffffff" --b "#101827"`
 - `image info --path <png>`
 - `image match-preset --path <png> --canvas-size <...>`
@@ -108,7 +108,12 @@ How to use each layout command:
 - `estimate-text-height --size <n>`
   - Use to estimate line height budgeting for copy stacks.
 - `predict-checks --json session.json`
-  - Use for quality/safety prediction on an exported/derived session JSON.
+  - Use for quality/safety prediction on JSON in **`SessionCheckInput`** shape (see `core.models`).
+- `predict-checks --json export.json --from-export`
+  - Same checks, but **`export.json`** is **`AgentLayoutSummaryV1`** from **`designer pull-export`** (full strip, no `--panels` unless you slice yourself). The layout CLI converts export → **`SessionCheckInput`** then runs **`predict_checks`** (text safe-zone, text–device overlap, text–text overlap within a column, contrast, headline-size heuristic, device height vs full canvas height).
+  - **Per-panel workflow:** after **`export_json`** + **`pull-export`** (full artboard), save JSON to e.g. `datasource/temp/session_export.json`, then:
+    `python toolkit/scripts/layout.py --compact predict-checks --json datasource/temp/session_export.json --from-export`
+  - Fix failing layers on the canvas, re-export, re-run until **`ok`: true** (bounded retries per panel in agent docs).
 - `contrast --a "#..." --b "#..."`
   - Use quick readability checks for text/background combinations.
 - `image info --path <png>`
@@ -138,6 +143,7 @@ How to use each designer command:
   - **Benchmark:** `python toolkit/scripts/benchmark_agent_preview.py --panels 0` — prints elapsed ms and PNG bytes (requires running `web_ui`).
 - `pull-export`
   - Use after `export_json` to fetch layer summary and resolve canonical `layer_id` values.
+  - For **`predict-checks --from-export`**, use **full-strip** `pull-export` output (omit `--panels`) so layer **`left`/`top`** stay in **sourceCanvas** coordinates matching **`canvas.width`** / **`layout.screens`** / **`layout.gap`**.
   - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `2,3,4`). The CLI GETs the full summary, then returns one object per column (sorted order): **`panelLocalRect`** (`left`,`top`,`width`,`height` with origin `0,0` — same size as `summary.canvas`; layer geometry in `summary` is relative to this), **`stripRect`** (that column’s bounds on the full strip / `sourceCanvas` coordinates), plus **`summary`** (`AgentLayoutSummaryV1` with panel-local `left`/`top`). See `designer.export_slice`.
 
 ## Core `enqueue-op` operations
@@ -439,7 +445,7 @@ python toolkit/scripts/designer.py enqueue-op --operation set_z_index --args-jso
 8. `designer pull-preview --out strip.png`
 9. `designer enqueue-op --operation export_json --args-json "{}"`
 10. `designer pull-export`
-11. Run validation helpers (`predict-checks`, `contrast`, image checks)
+11. Save `pull-export` JSON, then `layout predict-checks --json <path> --from-export` (and `contrast` / image checks as needed)
 
 ## Notes
 

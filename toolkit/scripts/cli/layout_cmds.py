@@ -17,6 +17,7 @@ from layout import geometry as geometry_mod
 from layout import grid as grid_mod
 from layout import presets as presets_mod
 from layout import quality as quality_mod
+from layout import session_from_agent_export as session_export_mod
 from layout import safe as safe_mod
 from layout import text_metrics as text_metrics_mod
 from store import store_listing as store_listing_mod
@@ -78,6 +79,11 @@ def register_layout(sub: Any) -> None:
 
     pc = layout_sub.add_parser("predict-checks", help="Run qualityChecks-equivalent on JSON session")
     pc.add_argument("--json", required=True, help="Path to JSON or - for stdin")
+    pc.add_argument(
+        "--from-export",
+        action="store_true",
+        help="JSON is AgentLayoutSummaryV1 from designer pull-export (not raw SessionCheckInput)",
+    )
     pc.set_defaults(handler=_cmd_predict)
 
     pb = layout_sub.add_parser("preview-budget", help="Render iteration budget helper")
@@ -245,7 +251,10 @@ def _cmd_align(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_predict(ns: argparse.Namespace, compact: bool) -> None:
     data = read_json_arg(ns.json)
-    session = SessionCheckInput.model_validate(data)
+    if getattr(ns, "from_export", False):
+        session = session_export_mod.export_summary_to_session_check(data)
+    else:
+        session = SessionCheckInput.model_validate(data)
     result = quality_mod.predict_checks(session)
     out = result.to_dict()
     out["explain"] = quality_mod.explain_failure(result)

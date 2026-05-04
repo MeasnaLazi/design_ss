@@ -68,7 +68,7 @@ Delegate **screenshot_background** with the same Web UI instance **toolkit_runne
 
 ### Step 9 — screenshot_panel
 
-Delegate **screenshot_panel**. Executes **`creative_plan`** per panel in order (**full auto**; user only on errors). Updates **`panel`** in the brief. User may **redo a panel** in a **later** orchestrator turn if needed.
+Delegate **screenshot_panel**. Executes **`creative_plan`** per panel in order. **Per panel (automated gate):** after building column **`i`**, the agent runs **full-strip** **`export_json` + `pull-export`** and **`layout predict-checks --json … --from-export`**; it **must not** advance to **`i+1`** until checks pass or it **exhausts the retry budget** (then stop with errors — user intervenes). No human “approve this panel” step unless the user adds one outside this workflow. Updates **`panel`** in the brief. User may **redo a panel** in a **later** orchestrator turn if needed.
 
 ---
 
