@@ -21,7 +21,7 @@ export function readDefaultAgentPreviewMultiplier(): number {
 }
 
 /**
- * Per-operation override from `render_preview` / `render_panel_preview` args (`preview_multiplier`: 1 | 2).
+ * Per-operation override from `render_panel_preview` args (`preview_multiplier`: 1 | 2).
  * Invalid values yield `undefined` so callers fall back to {@link readDefaultAgentPreviewMultiplier}.
  */
 export function parsePreviewMultiplierOverride(override: unknown): number | undefined {

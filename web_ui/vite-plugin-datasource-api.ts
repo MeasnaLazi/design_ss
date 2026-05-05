@@ -1,23 +1,25 @@
-import { randomUUID } from 'node:crypto'
-import { EventEmitter } from 'node:events'
-import type { Dirent } from 'node:fs'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { Connect, Plugin, PreviewServer, ViteDevServer } from 'vite'
-import busboy from 'busboy'
-
 import { ARTBOARD_PRESET_IDS, isDisplayFileSlug } from './src/constants/artboardPresets'
-
-/** Same as {@link DESIGNER_ARTBOARD_COOKIE} in `src/lib/artboardUrlParam.ts` (avoid DOM imports in Node build). */
-const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
+import type { Connect, Plugin, PreviewServer, ViteDevServer } from 'vite'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   getScreenshotDesignerSession,
   resolveDesignerDisplaySlugFromHints,
   screenshotDesignerExecuteOperation,
 } from './screenshot-designer-server'
 
+import type { Dirent } from 'node:fs'
+import { EventEmitter } from 'node:events'
+import busboy from 'busboy'
+import { fileURLToPath } from 'node:url'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { randomUUID } from 'node:crypto'
+
+/** Same as {@link DESIGNER_ARTBOARD_COOKIE} in `src/lib/artboardUrlParam.ts` (avoid DOM imports in Node build). */
+const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
+
+/** Agent toolkit scratch: preview PNG + layout JSON (not committed; see repo `.gitignore`). */
+const AGENT_MEMORIES_DIR = 'memories'
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
 const AGENT_EXPORT_FILENAME = '.agent_last_export.json'
 const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
@@ -645,8 +647,9 @@ export function datasourceApiPlugin(): Plugin {
           return
         }
 
-        const agentPreviewPath = path.join(datasourceDir, AGENT_PREVIEW_FILENAME)
-        const agentExportPath = path.join(datasourceDir, AGENT_EXPORT_FILENAME)
+        const agentMemoriesRoot = path.join(datasourceDir, AGENT_MEMORIES_DIR)
+        const agentPreviewPath = path.join(agentMemoriesRoot, AGENT_PREVIEW_FILENAME)
+        const agentExportPath = path.join(agentMemoriesRoot, AGENT_EXPORT_FILENAME)
 
         if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'POST') {
           try {
@@ -665,6 +668,7 @@ export function datasourceApiPlugin(): Plugin {
               sendJson(nodeRes, 400, { error: 'expected_png_magic' })
               return
             }
+            await fs.mkdir(agentMemoriesRoot, { recursive: true })
             await fs.writeFile(agentPreviewPath, buf)
             nodeRes.statusCode = 200
             nodeRes.setHeader('Content-Type', 'application/json')
@@ -706,6 +710,7 @@ export function datasourceApiPlugin(): Plugin {
               return
             }
             JSON.parse(body)
+            await fs.mkdir(agentMemoriesRoot, { recursive: true })
             await fs.writeFile(agentExportPath, body, 'utf8')
             nodeRes.statusCode = 200
             nodeRes.setHeader('Content-Type', 'application/json')

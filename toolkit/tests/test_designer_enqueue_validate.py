@@ -100,24 +100,25 @@ def test_noop_for_unrelated_ops() -> None:
     validate_positional_enqueue_args("device_move_delta", {"layer_id": "d", "dx": 0, "dy": 0})
 
 
-def test_render_preview_multiplier_optional() -> None:
+def test_render_panel_preview_multiplier_optional() -> None:
     validate_positional_enqueue_args("render_panel_preview", {"panel_indexes": [0]})
     validate_positional_enqueue_args(
         "render_panel_preview",
         {"panel_indexes": [0, 1], "preview_multiplier": 1},
     )
-    validate_positional_enqueue_args("render_preview", {"preview_multiplier": 2})
-    validate_positional_enqueue_args("render_workspace_preview", {})
 
 
-def test_render_preview_multiplier_invalid() -> None:
+def test_render_panel_preview_multiplier_invalid() -> None:
     with pytest.raises(ValueError, match="preview_multiplier"):
         validate_positional_enqueue_args(
             "render_panel_preview",
             {"panel_indexes": [0], "preview_multiplier": 3},
         )
     with pytest.raises(ValueError, match="preview_multiplier"):
-        validate_positional_enqueue_args("render_preview", {"preview_multiplier": "x"})
+        validate_positional_enqueue_args(
+            "render_panel_preview",
+            {"panel_indexes": [0], "preview_multiplier": "x"},
+        )
 
 
 def test_render_panel_preview_multiplier_valid_combination() -> None:

@@ -46,7 +46,7 @@ def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> No
     """
     op = operation.strip()
 
-    if op in ("render_panel_preview", "render_preview", "render_workspace_preview"):
+    if op == "render_panel_preview":
         if not _preview_multiplier_ok(args.get("preview_multiplier")):
             raise ValueError(
                 f"{op}: preview_multiplier must be 1 or 2 when set (got {args.get('preview_multiplier')!r})."

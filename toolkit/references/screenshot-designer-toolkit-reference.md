@@ -74,7 +74,7 @@ If handoff is not ready, run `toolkit_runner` first.
 
 **`align`:** `reference: "canvas"` is **rejected** — use `reference: "panel"` with `panel_index` / `panel_number`. `reference: "<layer_id>"` is allowed only when both layers’ align bboxes lie in the **same** column (enforced in the Web UI).
 
-**`device_move_delta`**, **`distribute_layers`**, **`set_equal_spacing`:** deltas / spacing stay canvas-relative; every target must already sit in **one** column. Optional **`panel_index`** / **`panel_number`** asserts that column (must match inferred centers).
+**`device_move_delta`**, **`set_equal_spacing`:** deltas / spacing stay canvas-relative; every target must already sit in **one** column. Optional **`panel_index`** / **`panel_number`** asserts that column (must match inferred centers).
 
 ## Commands you will use most
 
@@ -136,7 +136,7 @@ How to use each designer command:
   - Use for all live canvas mutations and preview/export triggers.
   - Send only operations listed in this document.
 - `pull-preview --out <file.png>`
-  - Use after `render_preview` or `render_panel_preview` to fetch latest agent PNG.
+  - Use after `render_panel_preview` to fetch latest agent PNG.
   - With `--panels`, indexes must be **adjacent** strip columns (e.g. `0,1` or `3,4` or `2,3,4`). The CLI enqueues one `render_panel_preview` with `panel_indexes` (sorted), which captures a **single** PNG spanning those columns including gaps (requires an open Web UI tab on command-events), then polls until the preview bytes change. Use `--out` for the PNG path (or stdout for raw bytes).
   - **`--preview-multiplier 1|2`** (with `--panels` only): passed as `preview_multiplier` on the enqueued `render_panel_preview` ( **`1`** = faster capture, **`2`** = sharper; omit to use `web_ui` **`VITE_AGENT_PREVIEW_MULTIPLIER`** or default **2**).
   - **`--poll-interval SEC`**: sleep between GET polls while waiting for new PNG after `--panels` (default **0.08**).
@@ -153,6 +153,7 @@ How to use each designer command:
 - `add_device_frame`
 - `add_text`
 - `align`
+- `move_layer`
 - `text_font_size_delta`
 - `text_set_font_size`
 - `text_set_font_style`
@@ -167,24 +168,19 @@ How to use each designer command:
 - `device_move_delta`
 - `device_set_angle`
 - `device_set_frame_style`
-- `device_set_screen_image`
 - `remove_layer`
 - `set_z_index`
 - `layer_patch`
 - `layers_patch_bulk`
-- `move_layer`
 - `batch`
-- `distribute_layers`
 - `set_equal_spacing`
 - `match_size`
-- `render_preview`
-- `render_workspace_preview`
 - `render_panel_preview`
 - `export_json`
 
 All coordinates (`x`, `y`) must be snapped to the 16px grid after the panel origin is applied (Web UI), or use `layout snap-to-grid` for offline math.
 
-**Panel column:** `panel_index` (0-based) or `panel_number` (1-based) is **required** on `add_device_frame`, `add_text`, and any op that sets absolute **`x`/`y`** in panel space (see **Coordinate model** above). For offline math, Python mirrors the same origin as `screenExportRect` / `layout.geometry.panel_rect(index, gap, panel_w, panel_h)`.
+**Panel column:** `panel_index` (0-based) or `panel_number` (1-based) is **required** on `add_device_frame`, `add_text`, `move_layer` (when using panel-local **`x`/`y`**), and any op that sets absolute **`x`/`y`** in panel space (see **Coordinate model** above). For offline math, Python mirrors the same origin as `screenExportRect` / `layout.geometry.panel_rect(index, gap, panel_w, panel_h)`.
 
 How to use each core operation:
 
@@ -193,6 +189,7 @@ How to use each core operation:
 - `add_device_frame` — add a device frame from selected pack/style; **`panel_index` / `panel_number` required** — `x`/`y` (if any) are panel-local **center** for the device group.
 - `add_text` — add a text layer at snapped `x`,`y` with font token and size; **`panel_index` / `panel_number` required** — `x`/`y` are **top-left** in that column (then snapped on canvas).
 - `align` — snap layer alignment against a strip column (`reference: "panel"` + **`panel_index` / `panel_number`**), or another layer in the **same** column (`reference: "<layer_id>"`). **`reference: "canvas"` is not allowed** (use `panel`).
+- `move_layer` — absolute position: **`panel_index` / `panel_number`** + panel-local **`x`/`y`** (text **top-left**, device **center**); or delta move: **`dx`/`dy`** only (panel inferred; optional **`panel_index`** must match).
 - `text_font_size_delta` — increase/decrease text size by delta px.
 - `text_set_font_size` — set absolute text size.
 - `text_set_font_style` — set style variant (`regular|bold|italic|bold_italic`).
@@ -207,18 +204,14 @@ How to use each core operation:
 - `device_move_delta` — offset device by delta (canvas pixels). Optional **`panel_index`** must match the device’s column; targets must stay in one column.
 - `device_set_angle` — rotate device.
 - `device_set_frame_style` — switch style within a pack.
-- `device_set_screen_image` — apply image URL to device screen content.
 - `remove_layer` — delete a layer by `layer_id`.
 - `set_z_index` — reorder layer stack position.
 - `layer_patch` — patch geometry/style fields for one layer.
 - `layers_patch_bulk` — patch multiple layers in one operation.
 - `batch` — execute multiple operations in order.
-- `distribute_layers` — evenly distribute layer positions along axis (all targets must be in **one** column; optional **`panel_index`** asserts it).
-- `set_equal_spacing` — enforce fixed gap along axis (same column rule as `distribute_layers`).
+- `set_equal_spacing` — enforce fixed gap along axis (all targets in **one** column; optional **`panel_index`** asserts it).
 - `match_size` — copy width/height/both from source to targets (text targets: width typographically; height not forced via scale).
-- `render_preview` — push full workspace PNG to agent preview store. Optional **`preview_multiplier`**: **`1`** or **`2`** (default from **`VITE_AGENT_PREVIEW_MULTIPLIER`** in `web_ui` env, else **2**). Export uses Fabric `toBlob` (no data-URL round-trip).
-- `render_workspace_preview` — alias of full workspace capture (same outcome as `render_preview`). Same optional **`preview_multiplier`**.
-- `render_panel_preview` — push one panel PNG by `panel_index` / `panel_number`, or a **contiguous** multi-column crop via **`panel_indexes`**: JSON array of 0-based integers (e.g. `[2,3,4]`); must be adjacent columns on the strip (duplicates removed, order does not matter). Optional **`preview_multiplier`**: **`1`** or **`2`** (same default resolution as above).
+- `render_panel_preview` — push one panel PNG by `panel_index` / `panel_number`, or a **contiguous** multi-column crop via **`panel_indexes`** (e.g. `[0,1,2]` for the full strip when there are three columns). Optional **`preview_multiplier`**: **`1`** or **`2`** (default from **`VITE_AGENT_PREVIEW_MULTIPLIER`** in `web_ui` env, else **2**). Export uses Fabric `toBlob` (no data-URL round-trip).
 - `export_json` — push compact layout summary for `pull-export`.
 
 ## Required payload schemas (do not guess)
@@ -286,14 +279,6 @@ Use these exact operation names and argument shapes.
 - `device_set_angle`
   - `{"layer_id":"<id>","angle":-6}`
 
-- `render_preview`
-  - `{}`
-  - optional faster capture: `{"preview_multiplier":1}`
-
-- `render_workspace_preview`
-  - `{}`
-  - optional: `{"preview_multiplier":1}`
-
 - `render_panel_preview`
   - index form: `{"panel_index":2}` (0-based)
   - number form: `{"panel_number":3}` (1-based)
@@ -359,10 +344,8 @@ All payloads are sent via:
 
 ## Full-control plus (v2) schemas
 
-- `distribute_layers`
-  - args: `{"layer_ids":["<id1>","<id2>","<id3>"],"axis":"x"}` — optional `panel_index` / `panel_number` must match all targets’ column.
 - `set_equal_spacing`
-  - args: `{"layer_ids":["<id1>","<id2>"],"axis":"x","gap":64}` — same optional `panel_index` rule as `distribute_layers`.
+  - args: `{"layer_ids":["<id1>","<id2>"],"axis":"x","gap":64}` — optional `panel_index` / `panel_number` must match all targets’ column.
 - `match_size`
   - args: `{"source_layer_id":"<source>","target_layer_ids":["<target1>"],"mode":"both"}`
   - mode: `width|height|both`
@@ -378,9 +361,6 @@ All payloads are sent via:
 - `device_set_frame_style`
   - args: `{"layer_id":"<id>","style":"front","pack_id":"iphone_12_pro"}`
   - `pack_id` is optional; current device pack is used when omitted.
-- `device_set_screen_image`
-  - args: `{"layer_id":"<id>","image_url":"http://localhost:4713/__api/datasource/placeholder/iphone.jpg"}`
-  - accepts `image_url` or `url`; URL must be fetchable by browser runtime.
 - `text_set_line_height`
   - args: `{"layer_id":"<id>","line_height":1.15}`
 - `text_set_letter_spacing`
@@ -441,7 +421,7 @@ python toolkit/scripts/designer.py enqueue-op --operation set_z_index --args-jso
 4. User selects pack
 5. `layout load-frame --pack ...`
 6. Build via `designer enqueue-op` (`set_background`, `add_device_frame`, `add_text`, `align`, etc.)
-7. `designer enqueue-op --operation render_preview --args-json "{}"`
+7. `designer enqueue-op --operation render_panel_preview --args-json "{\"panel_indexes\":[0,1,2]}"` — use a contiguous `panel_indexes` range covering every column in your strip (adjust indices to match `screens`).
 8. `designer pull-preview --out strip.png`
 9. `designer enqueue-op --operation export_json --args-json "{}"`
 10. `designer pull-export`
@@ -449,6 +429,6 @@ python toolkit/scripts/designer.py enqueue-op --operation set_z_index --args-jso
 
 ## Notes
 
-- `render_preview`/`render_panel_preview` output comes from live Fabric canvas capture (`toBlob` → POST `agent-preview`); scale is **`preview_multiplier`** (op arg) or **`VITE_AGENT_PREVIEW_MULTIPLIER`** / default **2**.
+- `render_panel_preview` output comes from live Fabric canvas capture (`toBlob` → POST `agent-preview`); scale is **`preview_multiplier`** (op arg) or **`VITE_AGENT_PREVIEW_MULTIPLIER`** / default **2**.
 - `enqueue-op` does not return new layer IDs for added layers; use `export_json` + `pull-export`.
 - The **`toolkit` CLI** rejects some malformed positional payloads before the HTTP round-trip (missing `panel_index` where required, `align` + `canvas`, etc.) — match this document to avoid `ValueError` from `designer enqueue-op`.

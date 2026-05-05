@@ -2,7 +2,6 @@ import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
 import {
   pushAgentExportJson,
-  pushLiveCanvasPreview,
   pushLiveCanvasPreviewRect,
   resolveAgentPreviewMultiplier,
 } from '../lib/agentContextApi'
@@ -10,7 +9,6 @@ import {
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
-import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 import { buildAgentLayoutSummaryFromCanvas } from './buildAgentLayoutSummary'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
@@ -569,19 +567,6 @@ async function replaceDeviceFrameStyle(canvas: Canvas, layerId: string, styleId:
   })
   fireObjectModified(canvas, target)
   return null
-}
-
-async function applyDeviceScreenshotFromUrl(canvas: Canvas, layerId: string, url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return `device_set_screen_image: failed to fetch url (${res.status}).`
-    const blob = await res.blob()
-    const file = new File([blob], 'device-screen.png', { type: blob.type || 'image/png' })
-    await applyScreenshotToDeviceGroup(canvas, layerId, file)
-    return null
-  } catch (e) {
-    return `device_set_screen_image: ${e instanceof Error ? e.message : 'failed to load image'}`
-  }
 }
 
 /**
@@ -1204,20 +1189,6 @@ export async function applyAgentCommand(
       return
     }
 
-    case 'device_set_screen_image': {
-      const layerId = String(args.layer_id ?? '')
-      const imageUrl = String(args.image_url ?? args.url ?? '')
-      if (!layerId || !imageUrl) {
-        useToastStore
-          .getState()
-          .showToast('device_set_screen_image: need layer_id and image_url (or url).', 'warning')
-        return
-      }
-      const err = await applyDeviceScreenshotFromUrl(canvas, layerId, imageUrl)
-      if (err) useToastStore.getState().showToast(err, 'warning')
-      return
-    }
-
     case 'remove_layer': {
       const layerId = String(args.layer_id ?? '')
       if (!layerId) {
@@ -1353,43 +1324,6 @@ export async function applyAgentCommand(
       return
     }
 
-    case 'distribute_layers': {
-      const layerIds = Array.isArray(args.layer_ids) ? args.layer_ids.map((id) => String(id)) : null
-      const axis = String(args.axis ?? 'x')
-      if (!layerIds || layerIds.length < 3 || !['x', 'y'].includes(axis)) {
-        useToastStore
-          .getState()
-          .showToast('distribute_layers: need 3+ layer_ids and axis x|y.', 'warning')
-        return
-      }
-      const targets = resolveLayersForIds(canvas, layerIds)
-      if (!targets) {
-        useToastStore.getState().showToast('distribute_layers: one or more layers not found.', 'warning')
-        return
-      }
-      if (!validateSinglePanelForLayerIds(canvas, layerIds, targets, 'distribute_layers', parseOptionalPanelIndexClamped(args))) {
-        return
-      }
-      const sorted = sortObjectsByAxis(targets, axis as 'x' | 'y')
-      const first = sorted[0]
-      const last = sorted[sorted.length - 1]
-      const start = axis === 'x' ? (first.left ?? 0) : (first.top ?? 0)
-      const end = axis === 'x' ? (last.left ?? 0) : (last.top ?? 0)
-      const step = (end - start) / (sorted.length - 1)
-      for (let i = 0; i < sorted.length; i += 1) {
-        const pos = snapGrid(start + step * i)
-        if (axis === 'x') {
-          sorted[i].set({ left: pos })
-        } else {
-          sorted[i].set({ top: pos })
-        }
-        sorted[i].setCoords()
-        canvas.fire('object:modified', { target: sorted[i] })
-      }
-      canvas.requestRenderAll()
-      return
-    }
-
     case 'set_equal_spacing': {
       const layerIds = Array.isArray(args.layer_ids) ? args.layer_ids.map((id) => String(id)) : null
       const axis = String(args.axis ?? 'x')
@@ -1479,13 +1413,6 @@ export async function applyAgentCommand(
     case 'export_json': {
       const summary = buildAgentLayoutSummaryFromCanvas(canvas)
       await pushAgentExportJson(summary)
-      return
-    }
-
-    case 'render_preview':
-    case 'render_workspace_preview': {
-      const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
-      await pushLiveCanvasPreview(canvas, mult)
       return
     }
 
