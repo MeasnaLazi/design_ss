@@ -12,14 +12,14 @@ Base URL resolution: `DESIGNER_API_BASE`, then `toolkit/.env`, then default `htt
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `python toolkit/scripts/designer.py handoff` | `--timeout` (default 15), `--skip-session` (URLs only; `web_ui_status` unverified) | JSON with `web_ui_url`, `web_ui_status`, designer API readiness |
-| `python toolkit/scripts/designer.py session` | `--timeout` (default 60) | GET session: canvas dimensions, `presetId`, display context |
-| `python toolkit/scripts/designer.py execute` | `--json <path\|-\>` (body must include `operation`), `--timeout` | POST `/execute` with full JSON body |
-| `python toolkit/scripts/designer.py execute-op` | `--operation <op>`, `--args-json '{}'`, `--timeout` | POST `/execute` with operation + args |
-| `python toolkit/scripts/designer.py enqueue-op` | `--operation <op>`, `--args-json '{}'`, optional `--request-id`, `--timeout` | POST `/enqueue-command` (runs in open Web UI tab via SSE); toolkit validates args before HTTP |
-| `python toolkit/scripts/designer.py pull-preview` | `--out <file.png>`; optional `--panels` (comma 0-based adjacent indices), `--preview-multiplier 1\|2` (with `--panels`), `--poll-interval`, `--timeout` | GET last `agent-preview` PNG; with `--panels`, enqueues one `render_panel_preview` for contiguous columns, polls until bytes change |
-| `python toolkit/scripts/designer.py pull-export` | optional `--panels` (comma adjacent 0-based), `--timeout` | GET last `agent-export` JSON after `export_json`; with `--panels`, per-column sliced export |
-| `python toolkit/scripts/benchmark_agent_preview.py` | e.g. `--panels 0` | Benchmark preview capture (requires running `web_ui`) |
+| `python toolkit/scripts/designer.py handoff` | **`--timeout <float>`** (default **15**). **`--skip-session`**: resolve URLs only, no GET **`/session`** (**`web_ui_status`** unverified). | JSON with `web_ui_url`, `web_ui_status`, designer API readiness |
+| `python toolkit/scripts/designer.py session` | **`--timeout <float>`** (default **60**). | GET session: canvas dimensions, `presetId`, display context |
+| `python toolkit/scripts/designer.py execute` | **`--json <path>`** or **`--json -`** (stdin): full POST body; must include string **`operation`**; **`args`** optional object (defaults treated as empty object if absent). **`--timeout <float>`** (default **120**). | POST `/execute` with full JSON body |
+| `python toolkit/scripts/designer.py execute-op` | **`--operation <string>`** (required). **`--args-json`** JSON object or **`@file.json`** (default **`{}`**). **`--timeout <float>`** (default **120**). | POST `/execute` with operation + args |
+| `python toolkit/scripts/designer.py enqueue-op` | **`--operation <string>`** (required). **`--args-json`** as for **`execute-op`**. Optional **`--request-id <string>`** (echoed in SSE). **`--timeout <float>`** (default **120**). | POST `/enqueue-command` (runs in open Web UI tab via SSE); toolkit validates args before HTTP |
+| `python toolkit/scripts/designer.py pull-preview` | Optional **`--out <path>`** (write PNG; if omitted, raw PNG on stdout). **`--timeout <float>`** (default **60**; also caps wait after panel render). **Without `--panels`**: single GET **`agent-preview`**. **With `--panels INDICES`**: comma-separated **0-based**, **adjacent** columns (one contiguous segment, e.g. `0,1`); enqueues **`render_panel_preview`**, polls until bytes change. **`--poll-interval <float>`** (default **0.08**) seconds between GET polls when using **`--panels`**. Optional **`--preview-multiplier 1` or `2`** (only with **`--panels`**; omit → **`VITE_AGENT_PREVIEW_MULTIPLIER`** in `web_ui` or default **2**). | GET last `agent-preview` PNG; with `--panels`, enqueues one `render_panel_preview` for contiguous columns, polls until bytes change |
+| `python toolkit/scripts/designer.py pull-export` | Optional **`--panels INDICES`** (comma-separated **0-based**, **adjacent** columns; sliced response; needs prior **`export_json`** in the tab). **`--timeout <float>`** (default **60**). Omit **`--panels`** for full-strip export JSON. | GET last `agent-export` JSON after `export_json`; with `--panels`, per-column sliced export |
+| `python toolkit/scripts/benchmark_agent_preview.py` | Required **`--panels INDICES`** (comma-separated **0-based** contiguous columns, same rules as **`pull-preview --panels`**). Optional **`--timeout`** (default **60**), **`--poll-interval`** (default **0.08**), **`--preview-multiplier 1` or `2`**, **`--out <path>`** (save PNG; omit to discard after timing). | Benchmark preview capture (requires running `web_ui`) |
 
 Preview scale: `pull-preview --preview-multiplier` and `render_panel_preview.preview_multiplier` override `web_ui` env `VITE_AGENT_PREVIEW_MULTIPLIER` (default **2**). Capture path: Fabric `toBlob` → POST `agent-preview`.
 
@@ -29,35 +29,35 @@ Use only the operation names below. Args are JSON for `--args-json`. Panel place
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `enqueue-op` | `noop` `{}` | Connectivity no-op |
-| `enqueue-op` | `set_background` `{"type":"color\|gradient\|image",...}` | Canvas background; image uses `{"type":"image","value":"https://..."}` |
-| `enqueue-op` | `add_device_frame` `path`, `frame`, **`panel_index` \| `panel_number`**, optional `x`,`y` | Add device from pack; optional center in column |
-| `enqueue-op` | `add_text` `content`, **`panel_index` \| `panel_number`**, `x`,`y`, `font`, `size`, … | `font`: `headline\|subheadline\|body\|caption` |
-| `enqueue-op` | `align` `layer_id`, `anchor`, `reference` (`panel` + panel id, or other `layer_id` same column) | `anchor`: `center_x\|center_y\|top\|bottom\|left\|right`; `reference: "canvas"` rejected |
-| `enqueue-op` | `move_layer` `layer_id` + panel `x`,`y` **or** `dx`,`dy` | Absolute needs `panel_index`/`panel_number`; delta optional panel assert |
-| `enqueue-op` | `text_font_size_delta` `layer_id`, `delta` | |
-| `enqueue-op` | `text_set_font_size` `layer_id`, `size` | |
-| `enqueue-op` | `text_set_font_style` `layer_id`, `variant` | `regular\|bold\|italic\|bold_italic` |
-| `enqueue-op` | `text_set_color` `layer_id`, `color` | |
-| `enqueue-op` | `text_set_content` `layer_id`, `content` | |
-| `enqueue-op` | `text_set_line_height` `layer_id`, `line_height` | |
-| `enqueue-op` | `text_set_letter_spacing` `layer_id`, `letter_spacing` | |
-| `enqueue-op` | `text_auto_fit` `layer_id`, `min_size`, `max_size` | |
-| `enqueue-op` | `device_size_delta` `layer_id`, `delta_px` (or `delta`) | |
-| `enqueue-op` | `device_set_size` `layer_id`, `width`/`height`, optional `fit` `contain\|cover` | Uniform scale; device layers only |
-| `enqueue-op` | `device_set_position` `layer_id`, **`panel_index` \| `panel_number`**, `x`,`y` | Panel-local center |
-| `enqueue-op` | `device_move_delta` `layer_id`, `dx`,`dy`, optional panel | Optional panel must match column |
-| `enqueue-op` | `device_set_angle` `layer_id`, `angle` | |
-| `enqueue-op` | `device_set_frame_style` `layer_id`, `style`, optional `pack_id` | |
-| `enqueue-op` | `remove_layer` `layer_id` | |
-| `enqueue-op` | `set_z_index` `layer_id`, `z_index` | |
-| `enqueue-op` | `layer_patch` `layer_id`, `patch`; if `patch` has `x`/`y`, add **`panel_index` or `panel_number`** | Text resize: `width`+`height` together; device uniform scale + optional `fit` |
-| `enqueue-op` | `layers_patch_bulk` `layers[]`, optional shared `panel_index` | Per-row `panel_index` when `x`/`y` differ by column |
-| `enqueue-op` | `batch` `{"operations":[{"operation","args"},...]}` | Ordered; nested `batch` not supported |
-| `enqueue-op` | `set_equal_spacing` `layer_ids`, `axis`, `gap`, optional panel | Targets one column |
-| `enqueue-op` | `match_size` `source_layer_id`, `target_layer_ids`, `mode` `width\|height\|both` | Text width/both adjusts wrap width; height not forced to match for text |
-| `enqueue-op` | `render_panel_preview` `panel_index` \| `panel_number` \| `panel_indexes` (adjacent), optional `preview_multiplier` | One or multi-column PNG to `agent-preview` |
-| `enqueue-op` | `export_json` `{}` | Push layout summary for `pull-export` |
+| `enqueue-op` | **`--operation noop`**, **`--args-json '{}'`** | Connectivity no-op |
+| `enqueue-op` | **`--operation set_background`**, **`--args-json`**: **`type`** exactly **`color`**, **`gradient`**, or **`image`**; **`value`** per type (solid hex string, gradient object with **`angleDeg`** and **`stops`**, or image URL string). | Canvas background; image uses `{"type":"image","value":"https://..."}` |
+| `enqueue-op` | **`--operation add_device_frame`**, args: **`path`**, **`frame`**, plus required **`panel_index`** or **`panel_number`**; optional **`x`**, **`y`** (panel-local **center**). | Add device from pack; optional center in column |
+| `enqueue-op` | **`--operation add_text`**, args: **`content`**, required **`panel_index`** or **`panel_number`**, **`x`**, **`y`** (panel-local **top-left**), **`font`**, **`size`**, plus optional **`color`**, **`align`**, **`weight`**, etc. **`font`**: **`headline`**, **`subheadline`**, **`body`**, or **`caption`**. | `font`: `headline`, `subheadline`, `body`, `caption` |
+| `enqueue-op` | **`--operation align`**, args: **`layer_id`**, **`anchor`** (`center_x`, `center_y`, `top`, `bottom`, `left`, `right`), **`reference`**: **`panel`** plus **`panel_index`** or **`panel_number`**, or another layer id (**same column** only); **`reference`**: **`canvas`** rejected. | `anchor`: `center_x`, `center_y`, `top`, `bottom`, `left`, `right`; `reference: "canvas"` rejected |
+| `enqueue-op` | **`--operation move_layer`**, args: **`layer_id`** plus either panel-local **`panel_index`/`panel_number`** with **`x`**, **`y`** (text **top-left**, device **center**), or **`dx`**, **`dy`** (optional **`panel_index`** must match column). | Absolute needs `panel_index`/`panel_number`; delta optional panel assert |
+| `enqueue-op` | **`--operation text_font_size_delta`**, args: **`layer_id`**, **`delta`** (px). | |
+| `enqueue-op` | **`--operation text_set_font_size`**, args: **`layer_id`**, **`size`**. | |
+| `enqueue-op` | **`--operation text_set_font_style`**, args: **`layer_id`**, **`variant`**: **`regular`**, **`bold`**, **`italic`**, or **`bold_italic`**. | `regular`, `bold`, `italic`, `bold_italic` |
+| `enqueue-op` | **`--operation text_set_color`**, args: **`layer_id`**, **`color`** (hex). | |
+| `enqueue-op` | **`--operation text_set_content`**, args: **`layer_id`**, **`content`**. | |
+| `enqueue-op` | **`--operation text_set_line_height`**, args: **`layer_id`**, **`line_height`**. | |
+| `enqueue-op` | **`--operation text_set_letter_spacing`**, args: **`layer_id`**, **`letter_spacing`**. | |
+| `enqueue-op` | **`--operation text_auto_fit`**, args: **`layer_id`**, **`min_size`**, **`max_size`**. | |
+| `enqueue-op` | **`--operation device_size_delta`**, args: **`layer_id`**, **`delta_px`** (alias **`delta`** accepted). | |
+| `enqueue-op` | **`--operation device_set_size`**, args: **`layer_id`**, at least one of **`width`**, **`height`**; optional **`fit`**: **`contain`** or **`cover`** when both set (**device layers only**, uniform scale). | Uniform scale; device layers only |
+| `enqueue-op` | **`--operation device_set_position`**, args: **`layer_id`**, required **`panel_index`** or **`panel_number`**, **`x`**, **`y`** (panel-local **center**). | Panel-local center |
+| `enqueue-op` | **`--operation device_move_delta`**, args: **`layer_id`**, **`dx`**, **`dy`**; optional **`panel_index`** / **`panel_number`** (must match device column). | Optional panel must match column |
+| `enqueue-op` | **`--operation device_set_angle`**, args: **`layer_id`**, **`angle`**. | |
+| `enqueue-op` | **`--operation device_set_frame_style`**, args: **`layer_id`**, **`style`**, optional **`pack_id`**. | |
+| `enqueue-op` | **`--operation remove_layer`**, args: **`layer_id`**. | |
+| `enqueue-op` | **`--operation set_z_index`**, args: **`layer_id`**, **`z_index`** (integer). | |
+| `enqueue-op` | **`--operation layer_patch`**, args: **`layer_id`**, **`patch`** object; if **`patch`** includes **`x`** and/or **`y`**, top-level **`panel_index`** or **`panel_number`** required. Text resize: **`width`** and **`height`** together; **`width`** drives wrap; device resize uniform with optional **`patch.fit`**. | Text resize: `width`+`height` together; device uniform scale + optional `fit` |
+| `enqueue-op` | **`--operation layers_patch_bulk`**, args: **`layers`** array of **`layer_id`** + **`patch`**; optional shared **`panel_index`** / **`panel_number`**; any row with **`x`/`y`** in **`patch`** needs column id on op or on that row. | Per-row `panel_index` when `x`/`y` differ by column |
+| `enqueue-op` | **`--operation batch`**, args: **`operations`** array of **`operation`** + **`args`** objects; executed in order; nested **`batch`** not allowed. | Ordered; nested `batch` not supported |
+| `enqueue-op` | **`--operation set_equal_spacing`**, args: **`layer_ids`**, **`axis`**, **`gap`**, optional **`panel_index`** / **`panel_number`** (must match single column). | Targets one column |
+| `enqueue-op` | **`--operation match_size`**, args: **`source_layer_id`**, **`target_layer_ids`**, **`mode`**: **`width`**, **`height`**, or **`both`** (text targets: width / both adjust wrap **`width`**; height not stretched to match). | Text width/both adjusts wrap width; height not forced to match for text |
+| `enqueue-op` | **`--operation render_panel_preview`**, args: **`panel_index`**, or **`panel_number`**, or **`panel_indexes`** JSON array of **adjacent** 0-based ints; optional **`preview_multiplier`** **`1`** or **`2`**. | One or multi-column PNG to `agent-preview` |
+| `enqueue-op` | **`--operation export_json`**, **`--args-json '{}'`** | Push layout summary for `pull-export` |
 
 Resolve canonical `layer_id` via `export_json` then `pull-export`. `enqueue-op` does not return new layer IDs for adds.
 
@@ -65,19 +65,19 @@ Resolve canonical `layer_id` via `export_json` then `pull-export`. `enqueue-op` 
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `enqueue-op` | `set_background` | `{"type":"color","value":"#101827"}` or gradient `value.angleDeg` + `stops`, or image URL in `value` |
-| `enqueue-op` | `add_device_frame` | `{"path":"/device-frames/.../frame/front.svg","frame":"front","panel_index":0}` |
-| `enqueue-op` | `add_text` | `{"content":"Headline","panel_index":2,"x":64,"y":128,"font":"headline","size":96,"color":"#ffffff","align":"left","weight":"700"}` |
-| `enqueue-op` | `align` | `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":0}` or `reference":"<other_layer_id>"` |
-| `enqueue-op` | `layer_patch` | `{"layer_id":"<id>","panel_index":0,"patch":{"x":320,"y":640}}` |
-| `enqueue-op` | `render_panel_preview` | `{"panel_indexes":[0,1,2]}` or single `panel_index` / `panel_number`; optional `"preview_multiplier":1` |
-| `enqueue-op` | `batch` | `{"operations":[{"operation":"text_set_content","args":{...}},{"operation":"set_z_index","args":{...}}]}` |
+| `enqueue-op` | **`--operation set_background`**, **`--args-json`**: color **`{"type":"color","value":"#101827"}`**; gradient with **`value.angleDeg`** and **`value.stops`**; image **`{"type":"image","value":"https://..."}`**. | `{"type":"color","value":"#101827"}` or gradient `value.angleDeg` + `stops`, or image URL in `value` |
+| `enqueue-op` | **`--operation add_device_frame`**, **`--args-json`**: **`path`**, **`frame`**, **`panel_index`** or **`panel_number`**, optional **`x`**, **`y`**. | `{"path":"/device-frames/.../frame/front.svg","frame":"front","panel_index":0}` |
+| `enqueue-op` | **`--operation add_text`**, **`--args-json`**: **`content`**, **`panel_index`** (or **`panel_number`**), **`x`**, **`y`**, **`font`**, **`size`**, **`color`**, **`align`**, **`weight`**, … | `{"content":"Headline","panel_index":2,"x":64,"y":128,"font":"headline","size":96,"color":"#ffffff","align":"left","weight":"700"}` |
+| `enqueue-op` | **`--operation align`**, **`--args-json`**: **`layer_id`**, **`anchor`**, **`reference`** **`panel`** + **`panel_index`**, or **`reference`** other **`layer_id`**. | `{"layer_id":"<id>","anchor":"center_x","reference":"panel","panel_index":0}` or `reference":"<other_layer_id>"` |
+| `enqueue-op` | **`--operation layer_patch`**, **`--args-json`**: **`layer_id`**, **`panel_index`** (or **`panel_number`**), **`patch`** with geometry / style keys. | `{"layer_id":"<id>","panel_index":0,"patch":{"x":320,"y":640}}` |
+| `enqueue-op` | **`--operation render_panel_preview`**, **`--args-json`**: single column or **`panel_indexes`** array; optional **`preview_multiplier`**. | `{"panel_indexes":[0,1,2]}` or single `panel_index` / `panel_number`; optional `"preview_multiplier":1` |
+| `enqueue-op` | **`--operation batch`**, **`--args-json`**: **`operations`** list of **`operation`** / **`args`**. | `{"operations":[{"operation":"text_set_content","args":{...}},{"operation":"set_z_index","args":{...}}]}` |
 
 ## Invalid names (do not use)
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| — | `delete_layer` | Use `remove_layer` |
-| — | `set_bg`, `set_background_color` | Use `set_background` with valid `type` |
+| — | Invalid op name **`delete_layer`** — use **`remove_layer`** with **`layer_id`**. | Use `remove_layer` |
+| — | Invalid **`set_bg`**, **`set_background_color`** — use **`set_background`** with valid **`type`**. | Use `set_background` with valid `type` |
 
 Prefer `layer_patch` / `move_layer` for geometry; do not invent operation aliases not listed above.
