@@ -1,57 +1,44 @@
-# Agent toolkit (screenshot layout + designer API)
+---
+name: publisher-toolkit
+description: >-
+  Screenshot designer toolkit in apps_publisher: run python toolkit/scripts/layout.py
+  and designer.py; layout parity, image helpers, store JSON, session/export checks,
+  loopback HTTP to web_ui. Agents MUST read toolkit/references/*.md before invoking
+  CLI (tables and enqueue-op allowlists are authoritative). Use when automating
+  screenshot-designer, layout QA, predict-checks, or designer handoff/session/export.
+---
 
-Layout math and image helpers aligned with `web_ui/screenshot-designer-server.ts`, plus a designer HTTP client (stdlib) for GET/POST to the screenshot-designer API (`npm run dev` or **`npm run prod`** in `web_ui/`) on loopback only.
+# Publisher toolkit
 
-## When to use
+## When this skill applies
 
-Use this skill whenever a screenshot agent needs **layout / parity checks**, **image helpers**, or **designer HTTP calls** against the Web UI on port **4713** (after `toolkit_runner` has started or verified the server).
+Use when you are about to run **`python toolkit/scripts/layout.py`** or **`python toolkit/scripts/designer.py`**, benchmark preview scripts, or reason about screenshot-designer **HTTP / enqueue-op** behavior from the repo. If the task is only store listing ASO JSON, prefer the project **aso-store-metadata** skill instead.
 
-**Environment (pip, Node, Vite, smoke checks):** see **`.claude/skills/publisher-toolchain/`** — the **`toolkit_runner`** agent executes that playbook.
+## How to use the references (required)
 
-## Setup
+1. **Pick the reference by task type** — do not guess subcommands, flags, or operation names.
 
-From repo root:
+   | You need… | Read first |
+   | --- | --- |
+   | Presets, store JSON paths, device packs, grid/safe-zone/text metrics, offline `align`, `predict-checks`, `contrast`, `preview-budget` | `toolkit/references/layout-reference.md` |
+   | `designer.py` handoff/session/execute, preview/export, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/web-ui-reference.md` |
+   | Pillow image helpers under `layout.py image …` (info, resize, crop, colors, preset dimension checks) | `toolkit/references/vision-reference.md` |
 
-```bash
-pip install -r toolkit/requirements.txt
-```
+2. **Read before you run** — open the relevant reference and copy **exact** CLI strings and JSON shapes from its tables. The references are the source of truth; improvised flags or op names will fail or drift from server behavior.
 
-Optional venv inside `toolkit/` is fine. Copy env once: `cp toolkit/.env.example toolkit/.env`.
+3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: export workflow in layout-reference defers to web-ui-reference; image work defers to vision-reference).
 
-## Invocation
+4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `execute`, `enqueue-op`, `pull-preview`, `pull-export`) is covered in **web-ui-reference**. Pure Python parity and validation without a browser session is mostly **layout-reference**.
 
-| Old (`python -m agent_toolkit`, removed) | New |
-| --- | --- |
-| `layout …` | `python toolkit/scripts/layout.py …` |
-| `designer …` | `python toolkit/scripts/designer.py …` |
+5. **Constraints agents often miss**
 
-Global **`--compact`** must appear **immediately** after the script name (before subcommands such as `list-presets`).
+   - Run commands from the **publisher repo root** unless a reference explicitly says otherwise.
+   - Optional **`--compact`** placement matches each reference (`layout.py` vs `designer.py`).
+   - For **`enqueue-op`**, use **only** operation names listed in web-ui-reference; use the **Invalid names** table to avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
+   - **`designer.py handoff`**: proceed with live ops only when the reference’s readiness conditions are met (`"ok": true` and acceptable `web_ui_status`); otherwise start `web_ui` / toolchain first.
 
-### Layout / image
+6. **After `export_json` + `pull-export`** — use the export → `predict-checks --from-export` path described in **layout-reference** (save full strip when coordinates matter).
 
-```bash
-python toolkit/scripts/layout.py list-presets
-python toolkit/scripts/layout.py --compact list-presets
-python toolkit/scripts/layout.py resolve-preset --canvas-size iphone
-python toolkit/scripts/layout.py predict-checks --json session.json
-python toolkit/scripts/layout.py image info --path preview.png
-python toolkit/scripts/layout.py image match-preset --path preview.png --canvas-size iphone
-python toolkit/scripts/layout.py store-json --platform iphone   # output/appstore.json + presetId
-```
+## Outcome
 
-### Designer API
-
-Requires `web_ui` with `/__api` enabled. Base URL resolution order: **`DESIGNER_API_BASE`** env var, then **`toolkit/.env`**, then default `http://localhost:4713/__api/screenshot-designer`.
-
-```bash
-python toolkit/scripts/designer.py handoff
-python toolkit/scripts/designer.py session
-python toolkit/scripts/designer.py execute --json execute.json
-python toolkit/scripts/designer.py execute-op --operation noop --args-json "{}"
-python toolkit/scripts/designer.py enqueue-op --operation add_device_frame --args-json '{"path":"/device-frames/iphone_12_pro/frame/front.svg","frame":"front","panel_index":0}'
-```
-
-## References
-
-- Full payloads and command reference: **`references/screenshot-designer-toolkit-reference.md`**
-- Multi-agent workflow and **`datasource/temp/design_brief.json`**: **`.claude/skills/screenshot-docs/`** (**`SKILL.md`** index + **`references/`**, order **requirements → screenshot_planning → toolkit_runner → background → panel**) and **`.claude/agents/screenshot_*.md`**
+Commands and payloads match the reference tables, handoff is verified before mutating the canvas, and quality checks run on the correct JSON shape (`SessionCheckInput` vs export summary per layout-reference).
