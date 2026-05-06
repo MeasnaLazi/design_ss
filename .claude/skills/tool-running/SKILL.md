@@ -1,12 +1,12 @@
 ---
-name: tool_running
+name: tool-running
 disable-model-invocation: true
 description: >-
   Verifies and installs prerequisites for apps_publisher Python toolkit/
   (requirements.txt, optional venv) and web_ui/ (npm dependencies), probes
   whether the Vite dev server is listening, starts npm run dev in web_ui when
-  needed, then confirms readiness. Use when acting as tool_running_agent or when
-  the user names tool_running / asks to prepare or run the local dev stack.
+  needed, then confirms readiness. Use when acting as tool-running-agent or when
+  the user names tool-running / asks to prepare or run the local dev stack.
 ---
 
 # Tool running (toolkit + web_ui)
@@ -38,7 +38,7 @@ Let **`R`** = the **apps_publisher** repository root.
 4. **Is web_ui already running?**
    - Probe **`http://127.0.0.1:4713/`** (or current `server.port` from **vite.config.ts** if you re-read it).
    - If the probe succeeds, **do not** start a second dev server unless the user asked to restart.
-5. **Start dev server always**
+5. **Start dev server only if probe failed**
    - From **`R/web_ui`** run **`npm run dev`** in the **background**.
    - **`server`** in **vite.config.ts** does not set **`strictPort`**; if **4713** is taken, Vite may pick another port. After start, confirm the **`Local:`** URL from the dev-server **terminal output**, or probe the port printed there—not only **4713**.
    - Re-probe until the URL responds or surface **stderr** with a clear next step (missing module after install failure, etc.).
