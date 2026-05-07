@@ -7,10 +7,19 @@ from image.color import contrast_ratio, is_hex_color
 from core.constants import (
     DEVICE_MAX_CANVAS_HEIGHT_RATIO,
     DEVICE_MIN_CANVAS_HEIGHT_RATIO,
+    MAX_DEVICE_PAIR_IOU,
     MIN_CONTRAST,
     MIN_HEADLINE_SIZE,
+    TEXT_MAX_PANEL_WIDTH_RATIO,
+    TEXT_MIN_PANEL_WIDTH_RATIO,
 )
-from layout.geometry import dominant_panel_index_for_rect, rects_overlap
+from layout.geometry import (
+    dominant_panel_index_for_rect,
+    panel_rect,
+    rect_iou,
+    rects_overlap,
+    strip_panel_width,
+)
 from core.models import BackgroundModel, DeviceLayerModel, SessionCheckInput, TextLayerModel
 from layout.safe import (
     layer_within_canvas,
@@ -51,7 +60,9 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
     """Layout-side quality gate (CLI ``predict-checks``).
 
     Checks safe-zone, canvas bounds, contrast, headline-size heuristic, device height
-    ratios, text–device overlap, and **text–text bbox overlap within the same strip
+    ratios (vs ``session.height``), text block horizontal span vs panel width band,
+    pairwise device Jaccard IoU, text–device overlap, optional single-column text stack
+    (``require_text_single_panel``), and **text–text bbox overlap within the same strip
     column** (when ``screens`` > 1, grouping uses ``dominant_panel_index_for_rect``).
     """
     errors: list[str] = []
@@ -62,6 +73,7 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
 
     text_layers: list[TextLayerModel] = [L for L in session.layers if L.kind == "text"]
     devices: list[DeviceLayerModel] = [L for L in session.layers if L.kind == "device_frame"]
+    panel_w = strip_panel_width(float(w), screens_ct, float(gap_px))
 
     for text in text_layers:
         if screens_ct > 1:
@@ -87,6 +99,27 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
                 f"Headline-like text layer {text.id} must be at least {MIN_HEADLINE_SIZE}px.",
             )
 
+        dom_pi = dominant_panel_index_for_rect(
+            text.x,
+            text.y,
+            text.width,
+            text.height,
+            float(w),
+            float(h),
+            screens_ct,
+            float(gap_px),
+        )
+        if dom_pi is not None and panel_w > 0:
+            pl, _pt, ppw, _ph = panel_rect(dom_pi, float(gap_px), panel_w, float(h))
+            ix = max(0.0, min(text.x + text.width, pl + ppw) - max(text.x, pl))
+            span_ratio = ix / panel_w
+            if span_ratio < TEXT_MIN_PANEL_WIDTH_RATIO or span_ratio > TEXT_MAX_PANEL_WIDTH_RATIO:
+                errors.append(
+                    f"Text layer {text.id} horizontal span in its dominant panel must be "
+                    f"{int(TEXT_MIN_PANEL_WIDTH_RATIO * 100)}-{int(TEXT_MAX_PANEL_WIDTH_RATIO * 100)}% "
+                    f"of panel width (got {round(span_ratio * 100, 1)}%).",
+                )
+
     for device in devices:
         ratio = device.height / h
         if ratio < DEVICE_MIN_CANVAS_HEIGHT_RATIO or ratio > DEVICE_MAX_CANVAS_HEIGHT_RATIO:
@@ -97,6 +130,53 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
             )
         if not layer_within_canvas(device.x, device.y, device.width, device.height, w, h):
             errors.append(f"Device layer {device.id} is outside canvas bounds.")
+
+    for i in range(len(devices)):
+        for j in range(i + 1, len(devices)):
+            a, b = devices[i], devices[j]
+            iou = rect_iou(
+                a.x,
+                a.y,
+                a.width,
+                a.height,
+                b.x,
+                b.y,
+                b.width,
+                b.height,
+            )
+            if iou > MAX_DEVICE_PAIR_IOU:
+                errors.append(
+                    f"Device layers {a.id} and {b.id} overlap too much "
+                    f"(IoU {round(iou, 2)}; max {MAX_DEVICE_PAIR_IOU}).",
+                )
+
+    if session.require_text_single_panel and screens_ct > 1 and len(text_layers) > 1:
+        dom_pis: list[int | None] = []
+        for t in text_layers:
+            dom_pis.append(
+                dominant_panel_index_for_rect(
+                    t.x,
+                    t.y,
+                    t.width,
+                    t.height,
+                    float(w),
+                    float(h),
+                    screens_ct,
+                    float(gap_px),
+                )
+            )
+        if any(p is None for p in dom_pis):
+            for t, p in zip(text_layers, dom_pis):
+                if p is None:
+                    errors.append(
+                        f"Text layer {t.id} does not resolve to a strip column "
+                        "(required for single-panel text stack).",
+                    )
+        elif len(set(dom_pis)) > 1:
+            errors.append(
+                "Text layers must all sit in the same strip column when "
+                "require_text_single_panel is true.",
+            )
 
     for text in text_layers:
         for device in devices:
@@ -123,7 +203,7 @@ def predict_checks(session: SessionCheckInput) -> QualityResult:
             float(w),
             float(h),
             screens_ct,
-            gap_px,
+            float(gap_px),
         )
         key: int | str = pi if pi is not None else "__no_panel__"
         by_panel[key].append(t)

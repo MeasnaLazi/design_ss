@@ -22,7 +22,7 @@ def _minimal_export_v1() -> dict:
                 "zIndex": 1,
                 "left": 64.0,
                 "top": 128.0,
-                "width": 400.0,
+                "width": 300.0,
                 "height": 80.0,
                 "angle": 0,
                 "scaleX": 1,
@@ -43,7 +43,7 @@ def _minimal_export_v1() -> dict:
                 "left": 395.0,
                 "top": 400.0,
                 "width": 500.0,
-                "height": 1600.0,
+                "height": 2200.0,
                 "angle": 0,
                 "scaleX": 1,
                 "scaleY": 1,
@@ -72,7 +72,7 @@ def test_export_summary_to_session_check_maps_layers() -> None:
     assert s.layers[0].size == 72.0
     assert s.layers[1].kind == "device_frame"
     assert s.layers[1].id == "d1"
-    assert s.layers[1].height == 1600.0
+    assert s.layers[1].height == 2200.0
 
 
 def test_export_summary_predict_checks_ok() -> None:
@@ -91,6 +91,13 @@ def test_export_summary_rejects_bad_version() -> None:
 def test_export_summary_rejects_error_dict() -> None:
     with pytest.raises(ValueError, match="error"):
         export_summary_to_session_check({"error": "no_export_yet"})
+
+
+def test_export_summary_require_text_single_panel_flag() -> None:
+    s = export_summary_to_session_check(_minimal_export_v1(), require_text_single_panel=True)
+    assert s.require_text_single_panel is True
+    s2 = export_summary_to_session_check(_minimal_export_v1())
+    assert s2.require_text_single_panel is False
 
 
 def test_export_multi_panel_strip_screens_gap() -> None:

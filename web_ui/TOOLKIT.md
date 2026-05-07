@@ -14,7 +14,7 @@ All paths below are relative to that base (no trailing slash on the base).
 | POST | `/execute` | `{"operation": "<string>", "args": { ... }}` | JSON object (operation-specific) | Runs on **server** path. Operations that only run in the browser return an error message pointing to `enqueue-command`. |
 | POST | `/enqueue-command` | `{"operation": "<string>", "args": { ... }, "requestId"?: "<string>"}` | JSON ack or error JSON | Delivers to an **open** designer tab via SSE. Full contract: [POST enqueue-command](#post-enqueue-command) below. |
 | GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). Toolkit may poll until PNG changes. |
-| GET | `/agent-export` | — | JSON object (layout summary) | Last export pushed from the browser. **404** if none yet. |
+| GET | `/agent-export` | — | JSON object (layout summary) | Last export pushed from the browser. **404** if none yet. Optional query **`panel_index`**: comma-separated **0-based adjacent** columns (e.g. `?panel_index=0` or `?panel_index=0,1`) returns the **sliced** envelope (`slicedExportVersion`, `panels[]`, …); omit query for full-strip **`AgentLayoutSummaryV1`**. Invalid slice → **400** `slice_failed`. |
 
 ### POST enqueue-command
 

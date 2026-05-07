@@ -236,8 +236,10 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
 
 
 def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:
-    out = designer_pull_agent_export_http(resolve_designer_base_url(), timeout=ns.timeout)
-    if ns.panels is not None and str(ns.panels).strip():
-        indexes = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
-        out = export_slice_mod.slice_agent_layout_summary_v1(out, indexes)
+    panels_arg = ns.panels if ns.panels is not None and str(ns.panels).strip() else None
+    out = designer_pull_agent_export_http(
+        resolve_designer_base_url(),
+        timeout=ns.timeout,
+        panel_index=str(panels_arg) if panels_arg is not None else None,
+    )
     json_print(out, compact)

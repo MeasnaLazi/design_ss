@@ -9,7 +9,7 @@ def test_preview_budget() -> None:
 
 
 def test_predict_checks_ok_minimal() -> None:
-    """Non-overlapping text (top safe) + device sized ~57% canvas height."""
+    """Non-overlapping text (top safe) + device height in 75–90% band."""
     s = SessionCheckInput(
         width=1290,
         height=2796,
@@ -19,16 +19,16 @@ def test_predict_checks_ok_minimal() -> None:
                 kind="device_frame",
                 id="d1",
                 x=395,
-                y=1196,
+                y=596,
                 width=500,
-                height=1600,
+                height=2200,
             ),
             TextLayerModel(
                 kind="text",
                 id="t1",
                 x=64,
                 y=128,
-                width=400,
+                width=300,
                 height=78,
                 content="Short title here",
                 size=60,
@@ -52,7 +52,7 @@ def test_predict_checks_contrast_fail() -> None:
                 id="t1",
                 x=100,
                 y=200,
-                width=400,
+                width=300,
                 height=78,
                 content="Hi",
                 size=60,
@@ -80,7 +80,7 @@ def test_predict_checks_multi_panel_text_in_second_panel_safe() -> None:
                 id="t1",
                 x=1390,
                 y=128,
-                width=400,
+                width=300,
                 height=78,
                 content="Second panel title",
                 size=60,
@@ -133,7 +133,7 @@ def test_predict_checks_text_text_overlap_same_panel() -> None:
                 id="t_title",
                 x=100,
                 y=128,
-                width=800,
+                width=280,
                 height=120,
                 content="Title line",
                 size=72,
@@ -143,8 +143,8 @@ def test_predict_checks_text_text_overlap_same_panel() -> None:
                 kind="text",
                 id="t_sub",
                 x=100,
-                y=180,
-                width=800,
+                y=200,
+                width=280,
                 height=100,
                 content="one two three four five six seven eight",
                 size=36,
@@ -171,7 +171,7 @@ def test_predict_checks_text_text_no_overlap_adjacent_panels() -> None:
                 id="t_a",
                 x=100,
                 y=128,
-                width=800,
+                width=286,
                 height=80,
                 content="Col zero",
                 size=72,
@@ -180,9 +180,9 @@ def test_predict_checks_text_text_no_overlap_adjacent_panels() -> None:
             TextLayerModel(
                 kind="text",
                 id="t_b",
-                x=1420,
+                x=1390,
                 y=128,
-                width=800,
+                width=286,
                 height=80,
                 content="Col one",
                 size=72,
@@ -205,7 +205,7 @@ def test_predict_checks_headline_too_small() -> None:
                 id="t1",
                 x=100,
                 y=200,
-                width=400,
+                width=300,
                 height=40,
                 content="One two three four five six",
                 size=40,
@@ -216,3 +216,156 @@ def test_predict_checks_headline_too_small() -> None:
     r = predict_checks(s)
     assert not r.ok
     assert any("at least 60" in e for e in r.errors)
+
+
+def test_predict_checks_text_width_too_narrow() -> None:
+    s = SessionCheckInput(
+        width=1290,
+        height=2796,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t1",
+                x=100,
+                y=200,
+                width=200,
+                height=78,
+                content="Hi",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert not r.ok
+    assert any("horizontal span" in e and "panel width" in e for e in r.errors)
+
+
+def test_predict_checks_text_width_too_wide() -> None:
+    s = SessionCheckInput(
+        width=1290,
+        height=2796,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t1",
+                x=100,
+                y=200,
+                width=400,
+                height=78,
+                content="Hi",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert not r.ok
+    assert any("horizontal span" in e and "panel width" in e for e in r.errors)
+
+
+def test_predict_checks_device_pair_iou_too_high() -> None:
+    """Two device frames with Jaccard IoU above max must fail."""
+    s = SessionCheckInput(
+        width=1290,
+        height=1000,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            DeviceLayerModel(
+                kind="device_frame",
+                id="d1",
+                x=100,
+                y=100,
+                width=200,
+                height=800,
+            ),
+            DeviceLayerModel(
+                kind="device_frame",
+                id="d2",
+                x=150,
+                y=100,
+                width=200,
+                height=800,
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert not r.ok
+    assert any("overlap too much" in e and "IoU" in e for e in r.errors)
+
+
+def test_predict_checks_require_text_single_panel_ok() -> None:
+    s = SessionCheckInput(
+        width=2620,
+        height=2796,
+        screens=2,
+        gap=40,
+        require_text_single_panel=True,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t_a",
+                x=100,
+                y=128,
+                width=300,
+                height=80,
+                content="A",
+                size=60,
+                color="#ffffff",
+            ),
+            TextLayerModel(
+                kind="text",
+                id="t_b",
+                x=100,
+                y=300,
+                width=300,
+                height=80,
+                content="B",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert r.ok is True
+
+
+def test_predict_checks_require_text_single_panel_fail() -> None:
+    s = SessionCheckInput(
+        width=2620,
+        height=2796,
+        screens=2,
+        gap=40,
+        require_text_single_panel=True,
+        background=BackgroundModel(type="color", value="#101827"),
+        layers=[
+            TextLayerModel(
+                kind="text",
+                id="t_a",
+                x=100,
+                y=128,
+                width=300,
+                height=80,
+                content="A",
+                size=60,
+                color="#ffffff",
+            ),
+            TextLayerModel(
+                kind="text",
+                id="t_b",
+                x=1390,
+                y=128,
+                width=300,
+                height=80,
+                content="B",
+                size=60,
+                color="#ffffff",
+            ),
+        ],
+    )
+    r = predict_checks(s)
+    assert not r.ok
+    assert any("same strip column when" in e for e in r.errors)

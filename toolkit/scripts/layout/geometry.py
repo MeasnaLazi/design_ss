@@ -26,6 +26,40 @@ def rects_overlap(
     )
 
 
+def rect_intersection_area(
+    ax: float,
+    ay: float,
+    aw: float,
+    ah: float,
+    bx: float,
+    by: float,
+    bw: float,
+    bh: float,
+) -> float:
+    """Area of axis-aligned intersection of two rectangles (0 if disjoint)."""
+    ix = max(0.0, min(ax + aw, bx + bw) - max(ax, bx))
+    iy = max(0.0, min(ay + ah, by + bh) - max(ay, by))
+    return ix * iy
+
+
+def rect_iou(
+    ax: float,
+    ay: float,
+    aw: float,
+    ah: float,
+    bx: float,
+    by: float,
+    bw: float,
+    bh: float,
+) -> float:
+    """Jaccard index (intersection / union) for two axis-aligned rectangles."""
+    inter = rect_intersection_area(ax, ay, aw, ah, bx, by, bw, bh)
+    union = aw * ah + bw * bh - inter
+    if union <= 0.0:
+        return 0.0
+    return inter / union
+
+
 def strip_panel_width(strip_width: float, screens: int, gap: float) -> float:
     """Usable width of one column on a horizontal strip (mirrors export_slice / web_ui)."""
     if screens < 1:

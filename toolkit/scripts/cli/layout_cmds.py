@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from core.constants import DEVICE_MAX_CANVAS_HEIGHT_RATIO, DEVICE_MIN_CANVAS_HEIGHT_RATIO
 from core.models import SessionCheckInput
 from core.paths import publisher_root
 from image import color as color_mod
@@ -83,6 +84,11 @@ def register_layout(sub: Any) -> None:
         "--from-export",
         action="store_true",
         help="JSON is AgentLayoutSummaryV1 from designer pull-export (not raw SessionCheckInput)",
+    )
+    pc.add_argument(
+        "--require-text-single-panel",
+        action="store_true",
+        help="With --from-export: set SessionCheckInput.require_text_single_panel (all text in one strip column)",
     )
     pc.set_defaults(handler=_cmd_predict)
 
@@ -252,7 +258,10 @@ def _cmd_align(ns: argparse.Namespace, compact: bool) -> None:
 def _cmd_predict(ns: argparse.Namespace, compact: bool) -> None:
     data = read_json_arg(ns.json)
     if getattr(ns, "from_export", False):
-        session = session_export_mod.export_summary_to_session_check(data)
+        session = session_export_mod.export_summary_to_session_check(
+            data,
+            require_text_single_panel=bool(getattr(ns, "require_text_single_panel", False)),
+        )
     else:
         session = SessionCheckInput.model_validate(data)
     result = quality_mod.predict_checks(session)
@@ -290,7 +299,7 @@ def _cmd_contrast(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_dhr(ns: argparse.Namespace, compact: bool) -> None:
     r = geometry_mod.device_height_ratio(ns.device_height, ns.canvas_height)
-    ok = 0.55 <= r <= 0.75
+    ok = DEVICE_MIN_CANVAS_HEIGHT_RATIO <= r <= DEVICE_MAX_CANVAS_HEIGHT_RATIO
     json_print({"ratio": round(r, 6), "ok": ok}, compact)
 
 

@@ -108,3 +108,23 @@ export async function pushAgentExportJson(payload: unknown): Promise<void> {
     throw new Error(j.error ?? `agent export upload failed (${res.status})`)
   }
 }
+
+/**
+ * GET latest export from dev server. Omit `panelIndex` for full-strip summary; pass `"0"` or `"0,1"`
+ * (adjacent columns) for the sliced envelope — same as toolkit `pull-export --panels`.
+ */
+export async function fetchAgentExportJson(panelIndex?: string): Promise<unknown> {
+  const url =
+    panelIndex !== undefined && String(panelIndex).trim() !== ''
+      ? `${AGENT_EXPORT_ENDPOINT}?${new URLSearchParams({
+          panel_index: String(panelIndex).trim(),
+        }).toString()}`
+      : AGENT_EXPORT_ENDPOINT
+  const res = await fetch(url)
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = j as { error?: string; detail?: string }
+    throw new Error(err.error ?? err.detail ?? `agent export GET failed (${res.status})`)
+  }
+  return j
+}

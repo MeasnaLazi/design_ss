@@ -37,7 +37,7 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
    - For **`enqueue-op`**, use **only** operation names listed in web-ui-reference; use the **Invalid names** table to avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
    - **`designer.py handoff`**: proceed with live ops only when the reference’s readiness conditions are met (`"ok": true` and acceptable `web_ui_status`); otherwise start `web_ui` / toolchain first.
 
-6. **After `export_json` + `pull-export`** — use the export → `predict-checks --from-export` path described in **layout-reference** (save full strip when coordinates matter).
+6. **After `export_json` + `pull-export`** — use the export → `predict-checks --from-export` path in **layout-reference** (save full strip when coordinates matter). Optional **`--require-text-single-panel`** when all marketing text must share one strip column.
 
 ## Outcome
 

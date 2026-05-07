@@ -7,6 +7,8 @@ import {
   screenshotDesignerExecuteOperation,
 } from './screenshot-designer-server'
 
+import { parsePanelIndexesArg, sliceAgentLayoutSummaryV1 } from './src/canvas/sliceAgentLayoutSummary'
+
 import type { Dirent } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import busboy from 'busboy'
@@ -725,9 +727,25 @@ export function datasourceApiPlugin(): Plugin {
         if (pathname === '/__api/screenshot-designer/agent-export' && req.method === 'GET') {
           try {
             const text = await fs.readFile(agentExportPath, 'utf8')
+            const u = new URL(req.url ?? '/', 'http://vite.datasource')
+            const panelRaw = u.searchParams.get('panel_index')
+            let payload: unknown = JSON.parse(text)
+            if (panelRaw !== null && String(panelRaw).trim() !== '') {
+              try {
+                const indexes = parsePanelIndexesArg(String(panelRaw))
+                payload = sliceAgentLayoutSummaryV1(
+                  payload as Record<string, unknown>,
+                  indexes,
+                )
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err)
+                sendJson(nodeRes, 400, { error: 'slice_failed', detail: msg })
+                return
+              }
+            }
             nodeRes.statusCode = 200
             nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(text)
+            nodeRes.end(JSON.stringify(payload))
           } catch (e: unknown) {
             const err = e as NodeJS.ErrnoException
             if (err.code === 'ENOENT') {

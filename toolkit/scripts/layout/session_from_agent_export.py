@@ -16,13 +16,21 @@ from core.models import (
 )
 
 
-def export_summary_to_session_check(summary: dict[str, Any]) -> SessionCheckInput:
+def export_summary_to_session_check(
+    summary: dict[str, Any],
+    *,
+    require_text_single_panel: bool = False,
+) -> SessionCheckInput:
     """
     Convert ``buildAgentLayoutSummaryFromCanvas`` / ``pull-export`` JSON into
     :class:`SessionCheckInput` for :func:`layout.quality.predict_checks`.
 
     Only **text** and **device** (→ ``device_frame``) layers are forwarded; other
     kinds are skipped. Requires ``layoutSummaryVersion`` == 1.
+
+    Set ``require_text_single_panel=True`` to enforce one strip column for all
+    text when ``screens`` > 1 (same as ``layout.py predict-checks --from-export
+    --require-text-single-panel``).
     """
     if summary.get("error"):
         raise ValueError(f"export summary has error: {summary.get('error')}")
@@ -83,7 +91,15 @@ def export_summary_to_session_check(summary: dict[str, Any]) -> SessionCheckInpu
                 )
             )
 
-    return SessionCheckInput(width=w, height=h, background=bg, layers=layers, screens=screens, gap=gap)
+    return SessionCheckInput(
+        width=w,
+        height=h,
+        background=bg,
+        layers=layers,
+        screens=screens,
+        gap=gap,
+        require_text_single_panel=require_text_single_panel,
+    )
 
 
 def _background_model_from_export(bg_raw: Any) -> BackgroundModel:
