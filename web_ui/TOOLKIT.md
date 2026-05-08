@@ -14,7 +14,6 @@ All paths below are relative to that base (no trailing slash on the base).
 | POST | `/execute` | `{"operation": "<string>", "args": { ... }}` | JSON object (operation-specific) | Runs on **server** path. Operations that only run in the browser return an error message pointing to `enqueue-command`. |
 | POST | `/enqueue-command` | `{"operation": "<string>", "args": { ... }, "requestId"?: "<string>"}` | JSON ack or error JSON | Delivers to an **open** designer tab via SSE. Full contract: [POST enqueue-command](#post-enqueue-command) below. |
 | GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). Toolkit may poll until PNG changes. |
-| GET | `/agent-export` | — | JSON object (layout summary) | Last export pushed from the browser. **404** if none yet. Optional query **`panel_index`**: comma-separated **0-based adjacent** columns (e.g. `?panel_index=0` or `?panel_index=0,1`) returns the **sliced** envelope (`slicedExportVersion`, `panels[]`, …); omit query for full-strip **`AgentLayoutSummaryV1`**. Invalid slice → **400** `slice_failed`. |
 
 ### POST enqueue-command
 
@@ -30,7 +29,7 @@ Server implementation: `web_ui/vite-plugin-datasource-api.ts`. Browser subscribe
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `operation` | string | yes | Operation name (e.g. `render_panel_preview`, `export_json`). Must be non-empty. |
+| `operation` | string | yes | Operation name (e.g. `render_panel_preview`). Must be non-empty. |
 | `args` | object | no | Defaults to `{}` if missing or not an object. Operation-specific keys (validated in toolkit for some ops via `designer/enqueue_validate.py`). |
 | `requestId` | string | no | Echoed on the SSE payload and in the success JSON as `requestId` (or `null` if omitted). Useful for correlating enqueue → apply → logs. |
 
@@ -116,7 +115,6 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 | `batch` | **`operations`**: array of `{ operation, args }` applied **in order**; nested **`batch`** rejected. |
 | `set_equal_spacing` | **`layer_ids`** (≥ 2) + **`axis`** + **`gap`**: stacks objects along axis with fixed gap between successive bounding edges (same panel). |
 | `match_size` | **`source_layer_id`**, **`target_layer_ids`[]**, **`mode`**: `width` \| `height` \| `both`. Non-text: scale to match source scaled size. **Textbox**: width-only adjustment when width/both (height follows text). |
-| `export_json` | Builds **AgentLayoutSummary** from canvas and **POST**s JSON to the dev **`agent-export`** endpoint (for toolkit pull-export). |
 | `render_panel_preview` | **`panel_indexes`** (contiguous strip) **or** **`panel_index`** (0-based) **or** **`panel_number`** (1-based): crops that strip/single panel → agent preview PNG; optional **`preview_multiplier`**. Use a contiguous `panel_indexes` range spanning all columns for a full-strip capture. |
 
 **Toolkit**
@@ -130,7 +128,7 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 
 | Command area | Script | Purpose |
 |--------------|--------|---------|
-| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `execute`, `execute-op`, `enqueue-op`, `pull-preview`, `pull-export`, etc. |
+| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `execute`, `execute-op`, `enqueue-op`, `pull-preview`, etc. |
 
 ### Not HTTP (same repo)
 
@@ -148,9 +146,8 @@ These are served under the same Vite `/__api` middleware but are **not** called 
 | GET | `/__api/screenshot-designer/command-events?slug=…` | Browser (SSE subscriber) |
 | POST | `/__api/screenshot-designer/command-result` | Browser (result after applying command) |
 | POST | `/__api/screenshot-designer/agent-preview` | Browser (upload latest PNG) |
-| POST | `/__api/screenshot-designer/agent-export` | Browser (upload latest JSON) |
 
-The dev server persists the last preview and last export under **`datasource/memories/`** (`.agent_last_preview.png`, `.agent_last_export.json`). That directory is gitignored except `.gitkeep`.
+The dev server persists the last preview under **`datasource/memories/`** (`.agent_last_preview.png`). That directory is gitignored except `.gitkeep`.
 
 ## Datasource `/__api/datasource/…`
 

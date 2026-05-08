@@ -7,7 +7,7 @@ import os
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -318,24 +318,4 @@ def poll_agent_preview_until_changed(
         body=None,
         url=url,
     )
-
-
-def designer_pull_agent_export(
-    base_url: str,
-    *,
-    timeout: float = 60.0,
-    panel_index: str | None = None,
-) -> dict[str, Any]:
-    """GET ``{base}/agent-export`` — last layout summary JSON pushed from the browser (404 if none).
-
-    When ``panel_index`` is set (e.g. ``\"0\"`` or ``\"0,1\"`` for adjacent columns), the dev server
-    returns the sliced envelope (same as ``pull-export --panels``); omit for full-strip summary.
-    """
-    base = validate_designer_base_url(base_url)
-    url = f"{base}/agent-export"
-    if panel_index is not None and str(panel_index).strip():
-        qs = urlencode({"panel_index": str(panel_index).strip()})
-        url = f"{url}?{qs}"
-    return _json_request("GET", url, timeout=timeout)
-
 

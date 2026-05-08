@@ -7,8 +7,6 @@ import {
   screenshotDesignerExecuteOperation,
 } from './screenshot-designer-server'
 
-import { parsePanelIndexesArg, sliceAgentLayoutSummaryV1 } from './src/canvas/sliceAgentLayoutSummary'
-
 import type { Dirent } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import busboy from 'busboy'
@@ -20,12 +18,10 @@ import { randomUUID } from 'node:crypto'
 /** Same as {@link DESIGNER_ARTBOARD_COOKIE} in `src/lib/artboardUrlParam.ts` (avoid DOM imports in Node build). */
 const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 
-/** Agent toolkit scratch: preview PNG + layout JSON (not committed; see repo `.gitignore`). */
+/** Agent toolkit scratch: preview PNG (not committed; see repo `.gitignore`). */
 const AGENT_MEMORIES_DIR = 'memories'
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
-const AGENT_EXPORT_FILENAME = '.agent_last_export.json'
 const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
-const MAX_AGENT_EXPORT_BYTES = 12 * 1024 * 1024
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -651,7 +647,6 @@ export function datasourceApiPlugin(): Plugin {
 
         const agentMemoriesRoot = path.join(datasourceDir, AGENT_MEMORIES_DIR)
         const agentPreviewPath = path.join(agentMemoriesRoot, AGENT_PREVIEW_FILENAME)
-        const agentExportPath = path.join(agentMemoriesRoot, AGENT_EXPORT_FILENAME)
 
         if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'POST') {
           try {
@@ -695,63 +690,6 @@ export function datasourceApiPlugin(): Plugin {
               nodeRes.statusCode = 404
               nodeRes.setHeader('Content-Type', 'application/json')
               nodeRes.end(JSON.stringify({ error: 'no_preview_yet' }))
-              return
-            }
-            nodeRes.statusCode = 500
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
-          }
-          return
-        }
-
-        if (pathname === '/__api/screenshot-designer/agent-export' && req.method === 'POST') {
-          try {
-            const body = await readBody(req as IncomingMessage)
-            if (body.length > MAX_AGENT_EXPORT_BYTES) {
-              sendJson(nodeRes, 400, { error: 'body_too_large' })
-              return
-            }
-            JSON.parse(body)
-            await fs.mkdir(agentMemoriesRoot, { recursive: true })
-            await fs.writeFile(agentExportPath, body, 'utf8')
-            nodeRes.statusCode = 200
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ ok: true, bytes: Buffer.byteLength(body, 'utf8') }))
-          } catch (e: unknown) {
-            const err = e as Error
-            sendJson(nodeRes, 400, { error: String(err?.message ?? e) })
-          }
-          return
-        }
-
-        if (pathname === '/__api/screenshot-designer/agent-export' && req.method === 'GET') {
-          try {
-            const text = await fs.readFile(agentExportPath, 'utf8')
-            const u = new URL(req.url ?? '/', 'http://vite.datasource')
-            const panelRaw = u.searchParams.get('panel_index')
-            let payload: unknown = JSON.parse(text)
-            if (panelRaw !== null && String(panelRaw).trim() !== '') {
-              try {
-                const indexes = parsePanelIndexesArg(String(panelRaw))
-                payload = sliceAgentLayoutSummaryV1(
-                  payload as Record<string, unknown>,
-                  indexes,
-                )
-              } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err)
-                sendJson(nodeRes, 400, { error: 'slice_failed', detail: msg })
-                return
-              }
-            }
-            nodeRes.statusCode = 200
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify(payload))
-          } catch (e: unknown) {
-            const err = e as NodeJS.ErrnoException
-            if (err.code === 'ENOENT') {
-              nodeRes.statusCode = 404
-              nodeRes.setHeader('Content-Type', 'application/json')
-              nodeRes.end(JSON.stringify({ error: 'no_export_yet' }))
               return
             }
             nodeRes.statusCode = 500

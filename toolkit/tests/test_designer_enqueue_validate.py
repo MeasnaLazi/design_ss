@@ -96,7 +96,6 @@ def test_align_rejects_canvas_requires_panel_for_panel_ref() -> None:
 
 
 def test_noop_for_unrelated_ops() -> None:
-    validate_positional_enqueue_args("export_json", {})
     validate_positional_enqueue_args("device_move_delta", {"layer_id": "d", "dx": 0, "dy": 0})
 
 

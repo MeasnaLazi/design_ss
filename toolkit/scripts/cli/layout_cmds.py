@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from core.constants import DEVICE_MAX_CANVAS_HEIGHT_RATIO, DEVICE_MIN_CANVAS_HEIGHT_RATIO
-from core.models import SessionCheckInput
 from core.paths import publisher_root
 from image import color as color_mod
 from image import image_io
@@ -18,12 +17,11 @@ from layout import geometry as geometry_mod
 from layout import grid as grid_mod
 from layout import presets as presets_mod
 from layout import quality as quality_mod
-from layout import session_from_agent_export as session_export_mod
 from layout import safe as safe_mod
 from layout import text_metrics as text_metrics_mod
 from store import store_listing as store_listing_mod
 
-from cli.io_utils import json_print, read_json_arg
+from cli.io_utils import json_print
 
 
 def register_layout(sub: Any) -> None:
@@ -77,20 +75,6 @@ def register_layout(sub: Any) -> None:
     al.add_argument("--ref-w", type=float, required=True)
     al.add_argument("--ref-h", type=float, required=True)
     al.set_defaults(handler=_cmd_align)
-
-    pc = layout_sub.add_parser("predict-checks", help="Run qualityChecks-equivalent on JSON session")
-    pc.add_argument("--json", required=True, help="Path to JSON or - for stdin")
-    pc.add_argument(
-        "--from-export",
-        action="store_true",
-        help="JSON is AgentLayoutSummaryV1 from designer pull-export (not raw SessionCheckInput)",
-    )
-    pc.add_argument(
-        "--require-text-single-panel",
-        action="store_true",
-        help="With --from-export: set SessionCheckInput.require_text_single_panel (all text in one strip column)",
-    )
-    pc.set_defaults(handler=_cmd_predict)
 
     pb = layout_sub.add_parser("preview-budget", help="Render iteration budget helper")
     pb.add_argument("--count", type=int, required=True)
@@ -253,21 +237,6 @@ def _cmd_align(ns: argparse.Namespace, compact: bool) -> None:
         ns.ref_h,
     )
     json_print({"x": x, "y": y, "anchor": ns.anchor}, compact)
-
-
-def _cmd_predict(ns: argparse.Namespace, compact: bool) -> None:
-    data = read_json_arg(ns.json)
-    if getattr(ns, "from_export", False):
-        session = session_export_mod.export_summary_to_session_check(
-            data,
-            require_text_single_panel=bool(getattr(ns, "require_text_single_panel", False)),
-        )
-    else:
-        session = SessionCheckInput.model_validate(data)
-    result = quality_mod.predict_checks(session)
-    out = result.to_dict()
-    out["explain"] = quality_mod.explain_failure(result)
-    json_print(out, compact)
 
 
 def _cmd_preview_budget(ns: argparse.Namespace, compact: bool) -> None:

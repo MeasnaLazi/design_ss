@@ -61,40 +61,10 @@ def rect_iou(
 
 
 def strip_panel_width(strip_width: float, screens: int, gap: float) -> float:
-    """Usable width of one column on a horizontal strip (mirrors export_slice / web_ui)."""
+    """Usable width of one column on a horizontal strip (mirrors web_ui strip math)."""
     if screens < 1:
         raise ValueError("screens must be >= 1")
     return (float(strip_width) - float(gap) * float(screens - 1)) / float(screens)
-
-
-def dominant_panel_index_for_rect(
-    x: float,
-    y: float,
-    w: float,
-    h: float,
-    strip_width: float,
-    strip_height: float,
-    screens: int,
-    gap: float,
-) -> int | None:
-    """
-    Which strip column contains the most overlap area with the given axis-aligned rect.
-    Returns None if the rect does not overlap any column interior (e.g. wholly in a gutter).
-    """
-    panel_w = strip_panel_width(strip_width, screens, gap)
-    best_i: int | None = None
-    best_area = 0.0
-    for i in range(screens):
-        pl, pt, pw, ph = panel_rect(i, gap, panel_w, strip_height)
-        ox = max(0.0, min(x + w, pl + pw) - max(x, pl))
-        oy = max(0.0, min(y + h, pt + ph) - max(y, pt))
-        area = ox * oy
-        if area > best_area:
-            best_area = area
-            best_i = i
-    if best_i is None or best_area <= 0.0:
-        return None
-    return best_i
 
 
 def panel_rect(index: int, gap: float, panel_w: float, panel_h: float) -> tuple[float, float, float, float]:

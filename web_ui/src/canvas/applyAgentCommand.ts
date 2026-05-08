@@ -1,7 +1,6 @@
 import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
 import {
-  pushAgentExportJson,
   pushLiveCanvasPreviewRect,
   resolveAgentPreviewMultiplier,
 } from '../lib/agentContextApi'
@@ -9,7 +8,6 @@ import {
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
-import { buildAgentLayoutSummaryFromCanvas } from './buildAgentLayoutSummary'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
@@ -1407,12 +1405,6 @@ export async function applyAgentCommand(
         canvas.fire('object:modified', { target })
       }
       canvas.requestRenderAll()
-      return
-    }
-
-    case 'export_json': {
-      const summary = buildAgentLayoutSummaryFromCanvas(canvas)
-      await pushAgentExportJson(summary)
       return
     }
 

@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-from designer import export_slice as export_slice_mod
+from designer import panel_indexes as panel_indexes_mod
 from designer.client import (
     designer_enqueue_command,
     ensure_publisher_dotenv_loaded,
@@ -68,8 +68,8 @@ def main() -> None:
     ensure_publisher_dotenv_loaded()
     base = resolve_designer_base_url()
 
-    parsed = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
-    contiguous = export_slice_mod.sorted_contiguous_panel_indexes(parsed)
+    parsed = panel_indexes_mod.parse_panel_indexes_arg(str(ns.panels))
+    contiguous = panel_indexes_mod.sorted_contiguous_panel_indexes(parsed)
 
     render_args: dict[str, object] = {"panel_indexes": contiguous}
     if ns.preview_multiplier is not None:

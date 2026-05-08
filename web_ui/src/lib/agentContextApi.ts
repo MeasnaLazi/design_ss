@@ -1,6 +1,5 @@
-/** Dev-server endpoints for agent vision / export (see vite-plugin-datasource-api). */
+/** Dev-server endpoint for agent vision preview (see vite-plugin-datasource-api). */
 export const AGENT_PREVIEW_ENDPOINT = '/__api/screenshot-designer/agent-preview'
-export const AGENT_EXPORT_ENDPOINT = '/__api/screenshot-designer/agent-export'
 
 /**
  * Default multiplier when `VITE_AGENT_PREVIEW_MULTIPLIER` is unset or invalid.
@@ -94,37 +93,4 @@ export async function pushLiveCanvasPreviewRect(
     throw new Error('canvas.toBlob returned null for agent preview (rect)')
   }
   await pushAgentPreviewBlob(blob)
-}
-
-/** POST latest compact layout summary for agent pull-export (see `buildAgentLayoutSummaryFromCanvas`). */
-export async function pushAgentExportJson(payload: unknown): Promise<void> {
-  const res = await fetch(AGENT_EXPORT_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-  if (!res.ok) {
-    throw new Error(j.error ?? `agent export upload failed (${res.status})`)
-  }
-}
-
-/**
- * GET latest export from dev server. Omit `panelIndex` for full-strip summary; pass `"0"` or `"0,1"`
- * (adjacent columns) for the sliced envelope — same as toolkit `pull-export --panels`.
- */
-export async function fetchAgentExportJson(panelIndex?: string): Promise<unknown> {
-  const url =
-    panelIndex !== undefined && String(panelIndex).trim() !== ''
-      ? `${AGENT_EXPORT_ENDPOINT}?${new URLSearchParams({
-          panel_index: String(panelIndex).trim(),
-        }).toString()}`
-      : AGENT_EXPORT_ENDPOINT
-  const res = await fetch(url)
-  const j = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = j as { error?: string; detail?: string }
-    throw new Error(err.error ?? err.detail ?? `agent export GET failed (${res.status})`)
-  }
-  return j
 }

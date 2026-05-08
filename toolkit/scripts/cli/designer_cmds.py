@@ -8,11 +8,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from designer import export_slice as export_slice_mod
+from designer import panel_indexes as panel_indexes_mod
 from designer.client import (
     designer_enqueue_command as designer_enqueue_command_http,
     designer_execute as designer_execute_http,
-    designer_pull_agent_export as designer_pull_agent_export_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
     poll_agent_preview_until_changed,
@@ -114,19 +113,6 @@ def register_designer(sub: Any) -> None:
     )
     ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
 
-    ds_expt = designer_sub.add_parser(
-        "pull-export",
-        help="GET .../agent-export (layout summary JSON last pushed after export_json); optional --panels slices adjacent columns only",
-    )
-    ds_expt.add_argument(
-        "--panels",
-        default=None,
-        metavar="INDICES",
-        help='Comma-separated 0-based adjacent columns only (e.g. "0,1" or "2,3,4") — slicedExportVersion JSON (requires prior export_json in the browser)',
-    )
-    ds_expt.add_argument("--timeout", type=float, default=60.0)
-    ds_expt.set_defaults(handler=_cmd_designer_pull_export)
-
 
 def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
     out = screenshot_designer_handoff(
@@ -189,8 +175,8 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
             sys.stdout.buffer.write(data)
         return
 
-    parsed = export_slice_mod.parse_panel_indexes_arg(str(ns.panels))
-    contiguous = export_slice_mod.sorted_contiguous_panel_indexes(parsed)
+    parsed = panel_indexes_mod.parse_panel_indexes_arg(str(ns.panels))
+    contiguous = panel_indexes_mod.sorted_contiguous_panel_indexes(parsed)
     previous: bytes | None = try_designer_pull_agent_preview(base, timeout=min(10.0, float(ns.timeout)))
     render_args: dict[str, object] = {"panel_indexes": contiguous}
     if ns.preview_multiplier is not None:
@@ -233,13 +219,3 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
                 print(json.dumps(note_obj, separators=(",", ":")), file=sys.stderr)
             else:
                 print(json.dumps(note_obj, indent=2), file=sys.stderr)
-
-
-def _cmd_designer_pull_export(ns: argparse.Namespace, compact: bool) -> None:
-    panels_arg = ns.panels if ns.panels is not None and str(ns.panels).strip() else None
-    out = designer_pull_agent_export_http(
-        resolve_designer_base_url(),
-        timeout=ns.timeout,
-        panel_index=str(panels_arg) if panels_arg is not None else None,
-    )
-    json_print(out, compact)

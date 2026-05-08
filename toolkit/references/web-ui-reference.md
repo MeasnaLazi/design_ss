@@ -2,7 +2,7 @@
 
 Commands that talk to the screenshot-designer HTTP API (Vite `web_ui`, loopback). Run from publisher repo root unless noted. Optional global flag: `python toolkit/scripts/designer.py --compact <subcommand>` (same pattern as `layout.py`).
 
-**Layout** (`layout.py`: presets, store JSON, packs, grid, text, `predict-checks`, …): **`layout-reference.md`**. **Image bytes**: **`vision-reference.md`**.
+**Layout** (`layout.py`: presets, store JSON, packs, grid, text, …): **`layout-reference.md`**. **Image bytes**: **`vision-reference.md`**.
 
 ## Handoff
 
@@ -18,7 +18,6 @@ Base URL resolution: `DESIGNER_API_BASE`, then `toolkit/.env`, then default `htt
 | `python toolkit/scripts/designer.py execute-op` | **`--operation <string>`** (required). **`--args-json`** JSON object or **`@file.json`** (default **`{}`**). **`--timeout <float>`** (default **120**). | POST `/execute` with operation + args |
 | `python toolkit/scripts/designer.py enqueue-op` | **`--operation <string>`** (required). **`--args-json`** as for **`execute-op`**. Optional **`--request-id <string>`** (echoed in SSE). **`--timeout <float>`** (default **120**). | POST `/enqueue-command` (runs in open Web UI tab via SSE); toolkit validates args before HTTP |
 | `python toolkit/scripts/designer.py pull-preview` | Optional **`--out <path>`** (write PNG; if omitted, raw PNG on stdout). **`--timeout <float>`** (default **60**; also caps wait after panel render). **Without `--panels`**: single GET **`agent-preview`**. **With `--panels INDICES`**: comma-separated **0-based**, **adjacent** columns (one contiguous segment, e.g. `0,1`); enqueues **`render_panel_preview`**, polls until bytes change. **`--poll-interval <float>`** (default **0.08**) seconds between GET polls when using **`--panels`**. Optional **`--preview-multiplier 1` or `2`** (only with **`--panels`**; omit → **`VITE_AGENT_PREVIEW_MULTIPLIER`** in `web_ui` or default **2**). | GET last `agent-preview` PNG; with `--panels`, enqueues one `render_panel_preview` for contiguous columns, polls until bytes change |
-| `python toolkit/scripts/designer.py pull-export` | Optional **`--panels INDICES`** (comma-separated **0-based**, **adjacent** columns; sliced response; needs prior **`export_json`** in the tab). **`--timeout <float>`** (default **60**). Omit **`--panels`** for full-strip export JSON. Slicing uses **`GET …/agent-export?panel_index=INDICES`** on the dev server (same envelope as Python `export_slice`). | GET last `agent-export` JSON after `export_json`; with `--panels`, per-column sliced export |
 | `python toolkit/scripts/benchmark_agent_preview.py` | Required **`--panels INDICES`** (comma-separated **0-based** contiguous columns, same rules as **`pull-preview --panels`**). Optional **`--timeout`** (default **60**), **`--poll-interval`** (default **0.08**), **`--preview-multiplier 1` or `2`**, **`--out <path>`** (save PNG; omit to discard after timing). | Benchmark preview capture (requires running `web_ui`) |
 
 Preview scale: `pull-preview --preview-multiplier` and `render_panel_preview.preview_multiplier` override `web_ui` env `VITE_AGENT_PREVIEW_MULTIPLIER` (default **2**). Capture path: Fabric `toBlob` → POST `agent-preview`.
@@ -57,9 +56,8 @@ Use only the operation names below. Args are JSON for `--args-json`. Panel place
 | `enqueue-op` | **`--operation set_equal_spacing`**, args: **`layer_ids`**, **`axis`**, **`gap`**, optional **`panel_index`** / **`panel_number`** (must match single column). | Targets one column |
 | `enqueue-op` | **`--operation match_size`**, args: **`source_layer_id`**, **`target_layer_ids`**, **`mode`**: **`width`**, **`height`**, or **`both`** (text targets: width / both adjust wrap **`width`**; height not stretched to match). | Text width/both adjusts wrap width; height not forced to match for text |
 | `enqueue-op` | **`--operation render_panel_preview`**, args: **`panel_index`**, or **`panel_number`**, or **`panel_indexes`** JSON array of **adjacent** 0-based ints; optional **`preview_multiplier`** **`1`** or **`2`**. | One or multi-column PNG to `agent-preview` |
-| `enqueue-op` | **`--operation export_json`**, **`--args-json '{}'`** | Push layout summary for `pull-export` |
 
-Resolve canonical `layer_id` via `export_json` then `pull-export`. `enqueue-op` does not return new layer IDs for adds.
+Use **`layer_id`** values from the design store / canvas (e.g. after adding layers); `enqueue-op` does not return new layer IDs for adds.
 
 ## Payload examples (representative)
 

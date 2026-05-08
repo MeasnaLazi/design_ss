@@ -1,8 +1,8 @@
 # Layout toolkit reference
 
-All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **safe zone / grid / text metrics**, **offline align parity** with `web_ui/screenshot-designer-server.ts`, and **session / designer-export JSON validation** (`predict-checks`, `contrast`, `preview-budget`). Optional global flag: **`--compact`** immediately after `layout.py`.
+All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **safe zone / grid / text metrics**, **offline align parity** with `web_ui/screenshot-designer-server.ts`, and helpers such as **`contrast`** and **`preview-budget`**. Optional global flag: **`--compact`** immediately after `layout.py`.
 
-**Image bytes** (`layout image …`, Pillow): **`vision-reference.md`**. **Live canvas** (`designer.py`, preview/export): **`web-ui-reference.md`**.
+**Image bytes** (`layout image …`, Pillow): **`vision-reference.md`**. **Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
 
 ## Presets
 
@@ -35,15 +35,11 @@ All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from
 | `python toolkit/scripts/layout.py estimate-text-height` | Required **`--size <float>`** (font size px). | Mirror text layer height factor |
 | `python toolkit/scripts/layout.py align` | Required **`--layer-w`**, **`--layer-h`**, **`--anchor`** (`center_x`, `center_y`, `top`, `bottom`, `left`, or `right`), **`--ref-w`**, **`--ref-h`**. Optional **`--layer-x`**, **`--layer-y`**, **`--ref-x`**, **`--ref-y`** (each defaults to **0**). Parity note: live `align` uses panel-local refs (`reference: "panel"` + `panel_index` / `panel_number`); `reference: "canvas"` is rejected server-side. | Offline align position (mirror server align op) |
 | `python toolkit/scripts/layout.py scaled-device-size` | Required **`--view-w <float>`**, **`--view-h <float>`**, **`--scale <float>`**. | Scaled device dimensions |
-| `python toolkit/scripts/layout.py device-height-ratio` | Required **`--device-height <float>`**, **`--canvas-height <float>`**. JSON output includes **`ok`** when ratio is in ~**0.75–0.90** (same band as `predict-checks`). | Ratio device height / canvas height |
+| `python toolkit/scripts/layout.py device-height-ratio` | Required **`--device-height <float>`**, **`--canvas-height <float>`**. JSON output includes **`ok`** when ratio is in ~**0.75–0.90**. | Ratio device height / canvas height |
 
-## Quality and session JSON
+## Quality helpers
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `python toolkit/scripts/layout.py predict-checks` | Required **`--json <path>`** or **`--json -`** (stdin): raw **`SessionCheckInput`** JSON (`core.models`). | Run quality checks on **`SessionCheckInput`** JSON (`core.models`) |
-| `python toolkit/scripts/layout.py predict-checks` | Same **`--json`**, plus **`--from-export`** (boolean flag). Optional **`--require-text-single-panel`** (only with **`--from-export`**): sets `SessionCheckInput.require_text_single_panel` so all text layers must map to the same strip column when **`screens` > 1**. | Input is **`AgentLayoutSummaryV1`** from **`designer.py pull-export`**; CLI converts to `SessionCheckInput` then runs checks (safe-zone, overlaps, contrast, headline heuristic, device vs canvas height, …) |
 | `python toolkit/scripts/layout.py contrast` | Required **`--a <hex>`**, **`--b <hex>`** (e.g. `#ffffff`, `#101827`). | WCAG contrast ratio between two colors |
 | `python toolkit/scripts/layout.py preview-budget` | Required **`--count <int>`**. | Render-iteration budget helper |
-
-**Export workflow:** after `enqueue-op export_json` + `pull-export` (see **`web-ui-reference.md`**), save JSON (full strip recommended for `--from-export` so layer `left`/`top` stay in `sourceCanvas` coordinates), then e.g. `python toolkit/scripts/layout.py predict-checks --json datasource/temp/session_export.json --from-export`. Re-export from the canvas and re-run until `ok` is true.

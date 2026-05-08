@@ -1,15 +1,10 @@
-"""Layout QA constants for toolkit ``predict-checks`` (see web UI presets separately)."""
+"""Shared layout constants (grid, safe zone, WCAG contrast threshold, device-height band)."""
 
 DESIGN_GRID = 16
 SAFE_ZONE_TOP = 120
 SAFE_ZONE_BOTTOM = 120
 SAFE_ZONE_SIDES = 60
-MIN_HEADLINE_SIZE = 60
 MIN_CONTRAST = 4.5
-MAX_ITERATIONS_PER_SCREENSHOT = 4
 DEVICE_MIN_CANVAS_HEIGHT_RATIO = 0.75
 DEVICE_MAX_CANVAS_HEIGHT_RATIO = 0.90
-TEXT_MIN_PANEL_WIDTH_RATIO = 0.20
-TEXT_MAX_PANEL_WIDTH_RATIO = 0.25
-MAX_DEVICE_PAIR_IOU = 0.30
 DEFAULT_PRESET_ID = "appstore_iphone_portrait"

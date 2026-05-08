@@ -2,7 +2,7 @@
 
 Layout CLI image helpers (`Pillow`): inspect, decode, resize, crop, color sampling, and preset dimension checks. Run from publisher repo root. Optional: `python toolkit/scripts/layout.py --compact image <subcommand> ...`.
 
-**Layout** (`layout.py`: presets, store JSON, packs, grid, text, `predict-checks`, …): **`layout-reference.md`**. **Live canvas**: **`web-ui-reference.md`**.
+**Layout** (`layout.py`: presets, store JSON, packs, grid, text, …): **`layout-reference.md`**. **Live canvas**: **`web-ui-reference.md`**.
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
