@@ -9,6 +9,8 @@ def test_list_device_packs(repo_root: Path) -> None:
     packs = devices_mod.list_device_packs(repo_root)
     assert len(packs) >= 1
     assert packs[0].get("name")
+    iphone = devices_mod.list_device_packs(repo_root, "iphone")
+    assert iphone and iphone[0].get("id") == "iphone_12_pro"
 
 
 def test_load_frame_pack(repo_root: Path) -> None:

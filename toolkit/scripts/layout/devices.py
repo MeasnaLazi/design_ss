@@ -19,8 +19,8 @@ def list_device_packs(repo_root: Path, device_type: str | None = None) -> list[d
     devices = raw.get("devices", [])
     if device_type:
         t = device_type.strip().lower()
-        return [d for d in devices if str(d.get("type", "")).lower() == t]
-    return list(devices)
+        devices = [d for d in devices if str(d.get("type", "")).lower() == t]
+    return [{**d, "id": pack_id_from_path(str(d.get("path", "")))} for d in devices]
 
 
 def pack_id_from_path(frame_path: str) -> str:
