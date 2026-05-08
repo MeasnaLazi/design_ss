@@ -24,10 +24,6 @@ class ImageInfo:
     format: str | None
 
 
-def assert_png(data: bytes) -> bool:
-    return len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n"
-
-
 def load_image(path: Path) -> Image.Image:
     return Image.open(path).convert("RGBA")
 
@@ -64,21 +60,6 @@ def match_preset_dimensions(
         "expected": {"width": p.width, "height": p.height, "presetId": p.preset_id},
         "actual": {"width": width, "height": height},
     }
-
-
-def resize_max_edge(img: Image.Image, max_edge: int) -> Image.Image:
-    w, h = img.size
-    longest = max(w, h)
-    if longest <= max_edge:
-        return img.copy()
-    scale = max_edge / longest
-    nw = max(1, int(round(w * scale)))
-    nh = max(1, int(round(h * scale)))
-    return img.resize((nw, nh), Image.Resampling.LANCZOS)
-
-
-def crop_rect(img: Image.Image, left: int, top: int, right: int, bottom: int) -> Image.Image:
-    return img.crop((left, top, right, bottom))
 
 
 def region_mean_rgb(img: Image.Image, left: int, top: int, right: int, bottom: int) -> tuple[float, float, float]:

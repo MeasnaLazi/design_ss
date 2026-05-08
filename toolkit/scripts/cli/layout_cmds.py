@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -71,21 +70,6 @@ def register_layout(sub: Any) -> None:
     mp.add_argument("--preset-id", default=None)
     mp.set_defaults(handler=_cmd_img_match)
 
-    rs = img_sub.add_parser("resize-max-edge", help="Resize so longest edge <= N")
-    rs.add_argument("--path", type=Path, required=True)
-    rs.add_argument("--max-edge", type=int, required=True)
-    rs.add_argument("--out", type=Path, required=True)
-    rs.set_defaults(handler=_cmd_img_resize)
-
-    cp = img_sub.add_parser("crop", help="Crop to pixel rect")
-    cp.add_argument("--path", type=Path, required=True)
-    cp.add_argument("--left", type=int, required=True)
-    cp.add_argument("--top", type=int, required=True)
-    cp.add_argument("--right", type=int, required=True)
-    cp.add_argument("--bottom", type=int, required=True)
-    cp.add_argument("--out", type=Path, required=True)
-    cp.set_defaults(handler=_cmd_img_crop)
-
     rh = img_sub.add_parser("region-hex", help="Mean color hex for rectangle")
     rh.add_argument("--path", type=Path, required=True)
     rh.add_argument("--left", type=int, required=True)
@@ -98,10 +82,6 @@ def register_layout(sub: Any) -> None:
     dom.add_argument("--path", type=Path, required=True)
     dom.add_argument("--k", type=int, default=5)
     dom.set_defaults(handler=_cmd_dominant)
-
-    ap = img_sub.add_parser("assert-png", help="Exit 0 if file starts with PNG magic")
-    ap.add_argument("--path", type=Path, required=True)
-    ap.set_defaults(handler=_cmd_assert_png)
 
 
 def _cmd_list_presets(_ns: argparse.Namespace, compact: bool) -> None:
@@ -162,20 +142,6 @@ def _cmd_img_match(ns: argparse.Namespace, compact: bool) -> None:
     json_print(m, compact)
 
 
-def _cmd_img_resize(ns: argparse.Namespace, compact: bool) -> None:
-    img = image_io.load_image(ns.path)
-    out = image_io.resize_max_edge(img, ns.max_edge)
-    image_io.save_png(out, ns.out)
-    json_print({"out": str(ns.out), "width": out.width, "height": out.height}, compact)
-
-
-def _cmd_img_crop(ns: argparse.Namespace, compact: bool) -> None:
-    img = image_io.load_image(ns.path)
-    out = image_io.crop_rect(img, ns.left, ns.top, ns.right, ns.bottom)
-    image_io.save_png(out, ns.out)
-    json_print({"out": str(ns.out), "width": out.width, "height": out.height}, compact)
-
-
 def _cmd_region_hex(ns: argparse.Namespace, compact: bool) -> None:
     img = image_io.load_image(ns.path)
     hx = image_io.region_hex(img, ns.left, ns.top, ns.right, ns.bottom)
@@ -186,11 +152,3 @@ def _cmd_dominant(ns: argparse.Namespace, compact: bool) -> None:
     img = image_io.load_image(ns.path)
     cols = image_io.dominant_colors_k(img, ns.k)
     json_print({"colors": cols}, compact)
-
-
-def _cmd_assert_png(ns: argparse.Namespace, _compact: bool) -> None:
-    data = ns.path.read_bytes()
-    ok = image_io.assert_png(data)
-    print(json.dumps({"ok": ok, "path": str(ns.path)}))
-    if not ok:
-        sys.exit(1)
