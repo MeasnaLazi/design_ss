@@ -11,7 +11,6 @@ from typing import Any
 from designer import panel_indexes as panel_indexes_mod
 from designer.client import (
     designer_enqueue_command as designer_enqueue_command_http,
-    designer_execute as designer_execute_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
     poll_agent_preview_until_changed,
@@ -21,7 +20,7 @@ from designer.client import (
 )
 from designer.enqueue_validate import validate_positional_enqueue_args
 
-from cli.io_utils import json_print, parse_args_json_payload, read_json_arg
+from cli.io_utils import json_print, parse_args_json_payload
 
 
 def register_designer(sub: Any) -> None:
@@ -50,23 +49,9 @@ def register_designer(sub: Any) -> None:
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
 
-    ds_ex = designer_sub.add_parser("execute", help="POST .../execute with JSON body {operation, args}")
-    ds_ex.add_argument("--json", required=True, help="Path to JSON or - for stdin")
-    ds_ex.add_argument("--timeout", type=float, default=120.0)
-    ds_ex.set_defaults(handler=_cmd_designer_execute)
-
-    ds_exo = designer_sub.add_parser(
-        "execute-op",
-        help="POST .../execute with --operation and --args-json (object or @path.json)",
-    )
-    ds_exo.add_argument("--operation", required=True)
-    ds_exo.add_argument("--args-json", default="{}", help='JSON object, e.g. {} or @args.json')
-    ds_exo.add_argument("--timeout", type=float, default=120.0)
-    ds_exo.set_defaults(handler=_cmd_designer_execute_op)
-
     ds_enq = designer_sub.add_parser(
         "enqueue-op",
-        help="POST .../enqueue-command (runs in open Web UI tab via SSE; same args as execute-op)",
+        help="POST .../enqueue-command (runs in open Web UI tab via SSE)",
     )
     ds_enq.add_argument("--operation", required=True)
     ds_enq.add_argument("--args-json", default="{}", help='JSON object, e.g. {} or @args.json')
@@ -124,28 +109,6 @@ def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_session_http(resolve_designer_base_url(), timeout=ns.timeout)
-    json_print(out, compact)
-
-
-def _cmd_designer_execute(ns: argparse.Namespace, compact: bool) -> None:
-    body = read_json_arg(ns.json)
-    op = body.get("operation")
-    if not op:
-        raise ValueError('JSON must include string "operation"')
-    args = body.get("args") if "args" in body else {}
-    if args is None:
-        args = {}
-    if not isinstance(args, dict):
-        raise ValueError('"args" must be a JSON object')
-    out = designer_execute_http(resolve_designer_base_url(), str(op), args, timeout=ns.timeout)
-    json_print(out, compact)
-
-
-def _cmd_designer_execute_op(ns: argparse.Namespace, compact: bool) -> None:
-    args = parse_args_json_payload(ns.args_json)
-    if not isinstance(args, dict):
-        raise ValueError("--args-json must decode to a JSON object")
-    out = designer_execute_http(resolve_designer_base_url(), ns.operation, args, timeout=ns.timeout)
     json_print(out, compact)
 
 

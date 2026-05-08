@@ -128,7 +128,7 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 
 | Command area | Script | Purpose |
 |--------------|--------|---------|
-| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `execute`, `execute-op`, `enqueue-op`, `pull-preview`, etc. |
+| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `enqueue-op`, `pull-preview`, etc. |
 
 ### Not HTTP (same repo)
 

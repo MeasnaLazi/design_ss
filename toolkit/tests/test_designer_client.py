@@ -9,7 +9,7 @@ import designer.client as designer_client_mod
 from designer.client import (
     DesignerClientError,
     ENV_DESIGNER_API_BASE,
-    designer_execute,
+    designer_enqueue_command,
     designer_session,
     resolve_designer_base_url,
     screenshot_designer_handoff,
@@ -125,7 +125,7 @@ def test_resolve_designer_base_url_from_dotenv(monkeypatch: pytest.MonkeyPatch, 
 def test_designer_client_error_from_http() -> None:
     fp = BytesIO(json.dumps({"error": "bad op"}).encode())
     err = HTTPError(
-        "http://localhost:4713/__api/screenshot-designer/execute",
+        "http://localhost:4713/__api/screenshot-designer/enqueue-command",
         400,
         "Bad Request",
         None,
@@ -134,5 +134,5 @@ def test_designer_client_error_from_http() -> None:
 
     with patch("designer.client.urlopen", side_effect=err):
         with pytest.raises(DesignerClientError) as ei:
-            designer_execute("http://localhost:4713/__api/screenshot-designer", "noop", {})
+            designer_enqueue_command("http://localhost:4713/__api/screenshot-designer", "noop", {})
     assert ei.value.status_code == 400

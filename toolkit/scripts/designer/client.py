@@ -209,19 +209,6 @@ def designer_session(
     return _json_request("GET", url, timeout=timeout)
 
 
-def designer_execute(
-    base_url: str,
-    operation: str,
-    args: dict[str, Any] | None = None,
-    *,
-    timeout: float = 120.0,
-) -> dict[str, Any]:
-    base = validate_designer_base_url(base_url)
-    url = f"{base}/execute"
-    body = {"operation": operation, "args": args or {}}
-    return _json_request("POST", url, body=body, timeout=timeout)
-
-
 def designer_enqueue_command(
     base_url: str,
     operation: str,
