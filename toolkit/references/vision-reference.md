@@ -1,18 +1,19 @@
 # Vision / image toolkit reference
 
-Layout CLI image helpers (`Pillow`): inspect, decode, resize, crop, color sampling, and preset dimension checks. Run from publisher repo root. Optional: `python toolkit/scripts/layout.py --compact image <subcommand> ...`.
+Conceptual guide for **image QA** on screenshot previews and assets using the publisher toolkit’s Pillow-based helpers (**`layout image`** — command tables are only in **`layout-reference.md`**).
 
-**Layout** (`layout.py`: presets, store JSON, packs, grid, text, …): **`layout-reference.md`**. **Live canvas**: **`web-ui-reference.md`**.
+**Layout CLI tables** (including **`layout image`**): **`layout-reference.md`**. **Live canvas** (`designer.py`, preview PNGs): **`web-ui-reference.md`**.
 
-| CLI | Arg | Summary |
-| --- | --- | --- |
-| `python toolkit/scripts/layout.py image info` | Required **`--path <path>`** (image file on disk). | Image metadata (dimensions, mode, etc.) |
-| `python toolkit/scripts/layout.py image from-base64` | Required **`--input <path>`** or **`--input -`** (read base64 text from file or stdin). Optional **`--out <path>`** — when set, decodes to PNG at that path; JSON still includes dimensions (and `saved` path when written). | Decode PNG from base64; optional write to disk |
-| `python toolkit/scripts/layout.py image match-preset` | Required **`--path <path>`**. Optional **`--canvas-size <slug>`** and/or **`--preset-id <id>`** (same preset resolution rules as **`layout resolve-preset`**; both omitted uses default preset). | Compare image dimensions to resolved preset |
-| `python toolkit/scripts/layout.py image resize-max-edge` | Required **`--path <path>`**, **`--max-edge <int>`** (max length of longest side in px), **`--out <path>`** (output PNG path). | Resize so longest edge ≤ N |
-| `python toolkit/scripts/layout.py image crop` | Required **`--path <path>`**, **`--left`**, **`--top`**, **`--right`**, **`--bottom`** (ints; Pillow box, **`right`** and **`bottom`** are **exclusive**), **`--out <path>`**. | Crop to pixel rectangle |
-| `python toolkit/scripts/layout.py image region-hex` | Required **`--path <path>`**, **`--left`**, **`--top`**, **`--right`**, **`--bottom`** (ints; same exclusive **`right`** / **`bottom`** convention as **`image crop`**). | Mean color hex for rectangle |
-| `python toolkit/scripts/layout.py image dominant` | Required **`--path <path>`**. Optional **`--k <int>`** (number of colors, default **5**). | Heuristic dominant colors (quantize) |
-| `python toolkit/scripts/layout.py image assert-png` | Required **`--path <path>`**. | Exit 0 if file starts with PNG magic |
+## Scope
 
-Typical QA after a designer preview: `image info` on the saved PNG; `match-preset` to confirm dimensions match the target `canvas-size` / preset.
+- **Metadata** — dimensions, mode, format from files on disk.
+- **Decode** — base64 PNG payloads (e.g. pasted or piped text) to bytes / optional save.
+- **Geometry** — resize (max edge), crop to an axis-aligned rectangle (Pillow uses **exclusive** `right` / `bottom` on the crop box).
+- **Color** — mean hex for a rectangle; heuristic dominant colors (quantize).
+- **Preset checks** — compare raster dimensions to a resolved artboard preset (`canvas-size` / `preset-id` rules match **`store-json`** / **`list-presets`**).
+- **Sanity** — assert file begins with PNG magic bytes.
+
+## Conventions
+
+- Cropping uses integer **`left`**, **`top`**, **`right`**, **`bottom`** with **`right`** and **`bottom`** **exclusive** (same as Pillow’s box).
+- After saving a preview PNG from the workflow, typical checks are: confirm dimensions vs target preset, inspect dominant/region colors if relevant, optionally resize or crop for downstream use.

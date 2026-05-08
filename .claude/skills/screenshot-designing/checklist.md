@@ -19,7 +19,7 @@ Unless **Cross-panel exception** is **yes** with a rationale, this review pass c
 
 ## 1. Layout criteria (manual / toolkit-assisted)
 
-There is **no** automated `predict-checks` CLI in this repo. Apply these using **`pull-preview`** PNGs and, where useful, **`layout.py`** helpers (`safe-zone`, `contrast`, `device-height-ratio`, **`preview-budget`**) per **layout-reference**.
+There is **no** automated `predict-checks` CLI in this repo. Apply these using **`pull-preview`** PNGs and, where useful, **`layout.py contrast`** per **layout-reference**.
 
 | Item | Value |
 | --- | --- |
@@ -39,7 +39,7 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 | Text: contrast vs background | — | Use `layout contrast --a --b` if needed |
 | Text: horizontal span sensible vs panel width | — | — |
 | Text vs device: **no** bbox overlap | — | — |
-| Device height ~**75–90%** of canvas (panel) height | — | `layout device-height-ratio` if needed |
+| Device height ~**75–90%** of canvas (panel) height | — | Visual check on preview |
 | Device pairs: low overlap if multiple devices | — | — |
 
 ---

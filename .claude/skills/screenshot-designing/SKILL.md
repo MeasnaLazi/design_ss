@@ -18,8 +18,8 @@ Use **whenever** you act as **screenshot-designer-agent** or the user asks you t
 1. **This skill** — especially **§ Single-panel default** and **§ Workflow** below.  
 2. **Publisher toolkit** — [`toolkit/SKILL.md`](../../../toolkit/SKILL.md), then open the references it points to before running commands:  
    - Live canvas / `enqueue-op` allowlist: [`toolkit/references/web-ui-reference.md`](../../../toolkit/references/web-ui-reference.md)  
-   - Presets, safe zone, preview budget, contrast helpers: [`toolkit/references/layout-reference.md`](../../../toolkit/references/layout-reference.md)  
-   - Image tools / preview PNG workflow: [`toolkit/references/vision-reference.md`](../../../toolkit/references/vision-reference.md)
+   - Presets, listings, device packs, contrast, **`layout image`** (CLI tables): [`toolkit/references/layout-reference.md`](../../../toolkit/references/layout-reference.md)  
+   - Image QA conventions (no CLI tables): [`toolkit/references/vision-reference.md`](../../../toolkit/references/vision-reference.md)
 
 Do **not** guess `enqueue-op` operation names or flags; copy exact strings from **web-ui-reference**.
 
@@ -51,9 +51,9 @@ Do **not** overwrite `output/screenshot_report.md` unless the user explicitly as
 4. **Plan** a numbered list of concrete `enqueue-op` steps (move, `layer_patch`, `text_set_*`, `device_*`, `set_z_index`, `batch`, …).  
 5. **Apply** via `python toolkit/scripts/designer.py enqueue-op …` (prefer **`batch`** for ordered steps).  
 6. **Render preview** when needed: e.g. `enqueue-op` **`render_panel_preview`** for the active column, then **`pull-preview --panels <n>`**.  
-7. **Review:** Walk [checklist.md](checklist.md) for the active panel (visual + criteria rows). Use **`layout.py contrast`**, **`safe-zone`**, **`preview-budget`** from **layout-reference** when you need numeric parity checks — there is **no** automated full-layout JSON gate in-repo anymore.
+7. **Review:** Walk [checklist.md](checklist.md) for the active panel (visual + criteria rows). Use **`layout.py contrast`** and related helpers from **layout-reference** when you need numeric parity checks — there is **no** automated full-layout JSON gate in-repo anymore.
 
-**Preview budget:** Respect render limits documented in **layout-reference** (`preview-budget`). Do not spam `render_panel_preview` without cause.
+**Previews:** Do not spam `render_panel_preview` without cause.
 
 ## Done when
 

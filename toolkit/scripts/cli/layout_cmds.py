@@ -8,17 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from core.constants import DEVICE_MAX_CANVAS_HEIGHT_RATIO, DEVICE_MIN_CANVAS_HEIGHT_RATIO
 from core.paths import publisher_root
 from image import color as color_mod
 from image import image_io
 from layout import devices as devices_mod
-from layout import geometry as geometry_mod
-from layout import grid as grid_mod
 from layout import presets as presets_mod
-from layout import quality as quality_mod
-from layout import safe as safe_mod
-from layout import text_metrics as text_metrics_mod
 from store import store_listing as store_listing_mod
 
 from cli.io_utils import json_print
@@ -30,55 +24,6 @@ def register_layout(sub: Any) -> None:
 
     lp = layout_sub.add_parser("list-presets", help="List all preset ids and dimensions")
     lp.set_defaults(handler=_cmd_list_presets)
-
-    rp = layout_sub.add_parser("resolve-preset", help="Resolve canvas size or preset id")
-    rp.add_argument("--canvas-size", default=None)
-    rp.add_argument("--preset-id", default=None)
-    rp.set_defaults(handler=_cmd_resolve_preset)
-
-    sz = layout_sub.add_parser("safe-zone", help="Safe zone rect for a preset canvas")
-    sz.add_argument("--canvas-size", default=None)
-    sz.add_argument("--preset-id", default=None)
-    sz.set_defaults(handler=_cmd_safe_zone)
-
-    sg = layout_sub.add_parser("snap-to-grid", help="Snap a number to the design grid")
-    sg.add_argument("--value", type=float, required=True)
-    sg.add_argument("--mode", choices=["nearest", "floor", "ceil"], default="nearest")
-    sg.set_defaults(handler=_cmd_snap)
-
-    ag = layout_sub.add_parser("assert-grid", help="Exit 1 if x,y are not grid-aligned")
-    ag.add_argument("--x", type=float, required=True)
-    ag.add_argument("--y", type=float, required=True)
-    ag.set_defaults(handler=_cmd_assert_grid)
-
-    etw = layout_sub.add_parser("estimate-text-width", help="Mirror server estimateTextWidth")
-    etw.add_argument("--content", required=True)
-    etw.add_argument("--size", type=float, required=True)
-    etw.set_defaults(handler=_cmd_etw)
-
-    eth = layout_sub.add_parser("estimate-text-height", help="Mirror text layer height factor")
-    eth.add_argument("--size", type=float, required=True)
-    eth.set_defaults(handler=_cmd_eth)
-
-    al = layout_sub.add_parser("align", help="Compute align position (mirror server align op)")
-    al.add_argument("--layer-x", type=float, default=0)
-    al.add_argument("--layer-y", type=float, default=0)
-    al.add_argument("--layer-w", type=float, required=True)
-    al.add_argument("--layer-h", type=float, required=True)
-    al.add_argument(
-        "--anchor",
-        required=True,
-        choices=["center_x", "center_y", "top", "bottom", "left", "right"],
-    )
-    al.add_argument("--ref-x", type=float, default=0)
-    al.add_argument("--ref-y", type=float, default=0)
-    al.add_argument("--ref-w", type=float, required=True)
-    al.add_argument("--ref-h", type=float, required=True)
-    al.set_defaults(handler=_cmd_align)
-
-    pb = layout_sub.add_parser("preview-budget", help="Render iteration budget helper")
-    pb.add_argument("--count", type=int, required=True)
-    pb.set_defaults(handler=_cmd_preview_budget)
 
     dp = layout_sub.add_parser("device-packs", help="List device packs from web_ui/public/device-frames/index.json")
     dp.add_argument("--type", default=None, help="Filter by device type e.g. iphone")
@@ -107,17 +52,6 @@ def register_layout(sub: Any) -> None:
     cr.add_argument("--a", required=True)
     cr.add_argument("--b", required=True)
     cr.set_defaults(handler=_cmd_contrast)
-
-    dhr = layout_sub.add_parser("device-height-ratio", help="Device height / canvas height")
-    dhr.add_argument("--device-height", type=float, required=True)
-    dhr.add_argument("--canvas-height", type=float, required=True)
-    dhr.set_defaults(handler=_cmd_dhr)
-
-    sds = layout_sub.add_parser("scaled-device-size", help="Scaled device dimensions")
-    sds.add_argument("--view-w", type=float, required=True)
-    sds.add_argument("--view-h", type=float, required=True)
-    sds.add_argument("--scale", type=float, required=True)
-    sds.set_defaults(handler=_cmd_sds)
 
     img = layout_sub.add_parser("image", help="Image load / inspect (Pillow)")
     img_sub = img.add_subparsers(dest="image_cmd", required=True)
@@ -184,65 +118,6 @@ def _cmd_list_presets(_ns: argparse.Namespace, compact: bool) -> None:
     json_print(rows, compact)
 
 
-def _cmd_resolve_preset(ns: argparse.Namespace, compact: bool) -> None:
-    p = presets_mod.resolve_preset(ns.canvas_size, ns.preset_id)
-    json_print(
-        {
-            "presetId": p.preset_id,
-            "displaySlug": p.display_slug,
-            "width": p.width,
-            "height": p.height,
-            "placeholder": p.placeholder,
-        },
-        compact,
-    )
-
-
-def _cmd_safe_zone(ns: argparse.Namespace, compact: bool) -> None:
-    p = presets_mod.resolve_preset(ns.canvas_size, ns.preset_id)
-    r = safe_mod.safe_zone_rect(p.width, p.height)
-    json_print({"canvas": {"width": p.width, "height": p.height}, "safeZone": r.__dict__}, compact)
-
-
-def _cmd_snap(ns: argparse.Namespace, compact: bool) -> None:
-    v = grid_mod.snap_to_grid(ns.value, ns.mode)
-    json_print({"in": ns.value, "out": v, "mode": ns.mode}, compact)
-
-
-def _cmd_assert_grid(ns: argparse.Namespace, _compact: bool) -> None:
-    grid_mod.assert_grid_coords(ns.x, ns.y)
-    print(json.dumps({"ok": True, "x": ns.x, "y": ns.y}))
-
-
-def _cmd_etw(ns: argparse.Namespace, compact: bool) -> None:
-    w = text_metrics_mod.estimate_text_width(ns.content, ns.size)
-    json_print({"width": w, "content": ns.content, "fontSize": ns.size}, compact)
-
-
-def _cmd_eth(ns: argparse.Namespace, compact: bool) -> None:
-    h = text_metrics_mod.estimate_text_height(ns.size)
-    json_print({"height": h, "fontSize": ns.size}, compact)
-
-
-def _cmd_align(ns: argparse.Namespace, compact: bool) -> None:
-    x, y = geometry_mod.align_layer(
-        ns.layer_x,
-        ns.layer_y,
-        ns.layer_w,
-        ns.layer_h,
-        ns.anchor,
-        ns.ref_x,
-        ns.ref_y,
-        ns.ref_w,
-        ns.ref_h,
-    )
-    json_print({"x": x, "y": y, "anchor": ns.anchor}, compact)
-
-
-def _cmd_preview_budget(ns: argparse.Namespace, compact: bool) -> None:
-    json_print(quality_mod.preview_budget(ns.count), compact)
-
-
 def _cmd_device_packs(ns: argparse.Namespace, compact: bool) -> None:
     root = ns.repo_root or publisher_root()
     rows = devices_mod.list_device_packs(root, ns.type)
@@ -264,17 +139,6 @@ def _cmd_store_json(ns: argparse.Namespace, compact: bool) -> None:
 def _cmd_contrast(ns: argparse.Namespace, compact: bool) -> None:
     r = color_mod.contrast_ratio(ns.a, ns.b)
     json_print({"ratio": round(r, 4), "passesAA": color_mod.passes_wcag_aa(r)}, compact)
-
-
-def _cmd_dhr(ns: argparse.Namespace, compact: bool) -> None:
-    r = geometry_mod.device_height_ratio(ns.device_height, ns.canvas_height)
-    ok = DEVICE_MIN_CANVAS_HEIGHT_RATIO <= r <= DEVICE_MAX_CANVAS_HEIGHT_RATIO
-    json_print({"ratio": round(r, 6), "ok": ok}, compact)
-
-
-def _cmd_sds(ns: argparse.Namespace, compact: bool) -> None:
-    w, h = geometry_mod.scaled_device_size(ns.view_w, ns.view_h, ns.scale)
-    json_print({"width": w, "height": h}, compact)
 
 
 def _cmd_img_info(ns: argparse.Namespace, compact: bool) -> None:

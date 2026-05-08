@@ -1,15 +1,14 @@
 # Layout toolkit reference
 
-All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **safe zone / grid / text metrics**, **offline align parity** with `web_ui/screenshot-designer-server.ts`, and helpers such as **`contrast`** and **`preview-budget`**. Optional global flag: **`--compact`** immediately after `layout.py`.
+All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **`layout image`** (Pillow; table below), and **`contrast`**. Optional global flag: **`--compact`** immediately after `layout.py`.
 
-**Image bytes** (`layout image …`, Pillow): **`vision-reference.md`**. **Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
+**Image concepts** (crop conventions, QA workflow — no CLI tables): **`vision-reference.md`**. **Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
 
 ## Presets
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
 | `python toolkit/scripts/layout.py list-presets` | No arguments. | JSON rows: `presetId`, `displaySlug`, `width`, `height`, `placeholder` |
-| `python toolkit/scripts/layout.py resolve-preset` | Optional **`--canvas-size <slug>`** and/or **`--preset-id <id>`** (both may be omitted → default preset). `canvas-size` uses the same slug family as `store-json` / `safe-zone` (e.g. `iphone`, `ipad`, `phone`, `tablet`); `preset-id` accepts catalog ids (legacy ids normalized internally). | Resolve one preset to dimensions + metadata |
 
 ## Store listings
 
@@ -24,22 +23,23 @@ All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from
 | `python toolkit/scripts/layout.py device-packs` | Optional **`--type <string>`** (e.g. `iphone`, `ipad`, `phone`, `tablet` — filters packs in `web_ui/public/device-frames/index.json`). Optional **`--repo-root <path>`**. | List packs from `web_ui/public/device-frames/index.json` |
 | `python toolkit/scripts/layout.py load-frame` | Required **`--pack <pack_id>`**. Optional **`--repo-root <path>`**. | Read `frame.json` for pack (`name`, `description`, `framePath`, …) |
 
-## Geometry, grid, text metrics
-
-| CLI | Arg | Summary |
-| --- | --- | --- |
-| `python toolkit/scripts/layout.py safe-zone` | Optional **`--canvas-size <slug>`** and/or **`--preset-id <id>`** (preset resolution identical to `resolve-preset`). | Safe-zone rect for preset canvas |
-| `python toolkit/scripts/layout.py snap-to-grid` | Required **`--value <float>`**. **`--mode`** is **`nearest`**, **`floor`**, or **`ceil`** (default **`nearest`**). | Snap a scalar to design grid |
-| `python toolkit/scripts/layout.py assert-grid` | Required **`--x <float>`**, **`--y <float>`**. | Exit non-zero if coordinates not grid-aligned |
-| `python toolkit/scripts/layout.py estimate-text-width` | Required **`--content <string>`**, **`--size <float>`** (font size px). | Mirror server `estimateTextWidth` |
-| `python toolkit/scripts/layout.py estimate-text-height` | Required **`--size <float>`** (font size px). | Mirror text layer height factor |
-| `python toolkit/scripts/layout.py align` | Required **`--layer-w`**, **`--layer-h`**, **`--anchor`** (`center_x`, `center_y`, `top`, `bottom`, `left`, or `right`), **`--ref-w`**, **`--ref-h`**. Optional **`--layer-x`**, **`--layer-y`**, **`--ref-x`**, **`--ref-y`** (each defaults to **0**). Parity note: live `align` uses panel-local refs (`reference: "panel"` + `panel_index` / `panel_number`); `reference: "canvas"` is rejected server-side. | Offline align position (mirror server align op) |
-| `python toolkit/scripts/layout.py scaled-device-size` | Required **`--view-w <float>`**, **`--view-h <float>`**, **`--scale <float>`**. | Scaled device dimensions |
-| `python toolkit/scripts/layout.py device-height-ratio` | Required **`--device-height <float>`**, **`--canvas-height <float>`**. JSON output includes **`ok`** when ratio is in ~**0.75–0.90**. | Ratio device height / canvas height |
-
 ## Quality helpers
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
 | `python toolkit/scripts/layout.py contrast` | Required **`--a <hex>`**, **`--b <hex>`** (e.g. `#ffffff`, `#101827`). | WCAG contrast ratio between two colors |
-| `python toolkit/scripts/layout.py preview-budget` | Required **`--count <int>`**. | Render-iteration budget helper |
+
+## Image (`layout image …`, Pillow)
+
+Run as **`python toolkit/scripts/layout.py image <subcommand> …`** (optional **`--compact`** after `layout.py`). Subcommands:
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| `python toolkit/scripts/layout.py image info` | Required **`--path <path>`** (image file on disk). | Image metadata (dimensions, mode, etc.) |
+| `python toolkit/scripts/layout.py image from-base64` | Required **`--input <path>`** or **`--input -`** (read base64 text from file or stdin). Optional **`--out <path>`** — when set, decodes to PNG at that path; JSON still includes dimensions (and `saved` path when written). | Decode PNG from base64; optional write to disk |
+| `python toolkit/scripts/layout.py image match-preset` | Required **`--path <path>`**. Optional **`--canvas-size <slug>`** and/or **`--preset-id <id>`** (same rules as **`store-json`** / **`list-presets`**; both omitted uses default preset). | Compare image dimensions to resolved preset |
+| `python toolkit/scripts/layout.py image resize-max-edge` | Required **`--path <path>`**, **`--max-edge <int>`** (max length of longest side in px), **`--out <path>`** (output PNG path). | Resize so longest edge ≤ N |
+| `python toolkit/scripts/layout.py image crop` | Required **`--path <path>`**, **`--left`**, **`--top`**, **`--right`**, **`--bottom`** (ints; Pillow box, **`right`** and **`bottom`** are **exclusive**), **`--out <path>`**. | Crop to pixel rectangle |
+| `python toolkit/scripts/layout.py image region-hex` | Required **`--path <path>`**, **`--left`**, **`--top`**, **`--right`**, **`--bottom`** (ints; same exclusive **`right`** / **`bottom`** convention as **`image crop`**). | Mean color hex for rectangle |
+| `python toolkit/scripts/layout.py image dominant` | Required **`--path <path>`**. Optional **`--k <int>`** (number of colors, default **5**). | Heuristic dominant colors (quantize) |
+| `python toolkit/scripts/layout.py image assert-png` | Required **`--path <path>`**. | Exit 0 if file starts with PNG magic |

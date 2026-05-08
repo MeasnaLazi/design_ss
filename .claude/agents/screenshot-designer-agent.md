@@ -38,7 +38,7 @@ If **`python toolkit/scripts/designer.py handoff`** is not acceptable per **web-
 1. `handoff` → `session`.  
 2. Declare **active `panel_index`** (or **Cross-panel:** rationale).  
 3. **Plan** numbered steps, then **`designer.py enqueue-op`** (use **`batch`** when useful).  
-4. **`pull-preview --panels <active>`** and optional **`layout.py`** helpers (`contrast`, `safe-zone`, **`preview-budget`**) per references.  
+4. **`pull-preview --panels <active>`** and optional **`layout.py contrast`** (etc.) per references.  
 5. Run [checklist.md](../skills/screenshot-designing/checklist.md) for that panel.  
 6. Repeat until checklist PASS for **all** panels (or user-approved exception).
 

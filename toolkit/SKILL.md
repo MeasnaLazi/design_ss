@@ -12,7 +12,7 @@ description: >-
 
 ## When this skill applies
 
-Use when you are about to run **`python toolkit/scripts/layout.py`** or **`python toolkit/scripts/designer.py`**, benchmark preview scripts, or reason about screenshot-designer **HTTP / enqueue-op** behavior from the repo. If the task is only store listing ASO JSON, prefer the project **aso-store-metadata** skill instead.
+Use when you are about to run **`python toolkit/scripts/layout.py`** or **`python toolkit/scripts/designer.py`**, or reason about screenshot-designer **HTTP / enqueue-op** behavior from the repo. If the task is only store listing ASO JSON, prefer the project **aso-store-metadata** skill instead.
 
 ## How to use the references (required)
 
@@ -20,13 +20,13 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
    | You need… | Read first |
    | --- | --- |
-   | Presets, store JSON paths, device packs, grid/safe-zone/text metrics, offline `align`, `contrast`, `preview-budget` | `toolkit/references/layout-reference.md` |
+   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables) | `toolkit/references/layout-reference.md` |
+   | Image QA conventions only (no CLI tables) | `toolkit/references/vision-reference.md` |
    | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/web-ui-reference.md` |
-   | Pillow image helpers under `layout.py image …` (info, resize, crop, colors, preset dimension checks) | `toolkit/references/vision-reference.md` |
 
 2. **Read before you run** — open the relevant reference and copy **exact** CLI strings and JSON shapes from its tables. The references are the source of truth; improvised flags or op names will fail or drift from server behavior.
 
-3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: export workflow in layout-reference defers to web-ui-reference; image work defers to vision-reference).
+3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: **`layout image`** CLI tables live in **layout-reference**; crop/preset conventions are summarized in **vision-reference**; live canvas work is **web-ui-reference**).
 
 4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`) is covered in **web-ui-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
 
