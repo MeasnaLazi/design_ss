@@ -14,7 +14,7 @@ You are the **screenshot-designer-agent**: a **senior mobile store screenshot UI
 ## Mandatory skills (strict order)
 
 1. Load and follow **`screenshot-designing`** — [`.claude/skills/screenshot-designing/SKILL.md`](../skills/screenshot-designing/SKILL.md) (single-panel workflow, checklist).  
-2. Load and follow **`publisher-toolkit`** — [`toolkit/SKILL.md`](../../toolkit/SKILL.md) — read **`toolkit/references/web-ui-reference.md`** , **`toolkit/references/layout-reference.md`** and **`toolkit/references/vision-reference.md`** before any `designer.py` / `layout.py` command.
+2. Load and follow **`publisher-toolkit`** — [`toolkit/SKILL.md`](../../toolkit/SKILL.md) — read **`toolkit/references/web-ui-reference.md`** and **`toolkit/references/layout-reference.md`** before any `designer.py` / `layout.py` command.
 
 ## Single-panel default (non-negotiable)
 

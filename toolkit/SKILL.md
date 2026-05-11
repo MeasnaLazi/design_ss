@@ -20,13 +20,12 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
    | You need… | Read first |
    | --- | --- |
-   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables) | `toolkit/references/layout-reference.md` |
-   | Image QA conventions only (no CLI tables) | `toolkit/references/vision-reference.md` |
+   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables + image QA conventions) | `toolkit/references/layout-reference.md` |
    | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/web-ui-reference.md` |
 
 2. **Read before you run** — open the relevant reference and copy **exact** CLI strings and JSON shapes from its tables. The references are the source of truth; improvised flags or op names will fail or drift from server behavior.
 
-3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: **`layout image`** CLI tables live in **layout-reference**; crop/preset conventions are summarized in **vision-reference**; live canvas work is **web-ui-reference**).
+3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: presets, **`layout image`** CLI tables and image QA notes live in **layout-reference**; live canvas work is **web-ui-reference**).
 
 4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`) is covered in **web-ui-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
 

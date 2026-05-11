@@ -18,8 +18,7 @@ Use **whenever** you act as **screenshot-designer-agent** or the user asks you t
 1. **This skill** — especially **§ Single-panel default** and **§ Workflow** below.  
 2. **Publisher toolkit** — [`toolkit/SKILL.md`](../../../toolkit/SKILL.md), then open the references it points to before running commands:  
    - Live canvas / `enqueue-op` allowlist: [`toolkit/references/web-ui-reference.md`](../../../toolkit/references/web-ui-reference.md)  
-   - Presets, listings, device packs, contrast, **`layout image`** (CLI tables): [`toolkit/references/layout-reference.md`](../../../toolkit/references/layout-reference.md)  
-   - Image QA conventions (no CLI tables): [`toolkit/references/vision-reference.md`](../../../toolkit/references/vision-reference.md)
+   - Presets, listings, device packs, contrast, **`layout image`** (CLI tables + image QA conventions): [`toolkit/references/layout-reference.md`](../../../toolkit/references/layout-reference.md)
 
 Do **not** guess `enqueue-op` operation names or flags; copy exact strings from **web-ui-reference**.
 

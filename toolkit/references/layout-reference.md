@@ -2,7 +2,7 @@
 
 All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **`layout image`** (Pillow; table below), and **`contrast`**. Optional global flag: **`--compact`** immediately after `layout.py`.
 
-**Image concepts** (crop conventions, QA workflow — no CLI tables): **`vision-reference.md`**. **Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
+**Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
 
 ## Presets
 
@@ -40,3 +40,10 @@ Run as **`python toolkit/scripts/layout.py image <subcommand> …`** (optional *
 | `python toolkit/scripts/layout.py image match-preset` | Required **`--path <path>`**. Optional **`--canvas-size <slug>`** and/or **`--preset-id <id>`** (same rules as **`store-json`** / **`list-presets`**; both omitted uses default preset). | Compare image dimensions to resolved preset |
 | `python toolkit/scripts/layout.py image region-hex` | Required **`--path <path>`**, **`--left`**, **`--top`**, **`--right`**, **`--bottom`** (ints; Pillow box, **`right`** and **`bottom`** are **exclusive**). | Mean color hex for rectangle |
 | `python toolkit/scripts/layout.py image dominant` | Required **`--path <path>`**. Optional **`--k <int>`** (number of colors, default **5**). | Heuristic dominant colors (quantize) |
+
+## Image QA conventions
+
+Use these with the **`layout image`** subcommands above (metadata, **`from-base64`**, **`match-preset`**, **`region-hex`**, **`dominant`**).
+
+- **`region-hex`** rectangle args follow Pillow’s box: **`right`** and **`bottom`** are **exclusive**.
+- After saving a preview PNG, typical checks: dimensions vs preset (**`match-preset`**), dominant or region colors when relevant, then resize/crop downstream if needed.
