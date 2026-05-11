@@ -21,7 +21,6 @@ const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 /** Agent toolkit scratch: preview PNG (not committed; see repo `.gitignore`). */
 const AGENT_MEMORIES_DIR = 'memories'
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
-const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -647,35 +646,6 @@ export function datasourceApiPlugin(): Plugin {
 
         const agentMemoriesRoot = path.join(datasourceDir, AGENT_MEMORIES_DIR)
         const agentPreviewPath = path.join(agentMemoriesRoot, AGENT_PREVIEW_FILENAME)
-
-        if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'POST') {
-          try {
-            const chunks: Buffer[] = []
-            await new Promise<void>((resolve, reject) => {
-              req.on('data', (c: Buffer) => chunks.push(Buffer.from(c)))
-              req.on('end', () => resolve())
-              req.on('error', reject)
-            })
-            const buf = Buffer.concat(chunks)
-            if (buf.length === 0 || buf.length > MAX_AGENT_PREVIEW_BYTES) {
-              sendJson(nodeRes, 400, { error: 'invalid_body_size' })
-              return
-            }
-            if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
-              sendJson(nodeRes, 400, { error: 'expected_png_magic' })
-              return
-            }
-            await fs.mkdir(agentMemoriesRoot, { recursive: true })
-            await fs.writeFile(agentPreviewPath, buf)
-            nodeRes.statusCode = 200
-            nodeRes.setHeader('Content-Type', 'application/json')
-            nodeRes.end(JSON.stringify({ ok: true, bytes: buf.length }))
-          } catch (e: unknown) {
-            const err = e as Error
-            sendJson(nodeRes, 500, { error: String(err?.message ?? e) })
-          }
-          return
-        }
 
         if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'GET') {
           try {

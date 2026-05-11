@@ -188,7 +188,6 @@ const CLIENT_AUTHORITATIVE_OPERATIONS = new Set([
   'batch',
   'set_equal_spacing',
   'match_size',
-  'render_panel_preview',
 ])
 
 export async function screenshotDesignerExecuteOperation(
