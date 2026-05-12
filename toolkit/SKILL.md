@@ -21,22 +21,22 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
    | You need… | Read first |
    | --- | --- |
    | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables + image QA conventions) | `toolkit/references/layout-reference.md` |
-   | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/web-ui-reference.md` |
+   | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/designer-reference.md` |
 
 2. **Read before you run** — open the relevant reference and copy **exact** CLI strings and JSON shapes from its tables. The references are the source of truth; improvised flags or op names will fail or drift from server behavior.
 
-3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: presets, **`layout image`** CLI tables and image QA notes live in **layout-reference**; live canvas work is **web-ui-reference**).
+3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: presets, **`layout image`** CLI tables and image QA notes live in **layout-reference**; live canvas work is **designer-reference**).
 
-4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`) is covered in **web-ui-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
+4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`) is covered in **designer-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
 
 5. **Constraints agents often miss**
 
    - Run commands from the **publisher repo root** unless a reference explicitly says otherwise.
    - Optional **`--compact`** placement matches each reference (`layout.py` vs `designer.py`).
-   - For **`enqueue-op`**, use **only** operation names listed in web-ui-reference; use the **Invalid names** table to avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
+   - For **`enqueue-op`**, use **only** operation names listed in designer-reference / **`web_ui/TOOLKIT.md`**; avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
    - **`designer.py handoff`**: proceed with live ops only when the reference’s readiness conditions are met (`"ok": true` and acceptable `web_ui_status`); otherwise start `web_ui` / toolchain first.
 
-6. **Cross-panel previews** — use **`render_panel_preview`** / **`pull-preview`** per **web-ui-reference** when you need PNG crops of strip columns.
+6. **Cross-panel previews** — use **`render_panel_preview`** then **`pull-preview`** per **designer-reference** when you need PNG crops of strip columns.
 
 ## Outcome
 

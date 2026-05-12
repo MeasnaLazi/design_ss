@@ -8,15 +8,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from designer import panel_indexes as panel_indexes_mod
 from designer.client import (
     designer_enqueue_command as designer_enqueue_command_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
-    poll_agent_preview_until_changed,
     resolve_designer_base_url,
     screenshot_designer_handoff,
-    try_designer_pull_agent_preview,
 )
 from designer.enqueue_validate import validate_positional_enqueue_args
 
@@ -61,40 +58,19 @@ def register_designer(sub: Any) -> None:
 
     ds_pv = designer_sub.add_parser(
         "pull-preview",
-        help="GET .../agent-preview (PNG last pushed); optional --panels enqueues one render_panel_preview for a contiguous strip segment then polls",
+        help="GET .../agent-preview (PNG last pushed from the browser)",
     )
     ds_pv.add_argument(
         "--out",
         type=Path,
         default=None,
-        help="Write PNG to this path (plain GET or after --panels); omit for stdout when using --panels",
-    )
-    ds_pv.add_argument(
-        "--panels",
-        default=None,
-        metavar="INDICES",
-        help='Comma-separated 0-based columns forming one connected segment (e.g. 0,1 or 3,4 or 2,3,4) — one combined PNG; requires Web UI listening',
+        help="Write PNG to this path; omit to write raw PNG bytes to stdout",
     )
     ds_pv.add_argument(
         "--timeout",
         type=float,
         default=60.0,
-        help="GET timeout, or wait budget after --panels enqueue",
-    )
-    ds_pv.add_argument(
-        "--poll-interval",
-        type=float,
-        default=0.08,
-        metavar="SEC",
-        help="Sleep between GETs when waiting for new PNG after --panels (default: 0.08)",
-    )
-    ds_pv.add_argument(
-        "--preview-multiplier",
-        type=int,
-        choices=[1, 2],
-        default=None,
-        help="With --panels: pass preview_multiplier to render_panel_preview (1=faster, 2=sharper); "
-        "omit to use web_ui VITE_AGENT_PREVIEW_MULTIPLIER / default 2",
+        help="GET timeout in seconds",
     )
     ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
 
@@ -129,56 +105,9 @@ def _cmd_designer_enqueue_op(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
     base = resolve_designer_base_url()
-    if ns.panels is None or not str(ns.panels).strip():
-        data = designer_pull_agent_preview_http(base, timeout=ns.timeout)
-        if ns.out is not None:
-            ns.out.write_bytes(data)
-            print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
-        else:
-            sys.stdout.buffer.write(data)
-        return
-
-    parsed = panel_indexes_mod.parse_panel_indexes_arg(str(ns.panels))
-    contiguous = panel_indexes_mod.sorted_contiguous_panel_indexes(parsed)
-    previous: bytes | None = try_designer_pull_agent_preview(base, timeout=min(10.0, float(ns.timeout)))
-    render_args: dict[str, object] = {"panel_indexes": contiguous}
-    if ns.preview_multiplier is not None:
-        render_args["preview_multiplier"] = int(ns.preview_multiplier)
-    validate_positional_enqueue_args("render_panel_preview", render_args)
-    out = designer_enqueue_command_http(
-        base,
-        "render_panel_preview",
-        render_args,
-        timeout=min(120.0, max(float(ns.timeout), 30.0)),
-    )
-    if not out.get("ok"):
-        raise ValueError(f"enqueue render_panel_preview failed: {out!r}")
-    png = poll_agent_preview_until_changed(
-        base,
-        previous,
-        timeout=float(ns.timeout),
-        interval=float(ns.poll_interval),
-    )
-
+    data = designer_pull_agent_preview_http(base, timeout=ns.timeout)
     if ns.out is not None:
-        ns.out.write_bytes(png)
-        meta: dict[str, object] = {"ok": True, "bytes": len(png), "path": str(ns.out), "panelIndexes": contiguous}
-        if ns.preview_multiplier is not None:
-            meta["previewMultiplier"] = int(ns.preview_multiplier)
-        if contiguous != parsed:
-            meta["requestedOrder"] = parsed
-            meta["note"] = "panel_indexes sorted to contiguous ascending range for the crop"
-        print(json.dumps(meta))
-    else:
-        sys.stdout.buffer.write(png)
-        if contiguous != parsed:
-            note_obj = {
-                "ok": True,
-                "note": "panel_indexes sorted to contiguous ascending range for the crop",
-                "requestedOrder": parsed,
-                "panelIndexes": contiguous,
-            }
-            if compact:
-                print(json.dumps(note_obj, separators=(",", ":")), file=sys.stderr)
-            else:
-                print(json.dumps(note_obj, indent=2), file=sys.stderr)
+        ns.out.write_bytes(data)
+        print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
+        return
+    sys.stdout.buffer.write(data)

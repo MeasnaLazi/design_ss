@@ -2,7 +2,7 @@
 
 All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from the publisher repo root (unless noted). They cover **preset catalog**, **store listing JSON**, **device pack metadata**, **`layout image`** (Pillow; table below), and **`contrast`**. Optional global flag: **`--compact`** immediately after `layout.py`.
 
-**Live canvas** (`designer.py`, preview): **`web-ui-reference.md`**.
+**Live canvas** (`designer.py`, preview): **`designer-reference.md`**.
 
 ## Presets
 
