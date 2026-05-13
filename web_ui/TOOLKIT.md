@@ -14,6 +14,7 @@ All paths below are relative to that base (no trailing slash on the base).
 | POST | `/execute` | `{"operation": "<string>", "args": { ... }}` | JSON object (operation-specific) | Runs on **server** path. Operations that only run in the browser return an error message pointing to `enqueue-command`. |
 | POST | `/enqueue-command` | `{"operation": "<string>", "args": { ... }, "requestId"?: "<string>"}` | JSON ack or error JSON | Delivers to an **open** designer tab via SSE. Full contract: [POST enqueue-command](#post-enqueue-command) below. |
 | GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). Toolkit may poll until PNG changes. |
+| GET | `/agent-preview-data` | — | JSON object (`application/json`) | Last slim panel layout snapshot from the browser. **404** = no snapshot yet (`no_preview_data_yet`). Toolkit may poll until `revision` changes. |
 
 ### POST enqueue-command
 
@@ -116,6 +117,7 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 | `set_equal_spacing` | **`layer_ids`** (≥ 2) + **`axis`** + **`gap`**: stacks objects along axis with fixed gap between successive bounding edges (same panel). |
 | `match_size` | **`source_layer_id`**, **`target_layer_ids`[]**, **`mode`**: `width` \| `height` \| `both`. Non-text: scale to match source scaled size. **Textbox**: width-only adjustment when width/both (height follows text). |
 | `render_panel_preview` | **`panel_indexes`** (contiguous strip) **or** **`panel_index`** (0-based) **or** **`panel_number`** (1-based): crops that strip/single panel → agent preview PNG; optional **`preview_multiplier`**. Use a contiguous `panel_indexes` range spanning all columns for a full-strip capture. |
+| `capture_panel_preview_data` | Same column selectors as **`render_panel_preview`** (no **`preview_multiplier`**): builds a **minimal** JSON snapshot for the requested strip (layer ids, panel-local layout fields for **`text`** / **`device`** only) and POSTs it to **`/agent-preview-data`**. Use PNG preview for visual/copy checks. |
 
 **Toolkit**
 
@@ -128,7 +130,7 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 
 | Command area | Script | Purpose |
 |--------------|--------|---------|
-| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `enqueue-op`, `pull-preview`, etc. |
+| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `enqueue-op`, `pull-preview`, `pull-preview-data`, etc. |
 
 ### Not HTTP (same repo)
 
@@ -146,8 +148,20 @@ These are served under the same Vite `/__api` middleware but are **not** called 
 | GET | `/__api/screenshot-designer/command-events?slug=…` | Browser (SSE subscriber) |
 | POST | `/__api/screenshot-designer/command-result` | Browser (result after applying command) |
 | POST | `/__api/screenshot-designer/agent-preview` | Browser (upload latest PNG) |
+| GET | `/__api/screenshot-designer/agent-preview-data` | Toolkit (`pull-preview-data` / `designer/client.py`) |
+| POST | `/__api/screenshot-designer/agent-preview-data` | Browser (upload latest panel JSON after **`capture_panel_preview_data`**) |
 
-The dev server persists the last preview under **`datasource/memories/`** (`.agent_last_preview.png`). That directory is gitignored except `.gitkeep`.
+The dev server persists the last preview under **`datasource/memories/`** (`.agent_last_preview.png`, `.agent_last_preview_data.json`). That directory is gitignored except `.gitkeep`.
+
+### Panel preview data (enqueue + pull)
+
+1. **`enqueue-op`** — `capture_panel_preview_data` with **`panel_indexes`** (or **`panel_index`** / **`panel_number`**).
+2. **Browser** — SSE delivers the op; Fabric projects a slim JSON DTO and POSTs to **`/agent-preview-data`**.
+3. **`pull-preview-data`** — GET **`/agent-preview-data`**; poll until **`revision`** changes after enqueue.
+
+**GET `/agent-preview-data` JSON (version `1`)** — top-level: `version`, `revision`, `capturedAt`, `gap`, `workspace_width`, `workspace_height`, `panels[]`. **`revision`** is a **string** (JSON text of a stable subset: version, gap, workspace size, and `panels` including layer fields) so clients can compare it for “did the layout change?” without parsing the whole file. Each panel: `panel_index`, `panel_width`, `panel_height`, `panel_x`, `panel_y` (document/workspace coordinates for that column’s rect), `layers[]`. Layer geometry is **panel-local** (`x`/`y` relative to that panel’s top-left). `layer_id`, `kind`, `z_index` plus kind-specific fields (see `web_ui/src/types/agentPanelPreviewData.ts`). No `panel_index` on nested layers (implied by parent panel). No full `DisplayDocumentV1` / `fabricObjects`.
+
+Live reads after canvas edits must use enqueue + pull; persisted `display_*.json` can lag auto-save.
 
 ## Datasource `/__api/datasource/…`
 

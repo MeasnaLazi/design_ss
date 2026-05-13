@@ -27,7 +27,7 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
 3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: presets, **`layout image`** CLI tables and image QA notes live in **layout-reference**; live canvas work is **designer-reference**).
 
-4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`) is covered in **designer-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
+4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`, `pull-preview-data`) is covered in **designer-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
 
 5. **Constraints agents often miss**
 
@@ -36,7 +36,7 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
    - For **`enqueue-op`**, use **only** operation names listed in designer-reference / **`web_ui/TOOLKIT.md`**; avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
    - **`designer.py handoff`**: proceed with live ops only when the reference’s readiness conditions are met (`"ok": true` and acceptable `web_ui_status`); otherwise start `web_ui` / toolchain first.
 
-6. **Cross-panel previews** — use **`render_panel_preview`** then **`pull-preview`** per **designer-reference** when you need PNG crops of strip columns.
+6. **Cross-panel previews** — use **`render_panel_preview`** then **`pull-preview`** per **designer-reference** when you need PNG crops of strip columns. Use **`capture_panel_preview_data`** then **`pull-preview-data`** when you need **`layer_id`** and panel-local layout fields for the next **`enqueue-op`**; keep PNG for visual or copy checks.
 
 ## Outcome
 

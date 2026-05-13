@@ -12,6 +12,7 @@ from designer.client import (
     designer_enqueue_command as designer_enqueue_command_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
+    poll_agent_preview_data_until_changed,
     resolve_designer_base_url,
     screenshot_designer_handoff,
 )
@@ -74,6 +75,29 @@ def register_designer(sub: Any) -> None:
     )
     ds_pv.set_defaults(handler=_cmd_designer_pull_preview)
 
+    ds_pvd = designer_sub.add_parser(
+        "pull-preview-data",
+        help="GET .../agent-preview-data (JSON last pushed from the browser)",
+    )
+    ds_pvd.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Write JSON to this path; omit to print JSON to stdout",
+    )
+    ds_pvd.add_argument(
+        "--timeout",
+        type=float,
+        default=60.0,
+        help="Poll timeout in seconds",
+    )
+    ds_pvd.add_argument(
+        "--previous-revision",
+        default=None,
+        help="Wait until revision differs from this value (omit to accept first snapshot)",
+    )
+    ds_pvd.set_defaults(handler=_cmd_designer_pull_preview_data)
+
 
 def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
     out = screenshot_designer_handoff(
@@ -111,3 +135,28 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
         print(json.dumps({"ok": True, "bytes": len(data), "path": str(ns.out)}))
         return
     sys.stdout.buffer.write(data)
+
+
+def _cmd_designer_pull_preview_data(ns: argparse.Namespace, compact: bool) -> None:
+    base = resolve_designer_base_url()
+    data = poll_agent_preview_data_until_changed(
+        base,
+        ns.previous_revision,
+        timeout=ns.timeout,
+    )
+    payload = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    encoded = payload.encode("utf-8")
+    if ns.out is not None:
+        ns.out.write_text(payload, encoding="utf-8")
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "bytes": len(encoded),
+                    "path": str(ns.out),
+                    "revision": data.get("revision"),
+                }
+            )
+        )
+        return
+    json_print(data, compact)

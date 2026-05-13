@@ -1,5 +1,10 @@
+import type { AgentPanelPreviewData } from '../types/agentPanelPreviewData'
+
 /** Dev-server endpoint for agent vision preview (see vite-plugin-datasource-api). */
 export const AGENT_PREVIEW_ENDPOINT = '/__api/screenshot-designer/agent-preview'
+
+/** Dev-server endpoint for agent panel layout JSON (see vite-plugin-datasource-api). */
+export const AGENT_PREVIEW_DATA_ENDPOINT = '/__api/screenshot-designer/agent-preview-data'
 
 /**
  * Default multiplier when `VITE_AGENT_PREVIEW_MULTIPLIER` is unset or invalid.
@@ -93,4 +98,21 @@ export async function pushLiveCanvasPreviewRect(
     throw new Error('canvas.toBlob returned null for agent preview (rect)')
   }
   await pushAgentPreviewBlob(blob)
+}
+
+/** Upload the latest slim panel layout snapshot for toolkit `pull-preview-data`. */
+export async function pushAgentPreviewDataJson(
+  payload: AgentPanelPreviewData,
+): Promise<{ ok: boolean; bytes?: number }> {
+  const body = JSON.stringify(payload)
+  const res = await fetch(AGENT_PREVIEW_DATA_ENDPOINT, {
+    method: 'POST',
+    body,
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; bytes?: number; error?: string }
+  if (!res.ok) {
+    throw new Error(j.error ?? `agent preview data upload failed (${res.status})`)
+  }
+  return { ok: true, bytes: j.bytes }
 }

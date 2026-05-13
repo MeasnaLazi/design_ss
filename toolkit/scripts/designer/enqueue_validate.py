@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from designer.panel_indexes import sorted_contiguous_panel_indexes
+
 
 def _has_panel_column(d: dict[str, Any]) -> bool:
     """True if args declare a strip column via panel_index (0-based) or panel_number (1-based)."""
@@ -38,6 +40,37 @@ def _preview_multiplier_ok(value: Any) -> bool:
     return n in (1, 2)
 
 
+def _panel_preview_column_selector_ok(args: dict[str, Any], op: str) -> None:
+    raw_list = args.get("panel_indexes")
+    if raw_list is not None and raw_list != "":
+        if not isinstance(raw_list, list) or len(raw_list) == 0:
+            raise ValueError(f"{op}: panel_indexes must be a non-empty array of integers.")
+        parsed: list[int] = []
+        for item in raw_list:
+            if isinstance(item, bool) or not isinstance(item, int):
+                raise ValueError(f"{op}: panel_indexes must be integers.")
+            parsed.append(item)
+        try:
+            sorted_contiguous_panel_indexes(parsed)
+        except ValueError as e:
+            raise ValueError(f"{op}: {e}") from e
+        return
+
+    if _has_panel_column(args):
+        for key in ("panel_index", "panel_number"):
+            value = args.get(key)
+            if value is None or value == "":
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{op}: {key} must be an integer.")
+        return
+
+    raise ValueError(
+        f"{op}: provide panel_indexes (contiguous) or integer panel_index (0-based) "
+        "or panel_number (1-based)."
+    )
+
+
 def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> None:
     """
     Ensure panel column is declared when the Web UI expects panel-local coordinates.
@@ -46,11 +79,22 @@ def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> No
     """
     op = operation.strip()
 
+    if op == "capture_panel_preview":
+        raise ValueError(
+            "capture_panel_preview: use operation capture_panel_preview_data for JSON snapshots "
+            "(pull-preview-data)."
+        )
+
     if op == "render_panel_preview":
         if not _preview_multiplier_ok(args.get("preview_multiplier")):
             raise ValueError(
                 f"{op}: preview_multiplier must be 1 or 2 when set (got {args.get('preview_multiplier')!r})."
             )
+        _panel_preview_column_selector_ok(args, op)
+        return
+
+    if op == "capture_panel_preview_data":
+        _panel_preview_column_selector_ok(args, op)
         return
 
     if op in ("add_device_frame", "add_text", "device_set_position"):

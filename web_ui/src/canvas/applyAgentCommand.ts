@@ -1,6 +1,7 @@
 import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
 import {
+  pushAgentPreviewDataJson,
   pushLiveCanvasPreviewRect,
   resolveAgentPreviewMultiplier,
 } from '../lib/agentContextApi'
@@ -12,6 +13,11 @@ import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
+import {
+  panelPreviewExportRect,
+  resolvePanelPreviewSelection,
+} from './agentPanelPreviewArgs'
+import { buildAgentPanelPreviewData } from './buildAgentPanelPreviewData'
 import { screenExportRect } from '../constants/appStoreScreens'
 import { useDesignStore } from '../store/useDesignStore'
 import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
@@ -1409,91 +1415,19 @@ export async function applyAgentCommand(
     }
 
     case 'render_panel_preview': {
-      const rawList = args.panel_indexes
-      if (Array.isArray(rawList) && rawList.length > 0) {
-        const parsed: number[] = []
-        for (const item of rawList) {
-          const n = Number(item)
-          if (!Number.isInteger(n)) {
-            useToastStore
-              .getState()
-              .showToast('render_panel_preview: panel_indexes must be integers.', 'warning')
-            return
-          }
-          parsed.push(n)
-        }
-        const sorted = [...new Set(parsed)].sort((a, b) => a - b)
-        for (let i = 0; i < sorted.length; i++) {
-          if (sorted[i] !== sorted[0]! + i) {
-            useToastStore
-              .getState()
-              .showToast(
-                'render_panel_preview: panel_indexes must be contiguous strip columns (e.g. 0,1 or 2,3,4).',
-                'warning',
-              )
-            return
-          }
-        }
-        const { config } = useDesignStore.getState()
-        const screens = Math.max(1, Math.floor(Number(config.screens ?? 1)))
-        const i0 = sorted[0]!
-        const i1 = sorted[sorted.length - 1]!
-        if (i0 < 0 || i1 >= screens) {
-          useToastStore
-            .getState()
-            .showToast(
-              `render_panel_preview: panel_indexes must be within [0, ${screens - 1}].`,
-              'warning',
-            )
-          return
-        }
-        const { width, height } = getArtboardDimensionsFromConfig(config)
-        const gap = config.gap
-        const r0 = screenExportRect(i0, gap, width, height)
-        const r1 = screenExportRect(i1, gap, width, height)
-        const rect = {
-          left: r0.left,
-          top: r0.top,
-          width: r1.left + r1.width - r0.left,
-          height: r0.height,
-        }
-        const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
-        await pushLiveCanvasPreviewRect(canvas, rect, mult)
-        return
-      }
-
-      const rawPanelIndex = args.panel_index
-      const rawPanelNumber = args.panel_number
-      const panelIndex =
-        rawPanelIndex !== undefined
-          ? Number(rawPanelIndex)
-          : rawPanelNumber !== undefined
-            ? Number(rawPanelNumber) - 1
-            : Number.NaN
-      if (!Number.isInteger(panelIndex)) {
-        useToastStore
-          .getState()
-          .showToast(
-            'render_panel_preview: provide panel_indexes (contiguous) or integer panel_index (0-based) or panel_number (1-based).',
-            'warning',
-          )
-        return
-      }
-      const { config } = useDesignStore.getState()
-      const screens = Math.max(1, Math.floor(Number(config.screens ?? 1)))
-      if (panelIndex < 0 || panelIndex >= screens) {
-        useToastStore
-          .getState()
-          .showToast(
-            `render_panel_preview: panel_index must be in [0, ${screens - 1}] or panel_number in [1, ${screens}].`,
-            'warning',
-          )
-        return
-      }
-      const { width, height } = getArtboardDimensionsFromConfig(config)
-      const rect = screenExportRect(panelIndex, config.gap, width, height)
+      const selection = resolvePanelPreviewSelection(args, 'render_panel_preview')
+      if (!selection) return
+      const rect = panelPreviewExportRect(selection.panelIndexes)
       const mult = resolveAgentPreviewMultiplier(args.preview_multiplier)
       await pushLiveCanvasPreviewRect(canvas, rect, mult)
+      return
+    }
+
+    case 'capture_panel_preview_data': {
+      const selection = resolvePanelPreviewSelection(args, 'capture_panel_preview_data')
+      if (!selection) return
+      const payload = buildAgentPanelPreviewData(canvas, selection.panelIndexes)
+      await pushAgentPreviewDataJson(payload)
       return
     }
 

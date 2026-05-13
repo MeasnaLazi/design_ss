@@ -21,7 +21,9 @@ const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 /** Agent toolkit scratch: preview PNG (not committed; see repo `.gitignore`). */
 const AGENT_MEMORIES_DIR = 'memories'
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
+const AGENT_PREVIEW_DATA_FILENAME = '.agent_last_preview_data.json'
 const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
+const MAX_AGENT_PREVIEW_DATA_BYTES = 512 * 1024
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -647,6 +649,7 @@ export function datasourceApiPlugin(): Plugin {
 
         const agentMemoriesRoot = path.join(datasourceDir, AGENT_MEMORIES_DIR)
         const agentPreviewPath = path.join(agentMemoriesRoot, AGENT_PREVIEW_FILENAME)
+        const agentPreviewDataPath = path.join(agentMemoriesRoot, AGENT_PREVIEW_DATA_FILENAME)
 
         if (pathname === '/__api/screenshot-designer/agent-preview' && req.method === 'POST') {
           try {
@@ -690,6 +693,63 @@ export function datasourceApiPlugin(): Plugin {
               nodeRes.statusCode = 404
               nodeRes.setHeader('Content-Type', 'application/json')
               nodeRes.end(JSON.stringify({ error: 'no_preview_yet' }))
+              return
+            }
+            nodeRes.statusCode = 500
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ error: String(err?.message ?? e) }))
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/agent-preview-data' && req.method === 'POST') {
+          try {
+            const body = await readBody(req as IncomingMessage)
+            if (body.length === 0) {
+              sendJson(nodeRes, 400, { error: 'invalid_body' })
+              return
+            }
+            const byteLen = Buffer.byteLength(body, 'utf8')
+            if (byteLen > MAX_AGENT_PREVIEW_DATA_BYTES) {
+              sendJson(nodeRes, 400, { error: 'body_too_large' })
+              return
+            }
+            let parsed: unknown
+            try {
+              parsed = JSON.parse(body)
+            } catch {
+              sendJson(nodeRes, 400, { error: 'invalid_json' })
+              return
+            }
+            if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+              sendJson(nodeRes, 400, { error: 'expected_json_object' })
+              return
+            }
+            await fs.mkdir(agentMemoriesRoot, { recursive: true })
+            await fs.writeFile(agentPreviewDataPath, body, 'utf8')
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, bytes: byteLen }))
+          } catch (e: unknown) {
+            const err = e as Error
+            sendJson(nodeRes, 500, { error: String(err?.message ?? e) })
+          }
+          return
+        }
+
+        if (pathname === '/__api/screenshot-designer/agent-preview-data' && req.method === 'GET') {
+          try {
+            const text = await fs.readFile(agentPreviewDataPath, 'utf8')
+            nodeRes.statusCode = 200
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.setHeader('Cache-Control', 'no-store')
+            nodeRes.end(text)
+          } catch (e: unknown) {
+            const err = e as NodeJS.ErrnoException
+            if (err.code === 'ENOENT') {
+              nodeRes.statusCode = 404
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ error: 'no_preview_data_yet' }))
               return
             }
             nodeRes.statusCode = 500

@@ -33,6 +33,78 @@ Optional global flag on the parent CLI: **`--compact`** (one-line JSON where the
 
 Operation names and per-op args match **`web_ui/TOOLKIT.md`** (e.g. `add_text`, `move_layer`, `layer_patch`, `batch`). Use only documented names; do not use deprecated aliases such as `delete_layer` or `set_bg`.
 
+## Client-authoritative `enqueue-op` allowlist (current)
+
+Treat this list as the **only** operations you may send with **`python toolkit/scripts/designer.py enqueue-op`**. Authoritative summaries are in **`web_ui/TOOLKIT.md`**; implementation is in **`web_ui/src/canvas/applyAgentCommand.ts`**. Which ops **must** go through enqueue (vs **`/execute`** on the server) is encoded in **`CLIENT_AUTHORITATIVE_OPERATIONS`** in **`web_ui/screenshot-designer-server.ts`** — **`noop`** appears in the TOOLKIT table but is special-cased on the server for **`/execute`** as well.
+
+**Policy:**
+
+1. The **`--operation`** name must appear in **Shared operations**, **Layer type: Text**, **Layer type: Device**, **Image**, or **Other** below (same set as **`web_ui/TOOLKIT.md`**).
+2. **`--args-json`** must match that contract; if unsure, re-read **`web_ui/TOOLKIT.md`** instead of guessing.
+3. Do **not** invent aliases (`set_bg`, `delete_layer`, `capture_panel_preview` without `_data`, etc.).
+
+### Layer
+
+All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--operation <CLI>`** and **`--args-json '{…}'`**. The **CLI** column is the **`--operation`** name. Full contracts: **`web_ui/TOOLKIT.md`**.
+
+**Coordinate reminder:** where **`x`/`y`** are **panel-local**, args must include **`panel_index`** (0-based) or **`panel_number`** (1-based) as required by that operation (**`web_ui/TOOLKIT.md`**, **`designer/enqueue_validate.py`**). **Text:** top-left in panel space. **Device** **`device_set_position`:** center in panel space.
+
+#### Shared operations
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| **`remove_layer`** | **`layer_id`** | Deletes the layer from the canvas and store. |
+| **`move_layer`** | **`layer_id`**; **`dx`**, **`dy`** *or* **`x`**, **`y`** + **`panel_index`** / **`panel_number`** | Delta move (grid-snapped), or absolute panel-local position (text: top-left, device: center). |
+| **`align`** | **`layer_id`**, **`anchor`**, **`reference`** (`panel` or other **`layer_id`**); **`panel_index`** / **`panel_number`** when **`reference`** is **`panel`** | Aligns bounding box; **`reference: canvas`** is rejected. |
+| **`layer_patch`** | **`layer_id`**, **`patch`**; **`panel_index`** / **`panel_number`** when **`patch`** sets **`x`** and/or **`y`** | Partial field update on one layer. |
+| **`layers_patch_bulk`** | **`layers`**: `[{ layer_id, patch, … }, …]`; optional top-level **`panel_index`** / **`panel_number`** | Same panel rules as **`layer_patch`** per entry. |
+| **`batch`** | **`operations`**: `[{ operation, args }, …]` | Runs nested ops in order; nested **`batch`** not allowed. |
+| **`set_z_index`** | **`layer_id`**, **`z_index`** | Reorders stack; **`z_index`** clamped to valid range. |
+| **`match_size`** | **`source_layer_id`**, **`target_layer_ids`**, **`mode`**: `width` \| `height` \| `both` | Match size from source; text targets follow TOOLKIT rules (width vs height). |
+| **`set_equal_spacing`** | **`layer_ids`** (≥ 2), **`axis`**, **`gap`** | Fixed gap along axis between layers in **one** panel column. |
+
+#### Layer type: Text
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| **`add_text`** | **`panel_index`** / **`panel_number`**, **`x`**, **`y`**, **`content`**, **`size`**, **`color`**, **`font`**, **`align`**, **`weight`** | New textbox at panel-local top-left. |
+| **`text_font_size_delta`** | **`layer_id`**, **`delta`** | Change font size by delta px (clamped **8–400**). |
+| **`text_set_font_size`** | **`layer_id`**, **`size`** | Absolute font size (clamped **8–400**). |
+| **`text_set_font_style`** | **`layer_id`**, **`variant`**: `regular` \| `bold` \| `italic` \| `bold_italic` | Font style variant. |
+| **`text_set_color`** | **`layer_id`**, **`color`** (hex **`#rrggbb`**) | Text fill color. |
+| **`text_set_content`** | **`layer_id`**, **`content`** | Replace string body. |
+| **`text_set_line_height`** | **`layer_id`**, **`line_height`** (> 0) | Line height multiplier / rhythm. |
+| **`text_set_letter_spacing`** | **`layer_id`**, **`letter_spacing`** | Character spacing (Fabric `charSpacing`). |
+| **`text_auto_fit`** | **`layer_id`**; optional **`min_size`**, **`max_size`** | Shrink font to fit text width in box. |
+
+#### Layer type: Device
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| **`add_device_frame`** | **`panel_index`** / **`panel_number`**; optional **`path`**, **`frame`** | Insert device frame in that column. |
+| **`device_size_delta`** | **`layer_id`**, **`delta_px`** or **`delta`** | Change device width by delta px (uniform scale, min/max per TOOLKIT). |
+| **`device_set_position`** | **`layer_id`**, **`panel_index`** / **`panel_number`**, **`x`**, **`y`** | Panel-local **center** of device in column (same panel resolution as **`add_text`** / **`move_layer`**). |
+| **`device_move_delta`** | **`layer_id`**, **`dx`**, **`dy`**; optional **`panel_index`** / **`panel_number`** | Delta in document px; optional panel must match inferred column. |
+| **`device_set_angle`** | **`layer_id`**, **`angle`** (degrees) | Rotation. |
+| **`device_set_size`** | **`layer_id`**; **`width`** and/or **`height`**; optional **`fit`**: `contain` \| `cover` | Uniform resize (aspect preserved on device frame). |
+| **`device_set_frame_style`** | **`layer_id`**; **`style`** or **`frame`**; optional **`pack_id`** | Frame style / pack swap. |
+
+### Image
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| **`render_panel_preview`** | **`panel_indexes`** *or* **`panel_index`** *or* **`panel_number`**; optional **`preview_multiplier`** `1` \| `2` | Crops strip → browser POSTs PNG → **`pull-preview`** reads **`/agent-preview`**. |
+| **`capture_panel_preview_data`** | Same column selectors as **`render_panel_preview`** (no **`preview_multiplier`**) | Slim layout JSON → browser POSTs → **`pull-preview-data`** reads **`/agent-preview-data`**. |
+
+Details and examples: **Panel preview** and **Panel preview data** sections below.
+
+### Other
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| **`noop`** | `{}` | No canvas work (connectivity check). |
+| **`set_background`** | **`type`** / **`mode`**: `color` \| `gradient` \| `image`; **`value`** (or **`color`**, **`gradient`**, **`image`**, **`image_url`**) — hex string, gradient object, or image URL; *or* top-level **`background`**: `{ type, value, … }` with the same idea | Solid, gradient, or image artboard background. For gradients, **`value`** is a `kind` + `angleDeg` + `stops` object; the designer’s built-in preset names are good targets to mimic — e.g. **Slate depth**, **Aurora**, **Sunset**, **Spotlight**, **Ocean glass**, **Rose metal**. |
+
 
 ## Panel preview (enqueue + pull)
 
@@ -72,3 +144,45 @@ Toolkit validates **`preview_multiplier`** before enqueue (`designer/enqueue_val
 | `python toolkit/scripts/designer.py pull-preview` | Optional **`--out <path>`** — write PNG and print JSON metadata. Optional **`--timeout`** (default 60s). | GET **`/agent-preview`**. **404** / **`no_preview_yet`** if nothing has been uploaded yet. |
 
 Does **not** enqueue **`render_panel_preview`** or poll for a new crop; run **`enqueue-op`** first when the stored preview is missing or stale.
+
+## Panel preview data (enqueue + pull)
+
+Cross-panel layout snapshots use two steps: enqueue **`capture_panel_preview_data`** in the browser, then **`pull-preview-data`** fetches the last stored JSON.
+
+1. **`enqueue-op`** — POST **`/enqueue-command`**. Response is JSON ack (`ok`, `slug`, `operation`, `requestId`), not layout bytes.
+2. **Browser** — SSE delivers the op; Fabric projects a slim JSON DTO and POSTs to **`/agent-preview-data`**.
+3. **`pull-preview-data`** — GET **`/agent-preview-data`**; polls until **`revision`** changes (or the first snapshot when no prior revision). With **`--out`**, writes JSON and prints metadata on stdout.
+
+Use PNG (**`render_panel_preview`** + **`pull-preview`**) when appearance or copy matters; use JSON for structure, **`layer_id`**, and panel-local coordinates for the next **`enqueue-op`**.
+
+**Snapshot shape (version `1`, panels layout)** — matches `web_ui/src/types/agentPanelPreviewData.ts` / `buildAgentPanelPreviewData.ts`. Top-level: `version`, `revision`, `capturedAt`, `gap`, `workspace_width`, `workspace_height`, `panels[]`. Each **`panels[]`** entry has `panel_index`, `panel_width`, `panel_height`, `panel_x`, `panel_y`, and **`layers[]`** (text and device only; sorted by `z_index`). **`panel_x`** and **`panel_y`** are the top-left of that panel’s export rect in **workspace** coordinates. In **`layers[]`**, **`kind: text`**: `x` / `y` are panel-local **top-left** of the text layer’s align bounding box (same bbox rules as **`align`**). **`kind: device`**: `x` / `y` are panel-local **center** of the device frame’s align bounding box (bezel image bbox). Use the parent panel’s `panel_index` for enqueue args. **`revision`** is a string: `JSON.stringify` of `{ version, gap, workspace_width, workspace_height, panels }` only ( **`capturedAt` is not included** ), so **`pull-preview-data`** can detect layout changes without timestamp noise.
+
+### Example: column 0 layout snapshot
+
+```bash
+python3 toolkit/scripts/designer.py enqueue-op \
+  --operation capture_panel_preview_data \
+  --args-json '{"panel_indexes":[0]}'
+
+python3 toolkit/scripts/designer.py pull-preview-data --out ../output/temp/panel.json
+```
+
+With **`--out`**, stdout is JSON: `{"ok": true, "bytes": <n>, "path": "<path>", "revision": "<revision>"}`. Omit **`--out`** to print the snapshot JSON to stdout.
+
+### `capture_panel_preview_data` args (`--args-json`)
+
+| Field | Required | Summary |
+| --- | --- | --- |
+| **`panel_indexes`** | One of column selectors | 0-based strip columns forming one **contiguous** segment (e.g. `[0]`, `[0,1]`, `[2,3,4]`). |
+| **`panel_index`** | Alternative | Single column, 0-based. |
+| **`panel_number`** | Alternative | Single column, 1-based. |
+
+Toolkit validates column selectors before enqueue (`designer/enqueue_validate.py`). There is no **`preview_multiplier`**.
+
+## `pull-preview-data`
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| `python toolkit/scripts/designer.py pull-preview-data` | Optional **`--out <path>`** — write JSON and print metadata. Optional **`--timeout`** (default 60s). Optional **`--previous-revision`** — wait until **`revision`** differs. | GET **`/agent-preview-data`**. **404** / **`no_preview_data_yet`** if nothing has been uploaded yet. |
+
+Does **not** enqueue **`capture_panel_preview_data`**; run **`enqueue-op`** first when the stored snapshot is missing or stale.

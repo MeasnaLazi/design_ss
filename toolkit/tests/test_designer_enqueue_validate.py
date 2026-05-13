@@ -121,8 +121,34 @@ def test_render_panel_preview_multiplier_invalid() -> None:
 
 
 def test_render_panel_preview_multiplier_valid_combination() -> None:
-    """Render ops validate preview_multiplier then return (no further panel rules)."""
     validate_positional_enqueue_args(
         "render_panel_preview",
         {"panel_indexes": [0], "preview_multiplier": 2},
     )
+
+
+def test_capture_panel_preview_typo_rejected() -> None:
+    with pytest.raises(ValueError, match="capture_panel_preview_data"):
+        validate_positional_enqueue_args("capture_panel_preview", {"panel_indexes": [0]})
+
+
+def test_capture_panel_preview_data_panel_indexes_valid() -> None:
+    validate_positional_enqueue_args("capture_panel_preview_data", {"panel_indexes": [0]})
+    validate_positional_enqueue_args("capture_panel_preview_data", {"panel_indexes": [0, 1]})
+    validate_positional_enqueue_args("capture_panel_preview_data", {"panel_index": 0})
+    validate_positional_enqueue_args("capture_panel_preview_data", {"panel_number": 1})
+
+
+def test_capture_panel_preview_data_panel_indexes_invalid() -> None:
+    with pytest.raises(ValueError, match="panel_indexes"):
+        validate_positional_enqueue_args("capture_panel_preview_data", {})
+    with pytest.raises(ValueError, match="panel_indexes must be integers"):
+        validate_positional_enqueue_args(
+            "capture_panel_preview_data",
+            {"panel_indexes": [0, "x"]},
+        )
+    with pytest.raises(ValueError, match="adjacent columns"):
+        validate_positional_enqueue_args(
+            "capture_panel_preview_data",
+            {"panel_indexes": [0, 2]},
+        )

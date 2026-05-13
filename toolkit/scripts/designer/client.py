@@ -276,6 +276,100 @@ def designer_pull_agent_preview(
     return data
 
 
+def try_designer_pull_agent_preview_data(
+    base_url: str,
+    *,
+    timeout: float = 60.0,
+) -> dict[str, Any] | None:
+    """
+    GET ``{base}/agent-preview-data`` — returns the JSON object, or ``None`` on 404
+    (``no_preview_data_yet``).
+    """
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/agent-preview-data"
+    req = Request(url, headers={"Accept": "application/json"}, method="GET")
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            if not raw.strip():
+                return {}
+            out = json.loads(raw)
+            if not isinstance(out, dict):
+                raise DesignerClientError("response JSON must be an object", url=url)
+            return out
+    except HTTPError as e:
+        if e.code == 404:
+            if e.fp:
+                e.read()
+            return None
+        err_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+        try:
+            parsed = json.loads(err_body) if err_body.strip() else {}
+            msg = str(parsed.get("error", e.reason))
+        except json.JSONDecodeError:
+            msg = err_body or str(e.reason)
+        raise DesignerClientError(
+            msg,
+            status_code=e.code,
+            body=err_body,
+            url=url,
+        ) from e
+    except URLError as e:
+        raise DesignerClientError(str(e.reason or e), url=url) from e
+
+
+def designer_pull_agent_preview_data(
+    base_url: str,
+    *,
+    timeout: float = 60.0,
+) -> dict[str, Any]:
+    """GET ``{base}/agent-preview-data`` — last panel JSON pushed from the browser (404 if none)."""
+    data = try_designer_pull_agent_preview_data(base_url, timeout=timeout)
+    if data is None:
+        base = validate_designer_base_url(base_url)
+        url = f"{base}/agent-preview-data"
+        raise DesignerClientError(
+            "no_preview_data_yet",
+            status_code=404,
+            body="",
+            url=url,
+        )
+    return data
+
+
+def poll_agent_preview_data_until_changed(
+    base_url: str,
+    previous_revision: str | None,
+    *,
+    timeout: float,
+    interval: float = 0.08,
+) -> dict[str, Any]:
+    """
+    Poll ``agent-preview-data`` until a snapshot appears whose ``revision`` differs from
+    ``previous_revision``. The server may use a stringified JSON blob as ``revision`` (not a
+    short id); compare as opaque strings.
+
+    When ``previous_revision`` is ``None``, the first non-404 response is accepted (e.g. after
+    ``capture_panel_preview_data`` enqueue while the browser POST is still in flight).
+    """
+    base = validate_designer_base_url(base_url)
+    url = f"{base}/agent-preview-data"
+    deadline = time.monotonic() + max(timeout, 0.1)
+    while time.monotonic() < deadline:
+        data = try_designer_pull_agent_preview_data(base_url, timeout=min(10.0, timeout))
+        if data is not None:
+            revision = data.get("revision")
+            if previous_revision is None or revision != previous_revision:
+                return data
+        time.sleep(max(interval, 0.01))
+    raise DesignerClientError(
+        "timed out waiting for agent preview data to update after enqueue",
+        status_code=None,
+        body=None,
+        url=url,
+    )
+
+
 def poll_agent_preview_until_changed(
     base_url: str,
     previous: bytes | None,
