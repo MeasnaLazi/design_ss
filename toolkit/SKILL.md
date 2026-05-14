@@ -2,13 +2,21 @@
 name: publisher-toolkit
 description: >-
   Screenshot designer toolkit in apps_publisher: run python toolkit/scripts/layout.py
-  and designer.py; layout parity, image helpers, store JSON,
-  loopback HTTP to web_ui. Agents MUST read toolkit/references/*.md before invoking
-  CLI (tables and enqueue-op allowlists are authoritative). Use when automating
-  screenshot-designer, layout parity, or designer handoff/session.
+  and designer.py; layout parity, image helpers, store JSON, loopback HTTP to the
+  local screenshot-designer API. Agents MUST read toolkit/references/designer-reference.md
+  and toolkit/references/layout-reference.md before invoking CLI (tables and enqueue-op
+  allowlists are authoritative). Use when automating screenshot-designer, layout parity,
+  or designer handoff/session.
 ---
 
 # Publisher toolkit
+
+## Reference docs (required)
+
+Authoritative CLI and contracts live only in:
+
+- **`toolkit/references/designer-reference.md`** — live canvas: `designer.py` handoff, session, **`enqueue-op`**, previews, setup/readiness.
+- **`toolkit/references/layout-reference.md`** — presets, store JSON, device packs, `contrast`, **`layout image`**, offline helpers.
 
 ## When this skill applies
 
@@ -20,23 +28,23 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
    | You need… | Read first |
    | --- | --- |
-   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables + image QA conventions) | `toolkit/references/layout-reference.md` |
-   | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | `toolkit/references/designer-reference.md` |
+   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables + image QA conventions) | **`toolkit/references/layout-reference.md`** |
+   | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | **`toolkit/references/designer-reference.md`** |
 
 2. **Read before you run** — open the relevant reference and copy **exact** CLI strings and JSON shapes from its tables. The references are the source of truth; improvised flags or op names will fail or drift from server behavior.
 
 3. **Follow cross-links inside references** — each file points to the others for overlapping flows (for example: presets, **`layout image`** CLI tables and image QA notes live in **layout-reference**; live canvas work is **designer-reference**).
 
-4. **Live canvas vs offline layout** — anything that hits the Vite/Web UI API (`handoff`, `session`, `enqueue-op`, `pull-preview`, `pull-preview-data`) is covered in **designer-reference**. Pure Python parity without a browser session is mostly **layout-reference**.
+4. **Live canvas vs offline layout** — anything that uses the running designer session (`handoff`, `session`, `enqueue-op`, `pull-preview`, `pull-preview-data`) is covered in **`toolkit/references/designer-reference.md`**. Pure Python work without that session is mostly **`toolkit/references/layout-reference.md`**.
 
 5. **Constraints agents often miss**
 
    - Run commands from the **publisher repo root** unless a reference explicitly says otherwise.
    - Optional **`--compact`** placement matches each reference (`layout.py` vs `designer.py`).
-   - For **`enqueue-op`**, use **only** operation names listed in designer-reference / **`web_ui/TOOLKIT.md`**; avoid deprecated aliases (`delete_layer`, `set_bg`, etc.).
-   - **`designer.py handoff`**: proceed with live ops only when the reference’s readiness conditions are met (`"ok": true` and acceptable `web_ui_status`); otherwise start `web_ui` / toolchain first.
+   - For **`enqueue-op`**, use **only** operation names and args documented in **`toolkit/references/designer-reference.md`** (and its tables); avoid deprecated aliases called out there (e.g. `delete_layer`, `set_bg`).
+   - **`designer.py handoff` / session:** follow **Setup** and **Readiness** in **`toolkit/references/designer-reference.md`** before live **`enqueue-op`** (API reachability, dev server, designer tab subscribed on the correct display slug). If the reference’s conditions are not met, finish setup there or use a repo skill/agent whose role is bringing up the local dev stack—do not improvise URLs or operation names.
 
-6. **Cross-panel previews** — use **`render_panel_preview`** then **`pull-preview`** per **designer-reference** when you need PNG crops of strip columns. Use **`capture_panel_preview_data`** then **`pull-preview-data`** when you need **`layer_id`** and panel-local layout fields for the next **`enqueue-op`**; keep PNG for visual or copy checks.
+6. **Cross-panel previews** — use **`render_panel_preview`** then **`pull-preview`** per **`toolkit/references/designer-reference.md`** when you need PNG crops of strip columns. Use **`capture_panel_preview_data`** then **`pull-preview-data`** when you need **`layer_id`** and panel-local layout fields for the next **`enqueue-op`**; keep PNG for visual or copy checks.
 
 ## Outcome
 

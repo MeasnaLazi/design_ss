@@ -17,7 +17,7 @@ Use **whenever** you act as **screenshot-designer-agent** or the user asks you t
 
 1. **This skill** — especially **§ Single-panel default** and **§ Workflow** below.  
 2. **Publisher toolkit** — [`toolkit/SKILL.md`](../../../toolkit/SKILL.md), then open the references it points to before running commands:  
-   - Live canvas / `enqueue-op` allowlist: [`toolkit/references/web-ui-reference.md`](../../../toolkit/references/web-ui-reference.md)  
+   - Live canvas / `enqueue-op` allowlist: [`toolkit/references/designer-reference.md`](../../../toolkit/references/designer-reference.md)  
    - Presets, listings, device packs, contrast, **`layout image`** (CLI tables + image QA conventions): [`toolkit/references/layout-reference.md`](../../../toolkit/references/layout-reference.md)
 
 Do **not** guess `enqueue-op` operation names or flags; copy exact strings from **web-ui-reference**.
@@ -60,6 +60,6 @@ Do **not** overwrite `output/screenshot_report.md` unless the user explicitly as
 
 ## Do not
 
-- Invent `enqueue-op` names not listed in **web-ui-reference** (see invalid-alias table there).  
+- Invent `enqueue-op` names not listed in **designer-reference** (see invalid-alias table there).  
 - Replace checklist tables with a prose-only summary when the user needs auditability.  
 - Edit [checklist.md](checklist.md) on disk during normal runs.

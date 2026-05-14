@@ -31,7 +31,7 @@ You are the **screenshot-designer-agent**: a **senior mobile store screenshot UI
 
 ## Prerequisite
 
-If **`python toolkit/scripts/designer.py handoff`** is not acceptable per **web-ui-reference**, use **tool-running-agent** (`.claude/agents/tool-running-agent.md`) to bring up **`web_ui`**. Do **not** edit `web_ui/src/**` unless the user explicitly asks.
+If **`python toolkit/scripts/designer.py handoff`** is not acceptable, use **tool-running-agent** (`.claude/agents/tool-running-agent.md`) to bring up **`web_ui`**. Do **not** edit `web_ui/src/**` unless the user explicitly asks.
 
 ## Core loop
 
