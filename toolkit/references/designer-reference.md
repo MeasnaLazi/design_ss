@@ -4,7 +4,7 @@ Commands run as **`python toolkit/scripts/designer.py <subcommand> …`** from t
 
 **Offline layout** (presets, store JSON, `layout image`, contrast): **`layout-reference.md`**.
 
-**HTTP route contracts** (enqueue SSE, agent-preview storage): **`web_ui/TOOLKIT.md`**.
+**Hybrid design validation** (rules CLI + agent vision workflow): **`design-validate.md`**.
 
 ## Setup
 
@@ -31,23 +31,21 @@ Optional global flag on the parent CLI: **`--compact`** (one-line JSON where the
 | --- | --- | --- |
 | `python toolkit/scripts/designer.py enqueue-op` | Required **`--operation <name>`**. **`--args-json`** JSON object (default `{}`), or **`@path.json`**. Optional **`--request-id`**, **`--timeout`** (default 120s). | POST **`/enqueue-command`**; operation runs in the open Web UI tab via SSE. |
 
-Operation names and per-op args match **`web_ui/TOOLKIT.md`** (e.g. `add_text`, `move_layer`, `layer_patch`, `batch`). Use only documented names; do not use deprecated aliases such as `delete_layer` or `set_bg`.
-
 ## Client-authoritative `enqueue-op` allowlist (current)
 
-Treat this list as the **only** operations you may send with **`python toolkit/scripts/designer.py enqueue-op`**. Authoritative summaries are in **`web_ui/TOOLKIT.md`**; implementation is in **`web_ui/src/canvas/applyAgentCommand.ts`**. Which ops **must** go through enqueue (vs **`/execute`** on the server) is encoded in **`CLIENT_AUTHORITATIVE_OPERATIONS`** in **`web_ui/screenshot-designer-server.ts`** — **`noop`** appears in the TOOLKIT table but is special-cased on the server for **`/execute`** as well.
+Treat this list as the **only** operations you may send with **`python toolkit/scripts/designer.py enqueue-op`**.
 
 **Policy:**
 
-1. The **`--operation`** name must appear in **Shared operations**, **Layer type: Text**, **Layer type: Device**, **Image**, or **Other** below (same set as **`web_ui/TOOLKIT.md`**).
-2. **`--args-json`** must match that contract; if unsure, re-read **`web_ui/TOOLKIT.md`** instead of guessing.
+1. The **`--operation`** name must appear in **Shared operations**, **Layer type: Text**, **Layer type: Device**, **Image**, or **Other** below.
+2. **`--args-json`** must match that contract; if unsure, re-read table instead of guessing.
 3. Do **not** invent aliases (`set_bg`, `delete_layer`, `capture_panel_preview` without `_data`, etc.).
 
 ### Layer
 
-All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--operation <CLI>`** and **`--args-json '{…}'`**. The **CLI** column is the **`--operation`** name. Full contracts: **`web_ui/TOOLKIT.md`**.
+All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--operation <CLI>`** and **`--args-json '{…}'`**. The **CLI** column is the **`--operation`** name.
 
-**Coordinate reminder:** where **`x`/`y`** are **panel-local**, args must include **`panel_index`** (0-based) or **`panel_number`** (1-based) as required by that operation (**`web_ui/TOOLKIT.md`**, **`designer/enqueue_validate.py`**). **Text:** top-left in panel space. **Device** **`device_set_position`:** center in panel space.
+**Coordinate reminder:** where **`x`/`y`** are **panel-local**, args must include **`panel_index`** (0-based) or **`panel_number`** (1-based) as required by that operation (**`designer/enqueue_validate.py`**). **Text:** top-left in panel space. **Device** **`device_set_position`:** center in panel space.
 
 #### Shared operations
 
@@ -186,3 +184,7 @@ Toolkit validates column selectors before enqueue (`designer/enqueue_validate.py
 | `python toolkit/scripts/designer.py pull-preview-data` | Optional **`--out <path>`** — write JSON and print metadata. Optional **`--timeout`** (default 60s). Optional **`--previous-revision`** — wait until **`revision`** differs. | GET **`/agent-preview-data`**. **404** / **`no_preview_data_yet`** if nothing has been uploaded yet. |
 
 Does **not** enqueue **`capture_panel_preview_data`**; run **`enqueue-op`** first when the stored snapshot is missing or stale.
+
+## `validate-rules` (offline checks)
+
+Non-vision validation of a pulled PNG and optional panel snapshot JSON: see **`design-validate.md`** for the full **`validate-rules`** table, check IDs, and the **rules → vision → next panel / user review** agent workflow.

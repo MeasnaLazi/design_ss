@@ -4,7 +4,7 @@ All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from
 
 **Live canvas** (`designer.py`, preview): **`designer-reference.md`**.
 
-## Presets
+**Hybrid validation** (`designer.py validate-rules`, rules-then-vision workflow): **`design-validate.md`** (uses the same WCAG math as **`layout contrast`**).
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
