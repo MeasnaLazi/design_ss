@@ -1,6 +1,10 @@
 import { ActiveSelection, FabricImage, Group, Textbox } from 'fabric'
 import type { Canvas, FabricObject } from 'fabric'
 import {
+  panelPreviewExportRect,
+  resolvePanelPreviewSelection,
+} from './agentPanelPreviewArgs'
+import {
   pushAgentPreviewDataJson,
   pushLiveCanvasPreviewRect,
   resolveAgentPreviewMultiplier,
@@ -9,15 +13,11 @@ import {
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
 import { addTextboxToCanvas } from './addTextboxToCanvas'
+import { buildAgentPanelPreviewData } from './buildAgentPanelPreviewData'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { normalizeBackgroundGradient } from '../lib/backgroundGradient'
 import { resolveDeviceFrameStyle } from '../lib/deviceFrameCatalog'
-import {
-  panelPreviewExportRect,
-  resolvePanelPreviewSelection,
-} from './agentPanelPreviewArgs'
-import { buildAgentPanelPreviewData } from './buildAgentPanelPreviewData'
 import { screenExportRect } from '../constants/appStoreScreens'
 import { useDesignStore } from '../store/useDesignStore'
 import { useDeviceFramePackStore } from '../store/useDeviceFramePackStore'
@@ -29,9 +29,13 @@ const TEXT_FONT_SIZE_MIN = 8
 const TEXT_FONT_SIZE_MAX = 400
 const DEVICE_SIZE_MIN_PX = 80
 
-type FontToken = 'headline' | 'subheadline' | 'body' | 'caption'
+type FontToken = 'largeTitle' | 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'caption'
 
 const FONT_MAP: Record<FontToken, string> = {
+  largeTitle: 'Inter',
+  title1: 'Inter',
+  title2: 'Inter',
+  title3: 'Inter',
   headline: 'Inter',
   subheadline: 'Inter',
   body: 'Inter',

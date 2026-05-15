@@ -92,8 +92,8 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 | `noop` | No canvas work. **`/execute`** returns `{ ok: true }` on the server; browser handler is a no-op. |
 | `set_background` | Artboard background: solid **hex**, **gradient** object, or **image** URL (`background` / nested `type`+`value` style payload). Updates store + redraws. |
 | `add_device_frame` | Inserts a device frame in **`panel_index`**, optional **`path`** (device PNG) and **`frame`** style id (defaults apply). |
-| `add_text` | New textbox at **panel-local** **`x`**, **`y`** with **`content`**, **`size`**, hex **`color`**, **`font`** token, **`align`**, **`weight`**; width estimated from content. |
-| `align` | Moves **`layer_id`** so **`anchor`** (center_x, center_y, top, bottom, left, right) aligns to **`reference`**: **`panel`** + panel index/number (panel-local rect), or another layer id (**same panel column** as target). `reference: canvas` is rejected. |
+| `add_text` | New textbox at **panel-local** **`x`**, **`y`** with **`content`**, **`size`**, hex **`color`**, **`font`** (`largeTitle` \| `title1` \| `title2` \| `title3` \| `headline` \| `subheadline` \| `body` \| `caption`; omit or use **`body`** as default), **`align`**, **`weight`**; width estimated from content. Invalid **`font`** is rejected. |
+| `align` | Moves **`layer_id`** so **`anchor`** (must be **`center_x`**, **`center_y`**, **`top`**, **`bottom`**, **`left`**, or **`right`**) aligns to **`reference`**: **`panel`** + panel index/number (panel-local rect), or another layer id (**same panel column** as target). `reference: canvas` is rejected. |
 | `move_layer` | **`layer_id`** and either **panel-local** **`x`**, **`y`** + **`panel_index`** / **`panel_number`** (text: top-left, device: center in panel), or **`dx`**, **`dy`** for a grid-snapped delta (panel inferred; optional **`panel_index`** must match). |
 | `text_font_size_delta` | **`layer_id`** + **`delta`**: current font size ± delta, rounded and clamped **8–400** px. |
 | `text_set_font_size` | **`layer_id`** + **`size`**: absolute font size, clamped **8–400** px. |
@@ -111,8 +111,8 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 | `device_set_frame_style` | **`layer_id`** + **`style`** (or **`frame`**); optional **`pack_id`** to swap frame asset / bezel style. |
 | `remove_layer` | **`layer_id`**: removes Fabric object and store entry. |
 | `set_z_index` | **`layer_id`** + integer **`z_index`**: reorders canvas stack (`moveObjectTo`), clamped to valid range. |
-| `layer_patch` | **`layer_id`** + **`patch`** object (subset of layout fields: position, size, text props, etc.). If **`x`** / **`y`** in patch, **`panel_index`** (or panel_number) required for panel-local coords. |
-| `layers_patch_bulk` | **`layers`**: array of `{ layer_id, patch, … }`. Same panel rules as `layer_patch`; optional top-level default panel for entries that need it. |
+| `layer_patch` | **`layer_id`** + **`patch`** object (subset of layout fields: position, size, text props, etc.). If **`x`** / **`y`** in patch, **`panel_index`** (or panel_number) required for panel-local coords. **Text:** if **`width`** or **`height`** appears in **`patch`**, **both** must be set (positive numbers). **Device:** at least one of **`width`** / **`height`** may be set. |
+| `layers_patch_bulk` | **`layers`**: array of `{ layer_id, patch, … }`. Same rules as `layer_patch` per entry; optional top-level default panel for entries that need it. |
 | `batch` | **`operations`**: array of `{ operation, args }` applied **in order**; nested **`batch`** rejected. |
 | `set_equal_spacing` | **`layer_ids`** (≥ 2) + **`axis`** + **`gap`**: stacks objects along axis with fixed gap between successive bounding edges (same panel). |
 | `match_size` | **`source_layer_id`**, **`target_layer_ids`[]**, **`mode`**: `width` \| `height` \| `both`. Non-text: scale to match source scaled size. **Textbox**: width-only adjustment when width/both (height follows text). |
