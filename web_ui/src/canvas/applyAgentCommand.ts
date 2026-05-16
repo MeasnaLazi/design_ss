@@ -11,8 +11,13 @@ import {
 } from '../lib/agentContextApi'
 
 import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
+import {
+  getTextStylePreset,
+  tryParseTextStylePresetId,
+  type TextStylePresetId,
+} from '../constants/textStylePresets'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
-import { addTextboxToCanvas } from './addTextboxToCanvas'
+import { addTextboxToCanvas, type AddTextboxToCanvasOptions } from './addTextboxToCanvas'
 import { buildAgentPanelPreviewData } from './buildAgentPanelPreviewData'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
@@ -29,18 +34,8 @@ const TEXT_FONT_SIZE_MIN = 8
 const TEXT_FONT_SIZE_MAX = 400
 const DEVICE_SIZE_MIN_PX = 80
 
-type FontToken = 'largeTitle' | 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'caption'
-
-const FONT_MAP: Record<FontToken, string> = {
-  largeTitle: 'Inter',
-  title1: 'Inter',
-  title2: 'Inter',
-  title3: 'Inter',
-  headline: 'Inter',
-  subheadline: 'Inter',
-  body: 'Inter',
-  caption: 'Inter',
-}
+/** Legacy agent alias: maps to {@link TextStylePresetId} `caption1`. */
+const LEGACY_FONT_CAPTION_ALIAS = 'caption'
 
 function snapGrid(n: number): number {
   return Math.round(n / DESIGN_GRID) * DESIGN_GRID
@@ -48,6 +43,24 @@ function snapGrid(n: number): number {
 
 function clampTextFontSize(n: number): number {
   return Math.min(TEXT_FONT_SIZE_MAX, Math.max(TEXT_FONT_SIZE_MIN, Math.round(n)))
+}
+
+function resolveAddTextPresetId(fontRaw: string): TextStylePresetId | null {
+  const trimmed = fontRaw.trim()
+  const direct = tryParseTextStylePresetId(trimmed)
+  if (direct) return direct
+  if (trimmed.toLowerCase() === LEGACY_FONT_CAPTION_ALIAS) return 'caption1'
+  return null
+}
+
+/** Maps common toolkit strings to Fabric-friendly weight values. */
+function normalizeAddTextFontWeight(raw: string): string | number {
+  const s = raw.trim().toLowerCase()
+  if (s === 'regular' || s === 'normal') return '400'
+  if (s === 'bold') return '700'
+  const t = raw.trim()
+  if (/^\d+(\.\d+)?$/.test(t)) return t
+  return raw.trim()
 }
 
 function getTextboxForLayer(canvas: Canvas, layerId: string): Textbox | null {
@@ -831,36 +844,66 @@ export async function applyAgentCommand(
       }
       const x = world.left
       const y = world.top
-      const fontToken = String(args.font ?? 'body') as FontToken
-      const size = Number(args.size)
-      const color = String(args.color ?? '#ffffff')
-      const align = String(args.align ?? 'left') as 'left' | 'center' | 'right'
-      const weight = String(args.weight ?? '700')
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size)) {
-        useToastStore.getState().showToast('add_text: invalid x, y, or size.', 'warning')
+      const fontRaw = String(args.font ?? 'body')
+      const presetId = resolveAddTextPresetId(fontRaw)
+      if (!presetId) {
+        useToastStore
+          .getState()
+          .showToast(
+            `add_text: invalid font preset "${fontRaw.trim()}". Use a TextStylePresetId from textStylePresets (e.g. largeTitle, title3, body) or legacy alias "caption".`,
+            'warning',
+          )
         return
       }
-      if (!(fontToken in FONT_MAP)) {
-        useToastStore.getState().showToast('add_text: invalid font token.', 'warning')
+      const presetDef = getTextStylePreset(presetId)
+      const color = String(args.color ?? '#ffffff')
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        useToastStore.getState().showToast('add_text: invalid x or y.', 'warning')
+        return
+      }
+      const hasExplicitSize = args.size !== undefined && args.size !== null && args.size !== ''
+      const sizeNum = hasExplicitSize ? Number(args.size) : Number.NaN
+      if (hasExplicitSize && !Number.isFinite(sizeNum)) {
+        useToastStore.getState().showToast('add_text: size must be numeric when set.', 'warning')
         return
       }
       if (!isHexColor(color)) {
         useToastStore.getState().showToast('add_text: color must be hex.', 'warning')
         return
       }
-      const width = estimateTextWidth(content, size)
-      addTextboxToCanvas(canvas, {
+
+      const weightRaw = args.weight
+      const hasExplicitWeight =
+        weightRaw !== undefined && weightRaw !== null && String(weightRaw).trim() !== ''
+
+      const alignRaw = args.align
+      const hasExplicitAlign =
+        alignRaw !== undefined && alignRaw !== null && String(alignRaw).trim() !== ''
+
+      let textAlign: 'left' | 'center' | 'right'
+      if (hasExplicitAlign) {
+        const a = String(alignRaw).trim().toLowerCase()
+        if (a !== 'left' && a !== 'center' && a !== 'right') {
+          useToastStore.getState().showToast('add_text: align must be left, center, or right.', 'warning')
+          return
+        }
+        textAlign = a
+      } else {
+        textAlign = presetDef.textAlign
+      }
+
+      const opts: AddTextboxToCanvasOptions = {
+        preset: presetId,
         left: snapGrid(x),
         top: snapGrid(y),
-        fontSize: size,
-        width,
+        text: content.trim() !== '' ? content : presetDef.initialText,
         fill: color,
-        fontFamily: FONT_MAP[fontToken],
-        text: content || 'Double-click to edit',
-        textAlign: align,
-        fontWeight: weight,
-        layerName: 'Text',
-      })
+        textAlign,
+      }
+      if (hasExplicitSize) opts.fontSize = clampTextFontSize(sizeNum)
+      if (hasExplicitWeight) opts.fontWeight = normalizeAddTextFontWeight(String(weightRaw))
+
+      addTextboxToCanvas(canvas, opts)
       return
     }
 

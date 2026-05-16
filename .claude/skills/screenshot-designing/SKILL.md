@@ -42,6 +42,12 @@ Let **`R`** = the **apps_publisher** repository root (this workspace). Run CLI c
 
 Do **not** overwrite `output/screenshot_report.md` unless the user explicitly asks.
 
+## Layout and text placement
+
+- **Coordinates ≠ layout rule:** Toolkit docs describe text **`x`/`y`** as **panel-local top-left** — that is how positions are **measured**, not an instruction to pin every headline to the **top edge** of the panel.  
+- **Do not default every panel** to “title band across the top + device below” unless **`screenshot_report.md`** or the user asks for that pattern. Prefer **variety across carousel panels** (copy mid-panel, lower third, beside the device, asymmetric balance) when the brief allows.  
+- **Hard constraints** stay as in [checklist.md](checklist.md): no bbox overlap between text layers or between **text vs device**, safe margins / contrast, readable hierarchy. Use **`move_layer`**, **`align`**, **`layer_patch`**, **`set_z_index`** as needed — higher **`z_index`** draws **in front**; choice of stacking is a design decision, not “text always on top.”
+
 ## Workflow
 
 1. **Stack ready:** `python toolkit/scripts/designer.py handoff` — if not `ok` / usable `web_ui_status`, follow **tool-running-agent** (see `R/.claude/agents/tool-running-agent.md`); do not edit `web_ui/src/**` unless the user asks (`R/.claude/settings.json` may deny it).  

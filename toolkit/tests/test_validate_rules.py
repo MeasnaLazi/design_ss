@@ -314,3 +314,107 @@ def test_wrong_version(tmp_path: Path) -> None:
     out = run_validate_rules(png, jpath, None, None, None)
     assert out["ok"] is False
     assert any(c["id"] == "panel_data_version" for c in out["checks"])
+
+
+def test_text_font_min_size_fails(tmp_path: Path) -> None:
+    pw, ph = 1080, 1920
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "small",
+                        "kind": "text",
+                        "content": "Small",
+                        "color": "#ffffff",
+                        "size": 11,
+                        "x": 60,
+                        "y": 60,
+                        "width": 400,
+                        "height": 24,
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(png, jpath, None, None, "play_phone_portrait")
+    chk = next(c for c in out["checks"] if c["id"] == "text_font_min_size")
+    assert chk["ok"] is False
+    assert out["ok"] is False
+
+
+def test_text_single_line_bbox_flags_tall_single_line_without_newline(tmp_path: Path) -> None:
+    pw, ph = 1080, 1920
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "wrapped",
+                        "kind": "text",
+                        "content": "Probably wrapping",
+                        "color": "#ffffff",
+                        "size": 28,
+                        "x": 60,
+                        "y": 60,
+                        "width": 400,
+                        "height": 60,
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(png, jpath, None, None, "play_phone_portrait")
+    chk = next(c for c in out["checks"] if c["id"] == "text_single_line_bbox")
+    assert chk["ok"] is False
+    assert out["ok"] is False
+
+
+def test_text_single_line_bbox_skips_explicit_newlines(tmp_path: Path) -> None:
+    pw, ph = 1080, 1920
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "two_lines_ok",
+                        "kind": "text",
+                        "content": "Line one\nLine two",
+                        "color": "#ffffff",
+                        "size": 28,
+                        "x": 60,
+                        "y": 60,
+                        "width": 400,
+                        "height": 80,
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(png, jpath, None, None, "play_phone_portrait")
+    chk = next(c for c in out["checks"] if c["id"] == "text_single_line_bbox")
+    assert chk["ok"] is True

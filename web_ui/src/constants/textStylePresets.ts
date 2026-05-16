@@ -185,3 +185,10 @@ export function getTextStylePreset(id: TextStylePresetId): TextStylePresetDefini
   if (!p) throw new Error(`Unknown text style preset: ${id}`)
   return p
 }
+
+/** Resolve sidebar / `add_text` **`font`** strings to a preset id (exact match on {@link TextStylePresetId}). */
+export function tryParseTextStylePresetId(raw: string): TextStylePresetId | null {
+  const trimmed = raw.trim()
+  const found = TEXT_STYLE_PRESETS.find((x) => x.id === trimmed)
+  return found ? found.id : null
+}

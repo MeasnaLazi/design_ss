@@ -151,6 +151,18 @@ def register_designer(sub: Any) -> None:
     )
     ds_val.add_argument("--max-text-span", type=float, default=None, help="Override max text width / panel width")
     ds_val.add_argument("--max-device-pair-overlap", type=float, default=None, help="Override max intersect/min(area) for device pairs")
+    ds_val.add_argument(
+        "--min-text-font-size-px",
+        type=float,
+        default=None,
+        help="Reject text layers with size below this px (default 14; set 0 to disable)",
+    )
+    ds_val.add_argument(
+        "--text-unwanted-wrap-height-to-size-ratio",
+        type=float,
+        default=None,
+        help="Without explicit newlines, flag layers where height/size >= this (default 1.8; 0 disables)",
+    )
     ds_val.set_defaults(handler=_cmd_designer_validate_rules)
 
 
@@ -216,6 +228,12 @@ def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
         min_contrast_normal=base_opt.min_contrast_normal,
         min_contrast_large=base_opt.min_contrast_large,
         large_text_size_px=base_opt.large_text_size_px,
+        min_text_font_size_px=float(ns.min_text_font_size_px)
+        if ns.min_text_font_size_px is not None
+        else base_opt.min_text_font_size_px,
+        text_unwanted_wrap_height_to_size_ratio=float(ns.text_unwanted_wrap_height_to_size_ratio)
+        if ns.text_unwanted_wrap_height_to_size_ratio is not None
+        else base_opt.text_unwanted_wrap_height_to_size_ratio,
     )
     out = run_validate_rules(
         ns.png,

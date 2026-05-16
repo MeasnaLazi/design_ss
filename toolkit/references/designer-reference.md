@@ -65,7 +65,7 @@ All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--opera
 
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
-| **`add_text`** | **`panel_index`** / **`panel_number`**, **`x`**, **`y`**, **`content`**, **`size`**, **`color`**, **`font`**, **`align`**, **`weight`** | `'{"panel_index":0,"x":32,"y":48,"content":"Headline","size":28,"color":"#111111","font":"title2","align":"left","weight":"regular"}'` | New textbox at panel-local top-left. **`font`** must be one of: **`largeTitle`**, **`title1`**, **`title2`**, **`title3`**, **`headline`**, **`subheadline`**, **`body`**, **`caption`**. |
+| **`add_text`** | **`panel_index`** / **`panel_number`**, **`x`**, **`y`**, **`color`**, **`font`**; optional **`content`**, **`size`**, **`align`**, **`weight`** | `'{"panel_index":0,"x":32,"y":48,"content":"Headline","color":"#111111","font":"title2"}'` | New textbox at panel-local top-left. **`font`** is a **`TextStylePresetId`** (same as sidebar: **`largeTitle`**, **`title1`**, **`title2`**, **`title3`**, **`headline`**, **`body`**, **`callout`**, **`subheadline`**, **`footnote`**, **`caption1`**, **`caption2`**; default **`body`**). **`caption`** is accepted as an alias for **`caption1`**. Preset supplies width, size, weight, alignment unless overridden by **`size`** / **`align`** / **`weight`**. |
 | **`text_font_size_delta`** | **`layer_id`**, **`delta`** | `'{"layer_id":"text_1","delta":-2}'` | Change font size by delta px (clamped **8–400**). |
 | **`text_set_font_size`** | **`layer_id`**, **`size`** | `'{"layer_id":"text_1","size":24}'` | Absolute font size (clamped **8–400**). |
 | **`text_set_font_style`** | **`layer_id`**, **`variant`**: `regular` \| `bold` \| `italic` \| `bold_italic` | `'{"layer_id":"text_1","variant":"bold"}'` | Font style variant. |
@@ -101,7 +101,7 @@ Details and examples: **Panel preview** and **Panel preview data** sections belo
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
 | **`noop`** | `{}` | `'{}'` | No canvas work (connectivity check). |
-| **`set_background`** | **`type`** / **`mode`**: `color` \| `gradient` \| `image`; **`value`** (or **`color`**, **`gradient`**, **`image`**, **`image_url`**) — hex string, gradient object, or image URL; *or* top-level **`background`**: `{ type, value, … }` with the same idea | `'{"type":"color","value":"#0b0f14"}'` or `'{"mode":"image","image_url":"https://example.com/bg.png"}'` | Solid, gradient, or image artboard background. For gradients, **`value`** is a `kind` + `angleDeg` + `stops` object; the designer’s built-in preset names are good targets to mimic — e.g. **Slate depth**, **Aurora**, **Sunset**, **Spotlight**, **Ocean glass**, **Rose metal**. |
+| **`set_background`** | **`type`** / **`mode`**: `color` \| `gradient` \| `image`; **`value`** (or **`color`**, **`gradient`**, **`image`**, **`image_url`**) — hex string, gradient object, or image URL; *or* top-level **`background`**: `{ type, value, … }` with the same idea | `'{"type":"color","value":"#0b0f14"}'` or `'{"mode":"image","image_url":"https://example.com/bg.png"}'` | Solid, gradient, or image artboard background. Prefer gradient more then solid if possible. For gradients, **`value`** is a `kind` + `angleDeg` + `stops` object; the designer’s built-in preset names are good targets to mimic — e.g. **Slate depth**, **Aurora**, **Sunset**, **Spotlight**, **Ocean glass**, **Rose metal**. |
 
 
 ## Panel preview (enqueue + pull)

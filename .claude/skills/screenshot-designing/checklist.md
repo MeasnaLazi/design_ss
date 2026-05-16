@@ -48,7 +48,8 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 
 | Check | PASS / FAIL | Notes |
 | --- | --- | --- |
-| Hierarchy readable (title → subtitle → body) | — | — |
+| Text vertical rhythm | — | Not every panel needs copy hugging the **top**; varied placement OK if hierarchy stays clear and §2 overlap/safe-zone checks pass |
+| Hierarchy readable | — | — |
 | Spacing and alignment feel intentional | — | — |
 | Device + text story matches `output/screenshot_report.md` for this panel order | — | — |
 

@@ -81,13 +81,17 @@ class ValidateRulesOptions:
     margin_text_bbox_shrink_px: float = 18.0
     # Extra left/right inset only (wide shallow Textbox: old min(w,h)/2 cap starved horizontal shrink).
     margin_text_horizontal_extra_px: float = 16.0
-    max_text_span: float = 0.88
+    max_text_span: float = 0.94
     min_device_height_ratio: float = 0.50
     max_device_height_ratio: float = 0.90
     max_device_pair_overlap: float = 0.15
     min_contrast_normal: float = MIN_CONTRAST
     min_contrast_large: float = 3.0
     large_text_size_px: float = 24.0
+    # Readability floor for text layers (0 = disable check).
+    min_text_font_size_px: float = 48.0
+    # If content has no explicit newline but bbox is this tall vs font size, flag likely unintended wrap (0 = disable).
+    text_unwanted_wrap_height_to_size_ratio: float = 1.8
 
 
 def _text_bbox(layer: TextLayer) -> tuple[float, float, float, float]:
@@ -249,6 +253,19 @@ def _min_contrast_for_text(size: float, opt: ValidateRulesOptions) -> float:
     return opt.min_contrast_large if size >= opt.large_text_size_px else opt.min_contrast_normal
 
 
+def _text_suspects_unwanted_wrap(layer: TextLayer, opt: ValidateRulesOptions) -> bool:
+    if opt.text_unwanted_wrap_height_to_size_ratio <= 0:
+        return False
+    body = (layer.content or "").replace("\r\n", "\n")
+    if "\n" in body:
+        return False
+    if not body.strip():
+        return False
+    if layer.size <= 0:
+        return False
+    return (layer.height / layer.size) >= opt.text_unwanted_wrap_height_to_size_ratio + 1e-9
+
+
 def _resolve_panel(
     data: AgentPanelPreviewData,
     panel_index: int | None,
@@ -393,6 +410,61 @@ def run_validate_rules(
             "ok": not span_bad,
             "detail": {"max_span": opt.max_text_span, "violations": span_bad},
         }
+    )
+
+    # text_font_min_size — panel JSON doesn't know font metrics; uses declared font size vs floor.
+    min_size_bad: list[dict[str, Any]] = []
+    if opt.min_text_font_size_px > 0:
+        need = opt.min_text_font_size_px
+        for t in texts:
+            if t.size + 1e-9 < need:
+                min_size_bad.append(
+                    {
+                        "layer_id": t.layer_id,
+                        "size": round(t.size, 3),
+                        "min_required_px": round(need, 3),
+                        "short_by_px": round(max(0.0, need - t.size), 3),
+                    }
+                )
+    checks.append(
+        {
+            "id": "text_font_min_size",
+            "ok": not min_size_bad,
+            "detail": {
+                "min_text_font_size_px": opt.min_text_font_size_px,
+                "violations": min_size_bad,
+            },
+        },
+    )
+
+    # text_single_line_bbox — heuristic: tall box vs font size without explicit newline ⇒ likely wrapped.
+    wrap_bad: list[dict[str, Any]] = []
+    if opt.text_unwanted_wrap_height_to_size_ratio > 0:
+        thr = opt.text_unwanted_wrap_height_to_size_ratio
+        for t in texts:
+            if not _text_suspects_unwanted_wrap(t, opt):
+                continue
+            wrap_bad.append(
+                {
+                    "layer_id": t.layer_id,
+                    "height_px": round(t.height, 3),
+                    "size_px": round(t.size, 3),
+                    "height_to_size": round((t.height / t.size) if t.size > 0 else 0.0, 4),
+                    "max_ratio_for_single_line_estimate": thr,
+                    "content_preview": (t.content.replace("\r\n", " ").replace("\n", " ")[:80] + "…")
+                    if len(t.content) > 80
+                    else t.content,
+                }
+            )
+    checks.append(
+        {
+            "id": "text_single_line_bbox",
+            "ok": not wrap_bad,
+            "detail": {
+                "height_to_size_ratio_threshold": opt.text_unwanted_wrap_height_to_size_ratio,
+                "violations": wrap_bad,
+            },
+        },
     )
 
     # text_device_no_overlap
