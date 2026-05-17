@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type Key
 import {
   ChevronDown,
   ChevronUp,
+  Image as ImageIcon,
   ImagePlus,
   Layers,
   LayoutTemplate,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import { addDeviceFrameToCanvas } from '../../canvas/addDeviceFrameToCanvas'
+import { addImageToCanvasFromFile } from '../../canvas/addImageToCanvas'
 import {
   addTextboxToCanvas,
   DEFAULT_TEXTBOX_WIDTH,
@@ -66,6 +68,7 @@ type SidebarSectionId =
   | 'background'
   | 'artboard'
   | 'text'
+  | 'image'
   | 'deviceFrame'
   | 'layers'
   | 'templates'
@@ -78,6 +81,7 @@ const SECTION_NAV: {
   { id: 'background', label: 'Background', Icon: Palette },
   { id: 'artboard', label: 'Artboard', Icon: LayoutTemplate },
   { id: 'text', label: 'Text', Icon: Type },
+  { id: 'image', label: 'Image', Icon: ImageIcon },
   { id: 'deviceFrame', label: 'Device frame', Icon: Smartphone },
   { id: 'layers', label: 'Layers', Icon: Layers },
   { id: 'templates', label: 'Templates', Icon: Library },
@@ -161,6 +165,7 @@ export function LeftSidebar() {
   )
 
   const canvasBgInputRef = useRef<HTMLInputElement>(null)
+  const imageLayerInputRef = useRef<HTMLInputElement>(null)
   const customFontInputRef = useRef<HTMLInputElement>(null)
 
   const customFonts = useCustomFontStore((s) => s.fonts)
@@ -205,6 +210,33 @@ export function LeftSidebar() {
       return
     }
     addTextboxToCanvas(canvas, { preset: presetId })
+  }
+
+  const openImageLayerPicker = () => {
+    imageLayerInputRef.current?.click()
+  }
+
+  const handleImageLayerFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('Choose an image file (PNG, JPEG, WebP, etc.).', 'warning')
+      return
+    }
+    const canvas = useDesignStore.getState().fabricCanvas
+    if (!canvas) {
+      showToast('Canvas is not ready yet.', 'warning')
+      return
+    }
+    try {
+      await addImageToCanvasFromFile(canvas, file)
+      showToast('Image added to canvas.', 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not add image'
+      console.error('[LeftSidebar] add image failed', err)
+      showToast(msg, 'error')
+    }
   }
 
   const handleAddDevice = async () => {
@@ -733,6 +765,33 @@ export function LeftSidebar() {
                 )}
               </li>
             </ul>
+          </div>
+        ) : null}
+
+        {activeSection === 'image' ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden border-b border-zinc-800 p-3">
+            <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <ImageIcon className="size-3.5" aria-hidden />
+              Image
+            </h2>
+            <p className="mt-1 text-[11px] leading-snug text-zinc-600">
+              Add a new image layer on the canvas. You can move and resize it like other layers.
+            </p>
+            <button
+              type="button"
+              onClick={openImageLayerPicker}
+              className="mt-3 flex w-full items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/80 px-2 py-2 text-sm text-zinc-100 hover:bg-zinc-800"
+            >
+              <ImagePlus className="size-4 shrink-0" aria-hidden />
+              Upload image…
+            </button>
+            <input
+              ref={imageLayerInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageLayerFile}
+            />
           </div>
         ) : null}
 
