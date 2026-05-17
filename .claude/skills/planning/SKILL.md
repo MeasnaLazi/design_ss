@@ -7,7 +7,9 @@ description: >-
   output/screenshot_report.md, and the final reply must paste the full report
   markdown per report-template Agent contract—never summary-only. One panel and
   one device frame per screenshots[] entry; theme.primary_color / secondary_color
-  from the same store file as screenshots; messaging-only elsewhere. Use when
+  from the same store file as screenshots; device_frame_type under Source and
+  Device frame pack (framePath from layout.py load-frame) on every panel row;
+  messaging-only elsewhere. Use when
   acting as planning-agent or when the user names this skill.
 ---
 
@@ -53,14 +55,36 @@ Include **`theme.primary_color`** and **`theme.secondary_color`** in the report 
 ## Parse and validate
 
 1. Parse JSON from each chosen file; on failure, stop and report.  
-2. From **that same file**, read **`screenshots`**: array of `{ order, title, subtitle, description }`. Read **`theme`** if present (`primary_color`, `secondary_color`). Never take `theme` from one store file while using `screenshots` from the other.
+2. From **that same file**, read **`screenshots`**: array of `{ order, title, subtitle, description }`. Read **`theme`** if present (`primary_color`, `secondary_color`). Read **`device_frame_type`** and **`device_pack_path`** when present. Never take `theme`, device fields, or `screenshots` from one store file while using another file’s panels.
 3. Require **non-empty** `screenshots`.  
 4. Sort by **`order`** ascending before generating rows.  
 5. **Strict panel / device rule:** **`screenshots.length`** = total **panels** = total **planned device frames** in the carousel. Exactly **one** table row **per** array element; **`Device frames`** column is always **`1`** per row—no invented multi-device panels.
 
+## Device frame pack (toolkit — required)
+
+For **each** processed store JSON file, load frame paths with the layout CLI—**do not** read `web_ui/public/device-frames/` by hand or guess **`framePath`** values.
+
+1. Read **`device_pack_path`** (and **`device_frame_type`** for the report **Source** line) from **that** file.
+2. **Extract `pack_id`** from **`device_pack_path`**: the directory name immediately after the `device-frames` segment.
+   - Example: `web_ui/public/device-frames/iphone_12_pro/frame.json` → **`pack_id`** = `iphone_12_pro`
+   - Example: `/device-frames/iphone_12_pro/frame.json` → **`pack_id`** = `iphone_12_pro`
+   - If the path has no `device-frames` segment or **`pack_id`** would be empty, skip **`load-frame`** and use `—` in the table; note the gap.
+3. From the publisher repo root **`R`**, run:
+
+   `python toolkit/scripts/layout.py load-frame --pack <pack_id>`
+
+   See **`toolkit/references/layout-reference.md`** (`load-frame` row). Optional **`--repo-root R`** if needed.
+4. On **success** (command exits 0), parse the JSON: `{ "pack": "…", "frames": [ { "framePath": "…", … }, … ] }`. For each panel row (sorted by screenshot **`order`**), set **Device frame pack** to the **`framePath`** of the frame at the same **1-based index** in **`frames`** (order 1 → `frames[0].framePath`, order 2 → `frames[1].framePath`, …). Copy **`framePath`** verbatim from the CLI output (e.g. `/device-frames/iphone_12_pro/frame/front.svg`).
+5. If a panel has no matching frame entry (fewer **`frames`** than panels), use `—` for that row and note under **Gaps / follow-ups**.
+6. On **failure** (missing/empty **`device_pack_path`**, bad path shape, or **`load-frame`** error), use `—` in the table and note under **Gaps / follow-ups** in **Overview** (invalid or stale pack). Do **not** fabricate frame paths.
+
+Run **`load-frame` once per processed store file** (each file’s own **`device_pack_path`** → **`pack_id`**). When both App Store and Play JSON are processed, validate each separately.
+
 ## Theme (report section)
 
-Put **`## Theme (from store JSON)`** **after** the title/metadata lines (`Source`, `Generated`) and **before** **`## Overview (for the designer)`**, matching [report-template.md](report-template.md) (intro line about same-source colors, then bullets or **`###`** sub-blocks).
+Put **`## Theme (from store JSON)`** **after** the title/metadata lines (`Source`, **`Device frame type`**, `Generated`) and **before** **`## Overview (for the designer)`**, matching [report-template.md](report-template.md) (intro line about same-source colors, then bullets or **`###`** sub-blocks).
+
+**Metadata — device frame type:** Immediately under **`**Source:** …`**, emit **`**Device frame type:** …`** with **`device_frame_type`** copied verbatim from **that** processed JSON file (`iphone`, `ipad`, `phone`, `tablet`, or `—` if missing/empty). When **both** store files are processed in one report, emit **one** brief block per store (e.g. under Source list both files, then two lines: `**Device frame type (App Store):** …` and `**Device frame type (Play Store):** …`)—each value from its own JSON only.
 
 - **Single processed file:** Theme intro paragraph + **`Primary`** / **`Secondary`** bullets only (verbatim from `theme`, or `—` if missing/empty).  
 - **Both files:** Theme intro paragraph + **`### App Store`** and **`### Play Store`**, each with Primary / Secondary from **that** JSON only.  
@@ -84,6 +108,7 @@ For **each** processed file, emit **`## {App Store | Play Store} — panel detai
 | --- | --- |
 | Panel | `Panel {i} (order {order})` aligned to sorted slice index from 1 |
 | Device frames | Always `1` |
+| Device frame pack | **`framePath`** from **`layout.py load-frame --pack <pack_id>`** for that row’s screenshot **`order`** (`pack_id` parsed from **`device_pack_path`**; `frames[order − 1].framePath`); `—` if missing, load fails, or no frame at that index |
 | Title | Verbatim `title` |
 | Subtitle | Verbatim `subtitle` |
 | Description | Verbatim `description` |
@@ -115,4 +140,4 @@ Read **`# Agent contract`** at the top of [report-template.md](report-template.m
 
 ## Done when
 
-`output/screenshot_report.md` exists and matches **`# Designer report`** in [report-template.md](report-template.md), including **`## Theme (from store JSON)`**, full Overview, verbatim Out of scope paragraph, and each store’s panel table with **`screenshots.length`** rows and **`Device frames` = 1** per row. **And** your final assistant message includes that **same** complete report markdown in full (per **§ Output — Final chat reply**)—not an abridgement.
+`output/screenshot_report.md` exists and matches **`# Designer report`** in [report-template.md](report-template.md), including **`Device frame type`** under **Source**, **`## Theme (from store JSON)`**, full Overview, verbatim Out of scope paragraph, and each store’s panel table with **`screenshots.length`** rows, **`Device frames` = 1** per row, and **Device frame pack** (`framePath` from **`load-frame`**) on every row. **And** your final assistant message includes that **same** complete report markdown in full (per **§ Output — Final chat reply**)—not an abridgement.

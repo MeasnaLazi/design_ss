@@ -101,8 +101,25 @@ Details and examples: **Panel preview** and **Panel preview data** sections belo
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
 | **`noop`** | `{}` | `'{}'` | No canvas work (connectivity check). |
-| **`set_background`** | **`type`** / **`mode`**: `color` \| `gradient` \| `image`; **`value`** (or **`color`**, **`gradient`**, **`image`**, **`image_url`**) — hex string, gradient object, or image URL; *or* top-level **`background`**: `{ type, value, … }` with the same idea | `'{"type":"color","value":"#0b0f14"}'` or `'{"mode":"image","image_url":"https://example.com/bg.png"}'` | Solid, gradient, or image artboard background. Prefer gradient more then solid if possible. For gradients, **`value`** is a `kind` + `angleDeg` + `stops` object; the designer’s built-in preset names are good targets to mimic — e.g. **Slate depth**, **Aurora**, **Sunset**, **Spotlight**, **Ocean glass**, **Rose metal**. |
+| **`set_background`** | **`type`** / **`mode`**: `color` \| `gradient` \| `image`; **`value`** (or **`color`**, **`gradient`**, **`image`**, **`image_url`**) — hex string, gradient object, or image URL; *or* top-level **`background`**: `{ type, value, … }` with the same idea | See **§ `set_background` args** below | Strip-wide artboard fill (solid, gradient, or image). **When** to pick each mode is **not** defined here — follow **screenshot-designing** skill / **screenshot-designer-agent**. |
 
+### `set_background` args (tool contract)
+
+**Accepted modes:** `color` (hex string), `gradient` (object), `image` (URL string). Aliases like `solid`, `background_gradient`, and nested **`background: { type, value }`** are normalized in the Web UI — prefer **`type`** + **`value`** in new agent payloads.
+
+**Gradient `value` object:**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| **`kind`** | `linear` \| `radial` | |
+| **`angleDeg`** | number | Degrees |
+| **`stops`** | array (≥ 2) | Each: `{ "offset": 0–1, "color": "#rrggbb" }` |
+
+Example **`--args-json`** (gradient):
+
+`'{"type":"gradient","value":{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}}'`
+
+Example (solid): `'{"type":"color","value":"#0b0f14"}'`. Example (image): `'{"type":"image","value":"https://example.com/bg.png"}'` or **`image_url`** at top level per payload style above.
 
 ## Panel preview (enqueue + pull)
 

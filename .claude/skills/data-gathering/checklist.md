@@ -15,6 +15,8 @@ Replace placeholder dashes with real values. Add a **Source** column entry: file
 | `config.json` read from | — (always repo root `config.json` / `R/config.json`) |
 | `ios_project_path` (raw → resolved) | — |
 | `android_project_path` (raw → resolved) | — |
+| `device_frame_type` (`iphone` \| `ipad` \| `phone` \| `tablet`) | — |
+| `device_pack_path` | — |
 
 ---
 

@@ -4,7 +4,9 @@ disable-model-invocation: true
 description: >-
   Senior store screenshot UI workflow for apps_publisher: read output/screenshot_report.md,
   drive designer.py / enqueue-op in one panel at a time by default, pull-preview for crops.
-  Use when acting as screenshot-designer-agent or when the user names this skill.
+  Artboard backgrounds: gradient ~98% of the time via set_background (solid only when
+  user/brief requires). Use when acting as screenshot-designer-agent or when the user
+  names this skill.
 ---
 
 # Screenshot designing
@@ -32,6 +34,48 @@ Let **`R`** = the **apps_publisher** repository root (this workspace). Run CLI c
 - **Preview:** Prefer **`python toolkit/scripts/designer.py pull-preview --panels <n>`** with a **single** index to validate the active column.  
 - **Exception — multi-panel:** You may touch **more than one** `panel_index` in one batch **only** when the design explicitly requires it (e.g. device visually spanning adjacent columns, or user-requested synchronized spacing). Write a **one-line rationale** before issuing those ops.  
 - **Carousel order:** Complete panel **0** through § Workflow gates (or finish a declared cross-panel pass + full-strip visual sign-off), then panel **1**, … **Exception:** A one-time whole-strip step (e.g. `set_background`) may run first if already standard; then return to per-panel work.
+
+## Artboard background (`set_background`) — design policy
+
+This section is **agent behavior**. For **CLI args and JSON shapes** only, read **`toolkit/references/designer-reference.md`** → **`set_background`** / **§ `set_background` args**.
+
+### Default (~98% gradient)
+
+Use **`type` / `mode`: `gradient`** for almost every strip / carousel artboard. Flat solid fields read unfinished on store listings unless the brand is intentionally minimal.
+
+- Build **`value`** as `{ kind, angleDeg, stops }` (see designer-reference).
+- Use your **creative judgment** for color story, angle, and stop count. The named examples below are **inspiration only** — you may use one, tweak one, ignore them all, or invent something new.
+- Vary gradient across carousel panels when it helps the story; one strip-wide **`set_background`** is fine when all columns share the same artboard.
+
+### Creative examples (optional — agent decides)
+
+The table is **not** a required pick list. **You** choose whether any example fits; none of them are mandatory.
+
+| Example | Typical mood (hint only) | `value` if you want to copy as-is (`{"type":"gradient","value":…}`) |
+| --- | --- | --- |
+| **Slate depth** | Neutral dark utility / productivity | `{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}` |
+| **Aurora** | Cool tech, AI, creative tools | `{"kind":"linear","angleDeg":125,"stops":[{"offset":0,"color":"#0c4a6e"},{"offset":0.45,"color":"#312e81"},{"offset":1,"color":"#134e4a"}]}` |
+| **Sunset** | Warm lifestyle, energy, food | `{"kind":"linear","angleDeg":160,"stops":[{"offset":0,"color":"#431407"},{"offset":0.5,"color":"#9a3412"},{"offset":1,"color":"#f59e0b"}]}` |
+| **Spotlight** | Hero device on a dark stage (`radial`) | `{"kind":"radial","angleDeg":225,"stops":[{"offset":0,"color":"#27272a"},{"offset":0.55,"color":"#18181b"},{"offset":1,"color":"#09090b"}]}` |
+| **Ocean glass** | Health, calm, finance-adjacent | `{"kind":"linear","angleDeg":180,"stops":[{"offset":0,"color":"#042f2e"},{"offset":0.55,"color":"#115e59"},{"offset":1,"color":"#134e4a"}]}` |
+| **Rose metal** | Premium consumer, fashion, luxury | `{"kind":"linear","angleDeg":45,"stops":[{"offset":0,"color":"#1c1917"},{"offset":0.4,"color":"#4c0519"},{"offset":1,"color":"#292524"}]}` |
+
+### Rare exceptions
+
+| Mode | When |
+| --- | --- |
+| **`color`** (solid) | User or **`screenshot_report.md`** **explicitly** requires a flat field; or gradient cannot meet contrast and flat is the only fix — **not** the default “safe” choice. |
+| **`image`** | User or brief supplies a background asset URL only — no stock photos by default. |
+
+### Apply + verify
+
+```bash
+python toolkit/scripts/designer.py enqueue-op \
+  --operation set_background \
+  --args-json '{"type":"gradient","value":{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}}'
+```
+
+After **`set_background`**, check text contrast against **darkest and lightest** gradient stops with **`layout contrast`** (see [checklist.md](checklist.md)).
 
 ## Inputs
 

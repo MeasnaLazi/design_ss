@@ -36,7 +36,8 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 | --- | --- | --- |
 | Text layers: no bbox overlap with each other **in the same strip column** | — | — |
 | Text: inside safe zone / margins for its panel | — | — |
-| Text: contrast vs background | — | Use `layout contrast --a --b` if needed |
+| Text: contrast vs background | — | Use `layout contrast --a --b` vs dark/light gradient stops (not only a single flat hex) |
+| Artboard background | — | Gradient (~98%); preset name and/or custom gradient described (stops/angle if custom) |
 | Text: horizontal span sensible vs panel width | — | — |
 | Text vs device: **no** bbox overlap | — | — |
 | Device height ~**75–90%** of canvas (panel) height | — | Visual check on preview |

@@ -4,12 +4,14 @@ disable-model-invocation: true
 description: >-
   Gathers App Store / Play Store listing metadata and theme colors. Reads
   config.json at the apps_publisher repo root for ios_project_path /
-  android_project_path, then
-  scans those projects or prompts the user. Produces output/appstore.json
-  and/or output/playstore.json plus screenshot copy (orders 1–5) and a full
-  in-chat checklist (markdown ## 0–4 and tables) for user review and edits. Use
-  when the user invokes data-gathering-agent, names this
-  skill, or asks to generate or refresh store JSON.
+  android_project_path (uses configured paths when set, otherwise asks),
+  has the user pick one layout platform (iphone/ipad/phone/tablet), lists
+  device packs via layout.py device-packs, writes device_frame_type and
+  device_pack_path into store JSON, then scans projects or prompts the user.
+  Produces output/appstore.json and/or output/playstore.json plus screenshot
+  copy (orders 1–5) and a full in-chat checklist (markdown ## 0–4 and tables).
+  Use when the user invokes data-gathering-agent, names this skill, or asks
+  to generate or refresh store JSON.
 ---
 
 # Data gathering (store JSON)
@@ -48,6 +50,15 @@ Do this **before** scanning app trees or writing `output/*.json`.
 - In that case **do not** ask paths again. Go straight to **§2a** and ask the **first** manual question (**App name**), then continue one question at a time.
 
 If the user **did** reply with `skip` or `manual`, go to **§2a** the same way (start with App name).
+
+### 0b. Layout platform and device pack (once per run)
+
+Do this **after** §0 paths are settled (from config and/or user), **before** §2b scan or §2a manual questions.
+
+1. Ask the user to pick **exactly one** of **`iphone`**, **`ipad`**, **`phone`**, **`tablet`** (`iphone`/`ipad` align with App Store listing tooling; `phone`/`tablet` with Play).
+2. From the publisher repo root, run **`python toolkit/scripts/layout.py device-packs --type <choice>`** (see **`toolkit/references/layout-reference.md`**). Present the rows to the user and have them choose **one** pack.
+3. Record **`device_frame_type`** = that choice (lowercase). Record **`device_pack_path`** = **`web_ui/public/device-frames/<id>/frame.json`** using the **`id`** from the CLI output for the chosen row.
+4. When writing **`output/appstore.json`** and/or **`output/playstore.json`**, include both keys on **each** file written (same values if both files are produced).
 
 ### 1. Path summary (optional short line)
 

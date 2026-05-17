@@ -2,11 +2,16 @@
 name: planning-agent
 description: >-
   Reads output/appstore.json and/or output/playstore.json; for each file,
-  screenshots and theme.primary_color / secondary_color come from that same JSON
-  only.   Writes output/screenshot_report.md then pastes the entire report verbatim in the
+  screenshots, device_frame_type,   device_pack_path → load-frame framePath in Device frame pack column), and
+  theme.primary_color
+  / secondary_color from that same JSON.
+  Writes output/screenshot_report.md
+  then pastes the entire report verbatim in the
   final message (report-template Agent contract—no summary-only reply). Theme
-  hex values, overview, per-panel tables—messaging and continuity; one device
-  frame per screenshots[] entry; primary/secondary from same JSON only. Use for
+  hex values, device_frame_type under Source, Device frame pack (framePath from
+  load-frame) on panel tables,
+  overview, per-panel tables—messaging and continuity; one device frame per
+  screenshots[] entry; all fields from same JSON only. Use for
   screenshot creative brief / handoff after store JSON exists in apps_publisher.
 model: inherit
 readonly: false
@@ -21,7 +26,7 @@ Before reading store JSON or writing the report, load and follow the project ski
 ## Workflow
 
 1. Resolve which of `output/appstore.json` / `output/playstore.json` to read per the skill (user hint, or both if present, or the single file that exists).  
-2. For each chosen file: parse **`screenshots`** and **`theme`** (`primary_color`, `secondary_color`) **from that file only**—never mix App Store theme with Play screenshots or vice versa. Sort by `order`, enforce **one row per entry** and **`Device frames` = 1** every row.  
+2. For each chosen file: parse **`screenshots`**, **`device_frame_type`**, **`device_pack_path`**, and **`theme`** (`primary_color`, `secondary_color`) **from that file only**—never mix App Store theme with Play screenshots or vice versa. **Load device frame pack via toolkit** (publisher repo root): extract **`pack_id`** from **`device_pack_path`** (folder after `device-frames`, e.g. `iphone_12_pro`), then run **`python toolkit/scripts/layout.py load-frame --pack <pack_id>`** (see **`toolkit/references/layout-reference.md`**). On success, set **Device frame pack** per panel row to **`frames[order − 1].framePath`** from the CLI JSON (verbatim). If **`device_pack_path`** is missing, **`load-frame`** fails, or a panel has no frame at that index, use `—` and note in gaps—do not invent paths. Sort **`screenshots`** by `order`; **one row per entry**, **`Device frames` = 1** every row. Under **Source**, emit **`Device frame type:`** from JSON (or `—`).  
 3. Write **`output/screenshot_report.md`** under the apps_publisher repo root—**overwrite** by default.  
 4. **Write only** that path under `output/` for this task; do not edit JSON unless the user asks.
 

@@ -2,6 +2,13 @@
 
 Use these structures for `output/appstore.json` and `output/playstore.json`. Field names and nesting must match.
 
+### Layout / device frame fields
+
+- **`device_frame_type`:** Exactly one of **`iphone`**, **`ipad`**, **`phone`**, **`tablet`** (matches `layout.py device-packs --type` and `layout.py store-json --platform`).
+- **`device_pack_path`:** Repo-relative path from the publisher repo root to the chosen pack’s `frame.json`, e.g. `web_ui/public/device-frames/iphone_12_pro/frame.json` (use the pack **`id`** from `layout.py device-packs`).
+
+Include both keys on **each** store JSON file produced in a run (they may mirror the same values when both files are written).
+
 ## `appstore.json`
 
 ```json
@@ -10,6 +17,9 @@ Use these structures for `output/appstore.json` and `output/playstore.json`. Fie
   "version": "",
   "copyright": "",
   "primary_locale": "en-US",
+
+  "device_frame_type": "",
+  "device_pack_path": "",
 
   "name": "",
   "subtitle": "",
@@ -88,6 +98,9 @@ One of: `4+`, `9+`, `12+`, `17+`.
   "package_name": "",
   "version_name": "",
   "default_language": "en-US",
+
+  "device_frame_type": "",
+  "device_pack_path": "",
 
   "title": "",
   "short_description": "",
