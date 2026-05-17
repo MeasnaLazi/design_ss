@@ -1,10 +1,11 @@
-import type { Canvas } from 'fabric'
+import type { Canvas, TPointerEvent, Transform } from 'fabric'
 import { FabricImage, Group } from 'fabric'
 
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { DEVICE_FRAME_PANEL_CLAMP_VERTICAL_BLEED_PX } from '../constants/deviceFrame'
 import { getFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
+import { syncFabricDragTransformOffsets } from './syncFabricDragTransformOffsets'
 
 function isDeviceGroup(target: unknown): target is Group {
   if (!(target instanceof Group)) return false
@@ -138,13 +139,29 @@ export function clampDeviceGroupToNearestPanel(target: Group): void {
 }
 
 export function attachDeviceGroupPanelClamp(canvas: Canvas): void {
-  /** Clamping during `object:moving` fights the pointer and feels janky; apply once the gesture ends. */
-  const onModified = (opt: { target?: unknown }) => {
-    const t = opt.target
-    if (t instanceof Group && isDeviceGroup(t)) {
-      clampDeviceGroupToNearestPanel(t)
+  const tryClamp = (
+    t: unknown,
+    transform?: Transform,
+    e?: TPointerEvent,
+  ): void => {
+    if (!(t instanceof Group) || !isDeviceGroup(t)) return
+    const leftBefore = t.left
+    const topBefore = t.top
+    clampDeviceGroupToNearestPanel(t)
+    if (t.left !== leftBefore || t.top !== topBefore) {
+      syncFabricDragTransformOffsets(canvas, t, transform, e)
+      canvas.requestRenderAll()
     }
   }
 
+  const onMoving = (opt: { target?: unknown; transform?: Transform; e?: TPointerEvent }) => {
+    tryClamp(opt.target, opt.transform, opt.e)
+  }
+
+  const onModified = (opt: { target?: unknown; transform?: Transform; e?: TPointerEvent }) => {
+    tryClamp(opt.target, opt.transform, opt.e)
+  }
+
+  canvas.on('object:moving', onMoving)
   canvas.on('object:modified', onModified)
 }

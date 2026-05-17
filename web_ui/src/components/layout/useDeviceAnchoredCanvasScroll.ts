@@ -119,6 +119,7 @@ export function useDeviceAnchoredCanvasScroll(
       rafRef.current = null
       if (freezeAnchoredLayoutRef.current) return
       setTick((t) => t + 1)
+      useDesignStore.getState().fabricCanvas?.calcOffset()
     })
   }, [])
 

@@ -90,8 +90,22 @@ export function attachDeviceGroupNoCacheForScreenshotClip(canvas: Canvas): void 
     enableDeviceGroupTranslateCache(t)
   }
 
+  const onModified = (opt: { target?: FabricObject }) => {
+    const t = opt.target
+    if (!isDeviceGroup(t)) return
+    /**
+     * Pure translate at 0° keeps translate-cache enabled during the drag; flipping back to
+     * no-cache on `object:modified` repaints the bezel/screenshot and looks like a drop jump.
+     */
+    if (deviceGroupEligibleForTranslateCache(t)) {
+      enableDeviceGroupTranslateCache(t)
+    } else {
+      markScreenshotImagesNoCache(t)
+    }
+  }
+
   canvas.on('object:moving', onMoving)
   canvas.on('object:rotating', refresh)
   canvas.on('object:scaling', refresh)
-  canvas.on('object:modified', refresh)
+  canvas.on('object:modified', onModified)
 }

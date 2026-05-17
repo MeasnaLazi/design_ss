@@ -41,9 +41,8 @@ const GUIDE_STROKE = 'rgba(255,255,255,0.35)'
 const GUIDE_DASH: [number, number] = [6, 6]
 const SMART_GUIDE_STROKE = 'rgba(255, 215, 0, 0.98)'
 const SMART_GUIDE_DASH: [number, number] = [10, 14]
-/** Visual thresholds in on-screen px (converted to canvas units via CSS zoom). */
+/** When a bbox edge/center is within this distance of a panel anchor, show guide lines (screen px). */
 const SMART_GUIDE_SHOW_TOLERANCE_SCREEN_PX = 12
-const SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX = 6
 
 const PANEL_SLOT_STROKE = 'rgba(255,255,255,0.1)'
 
@@ -113,13 +112,6 @@ type SmartGuideOverlay = {
 }
 
 type AxisBestMatch = { dist: number; anchor: number; feature: number; featureIdx: 0 | 1 | 2 }
-type AxisSnapCandidate = { anchor: number; featureIdx: 0 | 1 | 2 }
-
-type DragSnapState = {
-  target: FabricObject | null
-  snapX: AxisSnapCandidate | null
-  snapY: AxisSnapCandidate | null
-}
 
 function panelBoundsForCenterX(
   centerX: number,
@@ -185,7 +177,6 @@ function hideSmartGuideOverlay(overlay: SmartGuideOverlay): void {
 
 function attachPanelAlignmentGuides(canvas: Canvas): () => void {
   const overlay = createSmartGuideOverlay(canvas)
-  const dragState: DragSnapState = { target: null, snapX: null, snapY: null }
 
   const getBestAxisMatch = (
     anchors: number[],
@@ -211,17 +202,11 @@ function attachPanelAlignmentGuides(canvas: Canvas): () => void {
   const onMoving = (opt?: { target?: FabricObject }) => {
     const target = opt?.target
     if (!target || target === overlay.vertical || target === overlay.horizontal) return
-    if (dragState.target !== target) {
-      dragState.target = target
-      dragState.snapX = null
-      dragState.snapY = null
-    }
 
     const cfg = useDesignStore.getState().config
     if (cfg.screens < 1) return
     const canvasZoom = Math.max(useDesignStore.getState().canvasZoom, 0.01)
     const showTolerance = SMART_GUIDE_SHOW_TOLERANCE_SCREEN_PX / canvasZoom
-    const snapTolerance = SMART_GUIDE_SNAP_TOLERANCE_SCREEN_PX / canvasZoom
     const canvasWidth = canvas.getWidth()
     const canvasHeight = canvas.getHeight()
     const { width: panelW, height: panelH } = getArtboardDimensionsFromConfig(cfg)
@@ -256,23 +241,9 @@ function attachPanelAlignmentGuides(canvas: Canvas): () => void {
 
     if (bestX && bestX.dist <= showTolerance) {
       guideX = bestX.anchor
-      if (bestX.dist <= snapTolerance) {
-        dragState.snapX = { anchor: bestX.anchor, featureIdx: bestX.featureIdx }
-      } else {
-        dragState.snapX = null
-      }
-    } else {
-      dragState.snapX = null
     }
     if (bestY && bestY.dist <= showTolerance) {
       guideY = bestY.anchor
-      if (bestY.dist <= snapTolerance) {
-        dragState.snapY = { anchor: bestY.anchor, featureIdx: bestY.featureIdx }
-      } else {
-        dragState.snapY = null
-      }
-    } else {
-      dragState.snapY = null
     }
 
     /**
@@ -313,55 +284,17 @@ function attachPanelAlignmentGuides(canvas: Canvas): () => void {
     canvas.requestRenderAll()
   }
 
-  const finalizeSnapForTarget = (target?: FabricObject) => {
-    if (target && dragState.target === target) {
-      const bbox = target.getBoundingRect()
-      const xFeatures: [number, number, number] = [
-        bbox.left,
-        bbox.left + bbox.width / 2,
-        bbox.left + bbox.width,
-      ]
-      const yFeatures: [number, number, number] = [
-        bbox.top,
-        bbox.top + bbox.height / 2,
-        bbox.top + bbox.height,
-      ]
-      let moved = false
-      if (dragState.snapX) {
-        const dx = dragState.snapX.anchor - xFeatures[dragState.snapX.featureIdx]
-        if (dx !== 0) {
-          target.set({ left: (target.left ?? 0) + dx })
-          moved = true
-        }
-      }
-      if (dragState.snapY) {
-        const dy = dragState.snapY.anchor - yFeatures[dragState.snapY.featureIdx]
-        if (dy !== 0) {
-          target.set({ top: (target.top ?? 0) + dy })
-          moved = true
-        }
-      }
-      if (moved) {
-        target.setCoords()
-      }
-    }
-  }
-
-  const onModified = (opt?: { target?: FabricObject }) => {
-    finalizeSnapForTarget(opt?.target)
-    dragState.target = null
-    dragState.snapX = null
-    dragState.snapY = null
+  const hideGuides = () => {
     hideSmartGuideOverlay(overlay)
     canvas.requestRenderAll()
+  }
+
+  const onModified = () => {
+    hideGuides()
   }
 
   const onSelectionCleared = () => {
-    dragState.target = null
-    dragState.snapX = null
-    dragState.snapY = null
-    hideSmartGuideOverlay(overlay)
-    canvas.requestRenderAll()
+    hideGuides()
   }
 
   canvas.on('object:moving', onMoving)

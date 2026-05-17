@@ -1,8 +1,9 @@
-import { Textbox, type Canvas, type FabricObject } from 'fabric'
+import { Textbox, type Canvas, type FabricObject, type Transform, type TPointerEvent } from 'fabric'
 
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
 import { getFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
+import { syncFabricDragTransformOffsets } from './syncFabricDragTransformOffsets'
 
 /** Match `toolkit/scripts/core/constants.py` — App Store–style headline margins per panel. */
 export const TEXT_SAFE_ZONE_TOP = 120
@@ -100,28 +101,47 @@ export function clampTextboxToNearestPanelSafeZone(obj: Textbox): boolean {
   return true
 }
 
-function tryClampTarget(canvas: Canvas, target: FabricObject | undefined): void {
+function tryClampTarget(
+  canvas: Canvas,
+  target: FabricObject | undefined,
+  transform?: Transform,
+  e?: TPointerEvent,
+): void {
   if (!(target instanceof Textbox)) return
   if (clampTextboxToNearestPanelSafeZone(target)) {
+    syncFabricDragTransformOffsets(canvas, target, transform, e)
     canvas.requestRenderAll()
   }
 }
 
 /**
- * After moves/scales and new text layers, keep design text inside per-panel safe margins.
+ * Keep design text inside per-panel safe margins during drags and after scales / new layers.
  */
 export function attachTextboxSafeZoneClamp(canvas: Canvas): () => void {
-  const onModified = (opt?: { target?: FabricObject }) => {
-    tryClampTarget(canvas, opt?.target)
+  const onMoving = (opt?: {
+    target?: FabricObject
+    transform?: Transform
+    e?: TPointerEvent
+  }) => {
+    tryClampTarget(canvas, opt?.target, opt?.transform, opt?.e)
+  }
+  const onModified = (opt?: {
+    target?: FabricObject
+    transform?: Transform
+    e?: TPointerEvent
+  }) => {
+    tryClampTarget(canvas, opt?.target, opt?.transform, opt?.e)
   }
   const onAdded = (opt?: { target?: FabricObject }) => {
     tryClampTarget(canvas, opt?.target)
   }
 
+  canvas.on('object:moving', onMoving)
   canvas.on('object:modified', onModified)
   canvas.on('object:added', onAdded)
 
   return () => {
+    canvas.off('object:moving', onMoving)
     canvas.off('object:modified', onModified)
     canvas.off('object:added', onAdded)
   }
