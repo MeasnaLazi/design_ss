@@ -5,7 +5,8 @@ description: >-
   Senior store screenshot UI workflow for apps_publisher: read output/screenshot_report.md,
   drive designer.py / enqueue-op in one panel at a time by default, pull-preview for crops.
   Artboard backgrounds: gradient ~98% of the time via set_background (solid only when
-  user/brief requires). Use when acting as screenshot-designer-agent or when the user
+  user/brief requires). Per panel: required title + subtitle text layers; description
+  caption optional. Use when acting as screenshot-designer-agent or when the user
   names this skill.
 ---
 
@@ -81,10 +82,44 @@ After **`set_background`**, check text contrast against **darkest and lightest**
 
 | Source | Use |
 | --- | --- |
-| `R/output/screenshot_report.md` | Messaging, panel order, designer “why” — **always** read for the task. |
+| `R/output/screenshot_report.md` | **Always** read before designing. Per panel: **Title**, **Subtitle**, **Description**, and especially **Summary for designer** (planning-agent message for that slot). Also **Overview**, **Theme**, **Continuity / handoff** for context. |
 | `R/output/appstore.json` / `R/output/playstore.json` | Theme / copy when needed; **same file** as the report’s store (do not mix App Store theme with Play panels). |
 
 Do **not** overwrite `output/screenshot_report.md` unless the user explicitly asks.
+
+## Planning brief (`Summary for designer`)
+
+**`output/screenshot_report.md`** is written by **planning-agent**. For each strip column you work on, locate the matching row in **`## App Store — panel detail`** and/or **`## Play Store — panel detail`** (panel number **`n`** ↔ **`panel_index` `n − 1`**).
+
+**Required reading per active panel:**
+
+1. **`Summary for designer`** — the planning-agent’s message for **this** slot: why the panel exists, what to communicate, how it fits the carousel. **Treat this as your primary creative brief** for layout decisions (device emphasis, copy hierarchy, whether to show optional caption, mood). It does **not** override toolkit rules (safe zone, contrast, no overlap) or **§ Per-panel copy layers** (still exactly one title + one subtitle on canvas).
+2. **`Continuity / handoff`** — how this panel connects to the next (use for story rhythm; optional for single-panel composition).
+3. **`## Overview (for the designer)`** — read once per run for whole-carousel context.
+
+**Summary for designer** may suggest *ideas* (e.g. “hero device”, “trust badge”) — you interpret them visually; planning does not specify fonts, positions, or hex beyond Theme.
+
+## Per-panel copy layers (required vs optional)
+
+For each active **`panel_index`**, read that row’s **Title**, **Subtitle**, **Description**, and **Summary for designer** from **`output/screenshot_report.md`**. Map **Title / Subtitle / Description** to **`add_text`** layers on the canvas; use **Summary for designer** to guide *how* you compose the panel:
+
+| Brief field | Canvas layer | Required? | Typical `font` preset |
+| --- | --- | --- | --- |
+| **Title** | One **title** textbox | **Yes** — exactly **one** per panel | `title2`, `title3`, or `largeTitle` (shorter copy) |
+| **Subtitle** | One **subtitle** textbox | **Yes** — exactly **one** per panel | `subheadline` or `headline` |
+| **Description** | **Caption** textbox | **Optional** — add **only** when it strengthens the panel (extra detail, CTA, legal line). If empty, redundant with title/subtitle, or cluttered, **omit** the caption layer. | `callout`, `footnote`, or `caption1` |
+
+**Do not** add a second title, second subtitle, or a caption “because the JSON has three fields.” Two text layers (title + subtitle) is the normal case; three only when the description earns its place.
+
+### Sanitize title and subtitle strings
+
+Before **`add_text`** / **`text_set_content`**, normalize **title** and **subtitle** copy:
+
+**Trim** ends; collapse repeated spaces to one.
+
+Apply the same newline stripping to **description** when you choose to show it as an optional caption.
+
+Placement of the **title / subtitle / optional caption** block may still vary by panel (not always top-aligned); see **§ Layout and text placement**.
 
 ## Layout and text placement
 
@@ -96,8 +131,8 @@ Do **not** overwrite `output/screenshot_report.md` unless the user explicitly as
 
 1. **Stack ready:** `python toolkit/scripts/designer.py handoff` — if not `ok` / usable `web_ui_status`, follow **tool-running-agent** (see `R/.claude/agents/tool-running-agent.md`); do not edit `web_ui/src/**` unless the user asks (`R/.claude/settings.json` may deny it).  
 2. **Session:** `python toolkit/scripts/designer.py session` — note canvas size, `screens`, gap, preset if relevant.  
-3. **Declare** active **`panel_index`** (or cross-panel rationale).  
-4. **Plan** a numbered list of concrete `enqueue-op` steps (move, `layer_patch`, `text_set_*`, `device_*`, `set_z_index`, `batch`, …).  
+3. **Declare** active **`panel_index`** (or cross-panel rationale). Read that row’s **Summary for designer** (and **Title** / **Subtitle** / **Description**) from **`screenshot_report.md`**.  
+4. **Plan** a numbered list of concrete `enqueue-op` steps informed by **Summary for designer** (move, `layer_patch`, `text_set_*`, `device_*`, `set_z_index`, `batch`, …).  
 5. **Apply** via `python toolkit/scripts/designer.py enqueue-op …` (prefer **`batch`** for ordered steps).  
 6. **Render preview** when needed: e.g. `enqueue-op` **`render_panel_preview`** for the active column, then **`pull-preview --panels <n>`**.  
 7. **Review:** Walk [checklist.md](checklist.md) for the active panel (visual + criteria rows). Use **`layout.py contrast`** and related helpers from **layout-reference** when you need numeric parity checks — there is **no** automated full-layout JSON gate in-repo anymore.

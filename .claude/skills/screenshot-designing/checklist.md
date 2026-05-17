@@ -34,6 +34,9 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 
 | Check | PASS / FAIL | Notes |
 | --- | --- | --- |
+| **Title:** exactly **one** text layer with sanitized report **Title** (no `\n` in content; one line when feasible) | — | — |
+| **Subtitle:** exactly **one** text layer with sanitized report **Subtitle** (no `\n` in content; one line when feasible) | — | — |
+| **Caption (description):** optional — if omitted, note “skipped”; if present, sanitized **Description** | — | — |
 | Text layers: no bbox overlap with each other **in the same strip column** | — | — |
 | Text: inside safe zone / margins for its panel | — | — |
 | Text: contrast vs background | — | Use `layout contrast --a --b` vs dark/light gradient stops (not only a single flat hex) |
@@ -52,7 +55,8 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 | Text vertical rhythm | — | Not every panel needs copy hugging the **top**; varied placement OK if hierarchy stays clear and §2 overlap/safe-zone checks pass |
 | Hierarchy readable | — | — |
 | Spacing and alignment feel intentional | — | — |
-| Device + text story matches `output/screenshot_report.md` for this panel order | — | — |
+| Composition reflects **Summary for designer** for this panel (planning-agent column) | — | Brief quote or paraphrase in Notes |
+| Device + text story matches report **Title** / **Subtitle** (description only if caption layer used) | — | — |
 
 ---
 
