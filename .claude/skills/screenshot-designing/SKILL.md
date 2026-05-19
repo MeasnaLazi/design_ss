@@ -4,8 +4,8 @@ disable-model-invocation: true
 description: >-
   Senior store screenshot UI workflow for apps_publisher: read output/screenshot_report.md,
   drive designer.py / enqueue-op in one panel at a time by default, pull-preview for crops.
-  Artboard backgrounds: gradient ~98% of the time via set_background (solid only when
-  user/brief requires). Per panel: required title + subtitle text layers; description
+  Artboard backgrounds: theme-mixed gradients via set_background (primary/secondary from
+  report or same-store JSON). Per panel: required title + subtitle text layers; description
   caption optional. Use when acting as screenshot-designer-agent or when the user
   names this skill.
 ---
@@ -40,40 +40,59 @@ Let **`R`** = the **apps_publisher** repository root (this workspace). Run CLI c
 
 This section is **agent behavior**. For **CLI args and JSON shapes** only, read **`toolkit/references/designer-reference.md`** → **`set_background`** / **§ `set_background` args**.
 
-### Default (~98% gradient)
+### Default: theme-mixed gradient
 
 Use **`type` / `mode`: `gradient`** for almost every strip / carousel artboard. Flat solid fields read unfinished on store listings unless the brand is intentionally minimal.
 
-- Build **`value`** as `{ kind, angleDeg, stops }` (see designer-reference).
-- Use your **creative judgment** for color story, angle, and stop count. The named examples below are **inspiration only** — you may use one, tweak one, ignore them all, or invent something new.
-- Vary gradient across carousel panels when it helps the story; one strip-wide **`set_background`** is fine when all columns share the same artboard.
+**Theme source (required before `set_background`):**
 
-### Creative examples (optional — agent decides)
+1. Read **`## Theme (from store JSON)`** in **`screenshot_report.md`** for the store you are designing (**App Store** vs **Play** — never mix).
+2. Let **`P`** = primary hex, **`S`** = secondary hex (verbatim from the report, or from **`theme`** in the **same** `appstore.json` / `playstore.json` as the panels).
+3. If either value is `—` or empty, use the other for both stops (lighten/darken variants) or ask the user—**do not** fall back to generic slate (`#0f172a` / `#1e293b`) or copy preset hex from this skill.
 
-The table is **not** a required pick list. **You** choose whether any example fits; none of them are mandatory.
+**Build stops from `P` and `S` (creative but on-brand):**
 
-| Example | Typical mood (hint only) | `value` if you want to copy as-is (`{"type":"gradient","value":…}`) |
+- **Every stop** must be traceable to **`P`**, **`S`**, or a **blend** of them (e.g. ~50% mix toward black for a deep hero, ~30% mix toward white for a highlight edge).
+- Use **2–4 stops**. Typical patterns (pick one; vary **angleDeg** / **kind** across runs and panels when the story allows):
+  - **Linear brand sweep:** darkened **`P`** at `offset: 0` → **`S`** or P→S blend at mid → lightened **`S`** at `1`.
+  - **Radial hero:** **`kind: "radial"`** — lighter **`P`** or tint near center, deepened **`S`** at outer stop (good for device-forward panels).
+  - **Dual-accent:** **`P`** at `0`, blend at `0.45`, **`S`** at `1` with different **angleDeg** than the last panel if you vary per column.
+- **Mood** comes from **Overview** / **Summary for designer** (warm vs cool, calm vs energetic)—achieve it by **how much** you darken/lighten **`P`**/**`S`**, not by swapping in unrelated palette families.
+- **Forbidden defaults:** Do not paste **`web_ui`** default slate, **`designer-reference`** example hex, or named preset colors **without** remapping every stop through **`P`**/**`S`**.
+
+**Strip vs per-panel:**
+
+- One strip-wide **`set_background`** is fine when all columns share one artboard.
+- When **Overview** or continuity calls for rhythm, vary **angleDeg**, **kind** (`linear` vs `radial`), or stop weights—but keep stops theme-derived.
+
+### Structure presets (remap colors only)
+
+Use these **layouts** for inspiration; **replace every `#…` stop** with your theme-mixed hexes from **`P`**/**`S`**.
+
+| Structure | Mood hint | Layout (remap all colors to theme) |
 | --- | --- | --- |
-| **Slate depth** | Neutral dark utility / productivity | `{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}` |
-| **Aurora** | Cool tech, AI, creative tools | `{"kind":"linear","angleDeg":125,"stops":[{"offset":0,"color":"#0c4a6e"},{"offset":0.45,"color":"#312e81"},{"offset":1,"color":"#134e4a"}]}` |
-| **Sunset** | Warm lifestyle, energy, food | `{"kind":"linear","angleDeg":160,"stops":[{"offset":0,"color":"#431407"},{"offset":0.5,"color":"#9a3412"},{"offset":1,"color":"#f59e0b"}]}` |
-| **Spotlight** | Hero device on a dark stage (`radial`) | `{"kind":"radial","angleDeg":225,"stops":[{"offset":0,"color":"#27272a"},{"offset":0.55,"color":"#18181b"},{"offset":1,"color":"#09090b"}]}` |
-| **Ocean glass** | Health, calm, finance-adjacent | `{"kind":"linear","angleDeg":180,"stops":[{"offset":0,"color":"#042f2e"},{"offset":0.55,"color":"#115e59"},{"offset":1,"color":"#134e4a"}]}` |
-| **Rose metal** | Premium consumer, fashion, luxury | `{"kind":"linear","angleDeg":45,"stops":[{"offset":0,"color":"#1c1917"},{"offset":0.4,"color":"#4c0519"},{"offset":1,"color":"#292524"}]}` |
+| **Depth sweep** | Default hero / utility | `linear`, 120–160°, 2 stops: dark **`P`** → lighter **`S`** |
+| **Tri-accent** | Tech, feature density | `linear`, 3 stops: dark **`P`** → blend → **`S`** |
+| **Stage radial** | Device hero | `radial`, 3 stops: tint **`P`** center → mid blend → deep **`S`** edge |
+| **Warm push** | Lifestyle, energy | `linear`, 3 stops: deep **`P`** → saturated mix → bright **`S`** |
+| **Calm glass** | Health, finance-adjacent | `linear`, 180°, 3 stops: very dark **`P`** → mid **`S`** → softened **`S`** |
+| **Premium edge** | Consumer luxury | `linear`, 45–90°, 3 stops: near-black **`P`** → accent mix → muted **`S`** |
 
 ### Rare exceptions
 
 | Mode | When |
 | --- | --- |
-| **`color`** (solid) | User or **`screenshot_report.md`** **explicitly** requires a flat field; or gradient cannot meet contrast and flat is the only fix — **not** the default “safe” choice. |
+| **`color`** (solid) | User or **`screenshot_report.md`** **explicitly** requires a flat field; or gradient cannot meet contrast and flat is the only fix — prefer **`P`** or darkened **`P`**, not arbitrary gray. |
 | **`image`** | User or brief supplies a background asset URL only — no stock photos by default. |
 
 ### Apply + verify
 
+Substitute your computed theme hexes for `<P_dark>`, `<S_light>`, etc.:
+
 ```bash
 python toolkit/scripts/designer.py enqueue-op \
   --operation set_background \
-  --args-json '{"type":"gradient","value":{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}}'
+  --args-json '{"type":"gradient","value":{"kind":"linear","angleDeg":140,"stops":[{"offset":0,"color":"<P_dark>"},{"offset":0.5,"color":"<P_S_blend>"},{"offset":1,"color":"<S_light>"}]}}'
 ```
 
 After **`set_background`**, check text contrast against **darkest and lightest** gradient stops with **`layout contrast`** (see [checklist.md](checklist.md)).
@@ -82,7 +101,7 @@ After **`set_background`**, check text contrast against **darkest and lightest**
 
 | Source | Use |
 | --- | --- |
-| `R/output/screenshot_report.md` | **Always** read before designing. Per panel: **Title**, **Subtitle**, **Description**, and especially **Summary for designer** (planning-agent message for that slot). Also **Overview**, **Theme**, **Continuity / handoff** for context. |
+| `R/output/screenshot_report.md` | **Always** read before designing. Per panel: **Title**, **Subtitle**, **Description**, and especially **Summary for designer** (planning-agent message for that slot). Also **Overview**, **`## Theme (from store JSON)`** (required for **`set_background`**), **Continuity / handoff** for context. |
 | `R/output/appstore.json` / `R/output/playstore.json` | Theme / copy when needed; **same file** as the report’s store (do not mix App Store theme with Play panels). |
 
 Do **not** overwrite `output/screenshot_report.md` unless the user explicitly asks.

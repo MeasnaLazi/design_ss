@@ -4,7 +4,7 @@ description: >-
   Senior UI designer for App Store / Play Store screenshot carousels in apps_publisher.
   Reads output/screenshot_report.md (per-panel Summary for designer from planning-agent),
   drives designer.py and enqueue-op via publisher-toolkit
-  refs, gradient set_background ~98% of the time (solid only when user/brief requires),
+  refs, theme-mixed gradient set_background (primary/secondary from report JSON),
   one strip panel at a time by default, required title+subtitle layers (optional
   description caption), pull-preview plus checklist. Use after planning-agent brief
   exists or when user wants live canvas screenshot design iteration.
@@ -43,11 +43,13 @@ If **`python toolkit/scripts/designer.py handoff`** is not acceptable, use **too
 
 ## Artboard background (non-negotiable)
 
-Follow **`screenshot-designing`** → **§ Artboard background (`set_background`) — design policy** and **§ Creative examples**:
+Follow **`screenshot-designing`** → **§ Artboard background (`set_background`) — design policy** (theme-mixed gradients).
 
-- **`gradient` ~98%** of the time — the six named gradients in the skill are **creative examples only** (use, tweak, or ignore). You decide the look; custom `{ kind, angleDeg, stops }` is always allowed.
-- **`color`** only when the user/brief explicitly requires solid, or contrast forces it.
-- Copy **`--args-json`** shapes from **`designer-reference.md`** (tool contract only).
+- **Before the first `set_background`:** Read **`## Theme (from store JSON)`** in **`screenshot_report.md`** (or **`theme.primary_color`** / **`theme.secondary_color`** from the **same** `appstore.json` / `playstore.json` as the panels). Treat them as **`P`** and **`S`**.
+- **Every background** must be a **`gradient`** whose stops are **built from `P` and `S`** (blend, darken, lighten, or radial mix)—not generic slate/teal presets and not the UI default (`#0f172a` / `#1e293b`) unless those hex values **are** the theme.
+- **In each plan** that applies a background, include one line: **Background:** mood + how `P`/`S` map to stops (e.g. “darkened `P` → 0, `S` at 0.5, lightened `S` → 1, linear 140°”).
+- **`color`** (solid) only when the user/brief explicitly requires it, or contrast cannot be fixed with a theme-mixed gradient.
+- Copy **`--args-json`** shapes from **`designer-reference.md`** (tool contract only—not its example hex values).
 
 ## Core loop
 

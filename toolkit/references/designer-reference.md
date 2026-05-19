@@ -115,9 +115,9 @@ Details and examples: **Panel preview** and **Panel preview data** sections belo
 | **`angleDeg`** | number | Degrees |
 | **`stops`** | array (≥ 2) | Each: `{ "offset": 0–1, "color": "#rrggbb" }` |
 
-Example **`--args-json`** (gradient):
+Example **`--args-json`** (gradient — substitute hex from **`screenshot_report.md`** Theme or same-store JSON **`theme.primary_color`** / **`secondary_color`**; do not use placeholder colors as-is):
 
-`'{"type":"gradient","value":{"kind":"linear","angleDeg":135,"stops":[{"offset":0,"color":"#0f172a"},{"offset":1,"color":"#1e293b"}]}}'`
+`'{"type":"gradient","value":{"kind":"linear","angleDeg":140,"stops":[{"offset":0,"color":"<primary_darkened>"},{"offset":1,"color":"<secondary_lightened>"}]}}'`
 
 Example (solid): `'{"type":"color","value":"#0b0f14"}'`. Example (image): `'{"type":"image","value":"https://example.com/bg.png"}'` or **`image_url`** at top level per payload style above.
 
