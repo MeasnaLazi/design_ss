@@ -159,7 +159,7 @@ The dev server persists the last preview under **`datasource/memories/`** (`.age
 2. **Browser** — SSE delivers the op; Fabric projects a slim JSON DTO and POSTs to **`/agent-preview-data`**.
 3. **`pull-preview-data`** — GET **`/agent-preview-data`**; poll until **`revision`** changes after enqueue.
 
-**GET `/agent-preview-data` JSON (version `1`)** — top-level: `version`, `revision`, `capturedAt`, `gap`, `workspace_width`, `workspace_height`, `panels[]`. **`revision`** is a **string** (JSON text of a stable subset: version, gap, workspace size, and `panels` including layer fields) so clients can compare it for “did the layout change?” without parsing the whole file. Each panel: `panel_index`, `panel_width`, `panel_height`, `panel_x`, `panel_y` (document/workspace coordinates for that column’s rect), `layers[]`. Layer geometry is **panel-local** (`x`/`y` relative to that panel’s top-left). `layer_id`, `kind`, `z_index` plus kind-specific fields (see `web_ui/src/types/agentPanelPreviewData.ts`). No `panel_index` on nested layers (implied by parent panel). No full `DisplayDocumentV1` / `fabricObjects`.
+**GET `/agent-preview-data` JSON (version `1`)** — top-level: `version`, `revision`, `capturedAt`, `gap`, `workspace_width`, `workspace_height`, optional `background` (`type` + `value`), `panels[]`. **`revision`** includes `background` so background-only edits invalidate polls. Text layers may include `font`, `line_height`, `letter_spacing`. Each panel: `panel_index`, `panel_width`, `panel_height`, `panel_x`, `panel_y`, `layers[]` (panel-local geometry; see `web_ui/src/types/agentPanelPreviewData.ts`).
 
 Live reads after canvas edits must use enqueue + pull; persisted `display_*.json` can lag auto-save.
 

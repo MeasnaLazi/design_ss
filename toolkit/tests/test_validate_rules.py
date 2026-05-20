@@ -26,6 +26,7 @@ def test_png_only_mismatch(tmp_path: Path) -> None:
     ids = [c["id"] for c in out["checks"]]
     assert ids == ["png_preset_match", "panel_data_required"]
     assert out["checks"][0]["ok"] is False
+    assert out["checks"][1]["ok"] is False
 
 
 def test_text_overlap_fails(tmp_path: Path) -> None:
@@ -89,19 +90,19 @@ def test_full_pass_phone_preset(tmp_path: Path) -> None:
                         "layer_id": "t1",
                         "kind": "text",
                         "color": "#ffffff",
-                        "size": 32,
+                        "size": 52,
                         "x": 60,
                         "y": 60,
                         "width": 400,
-                        "height": 50,
+                        "height": 60,
                     },
                     {
                         "layer_id": "d1",
                         "kind": "device",
                         "x": 540,
-                        "y": 1200,
+                        "y": 900,
                         "width": 700,
-                        "height": int(0.8 * ph),
+                        "height": int(0.75 * ph),
                     },
                 ],
             }
@@ -139,7 +140,7 @@ def test_text_span_fail(tmp_path: Path) -> None:
                         "size": 32,
                         "x": 60,
                         "y": 60,
-                        "width": 1200,
+                        "width": 1250,
                         "height": 40,
                     },
                 ],
@@ -214,7 +215,7 @@ def test_text_safe_margins_shrink_helps_bottom_inset(tmp_path: Path) -> None:
     """Symmetric bbox shrink trims Fabric padding so margin rule matches optical layout."""
     from dataclasses import replace
 
-    from designer.validate_rules import ValidateRulesOptions
+    from designer.validate_options import ValidateRulesOptions
 
     pw, ph = 1290, 2796
     png = tmp_path / "p.png"
@@ -265,7 +266,7 @@ def test_wide_shallow_text_horizontal_extra_fixes_right_margin(tmp_path: Path) -
     """Wide shallow Textbox: base shrink is height-capped; horizontal extra pulls right edge in."""
     from dataclasses import replace
 
-    from designer.validate_rules import ValidateRulesOptions
+    from designer.validate_options import ValidateRulesOptions
 
     pw, ph = 1290, 2796
     png = tmp_path / "p.png"
@@ -333,7 +334,8 @@ def test_text_font_min_size_fails(tmp_path: Path) -> None:
                         "kind": "text",
                         "content": "Small",
                         "color": "#ffffff",
-                        "size": 11,
+                        "size": 36,
+                        "font": "body",
                         "x": 60,
                         "y": 60,
                         "width": 400,
@@ -384,6 +386,85 @@ def test_text_single_line_bbox_flags_tall_single_line_without_newline(tmp_path: 
     chk = next(c for c in out["checks"] if c["id"] == "text_single_line_bbox")
     assert chk["ok"] is False
     assert out["ok"] is False
+
+
+def test_text_vertical_rhythm_fails(tmp_path: Path) -> None:
+    pw, ph = 1080, 1920
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "a",
+                        "kind": "text",
+                        "color": "#ffffff",
+                        "size": 52,
+                        "x": 60,
+                        "y": 60,
+                        "width": 400,
+                        "height": 60,
+                    },
+                    {
+                        "layer_id": "b",
+                        "kind": "text",
+                        "color": "#ffffff",
+                        "size": 48,
+                        "x": 60,
+                        "y": 100,
+                        "width": 400,
+                        "height": 60,
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(png, jpath, None, None, "play_phone_portrait")
+    chk = next(c for c in out["checks"] if c["id"] == "text_vertical_rhythm")
+    assert chk["ok"] is False
+    assert chk["detail"]["violations"][0].get("suggested_fix")
+
+
+def test_emit_fixes_only_output(tmp_path: Path) -> None:
+    pw, ph = 1080, 1920
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "small",
+                        "kind": "text",
+                        "color": "#ffffff",
+                        "size": 36,
+                        "font": "body",
+                        "x": 60,
+                        "y": 60,
+                        "width": 400,
+                        "height": 24,
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(png, jpath, None, None, "play_phone_portrait", emit_fixes_only=True)
+    assert "fixes" in out
+    assert len(out["fixes"]) >= 1
+    assert out["fixes"][0]["operation"] == "text_set_font_size"
 
 
 def test_text_single_line_bbox_skips_explicit_newlines(tmp_path: Path) -> None:

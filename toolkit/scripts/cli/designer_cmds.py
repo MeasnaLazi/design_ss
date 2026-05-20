@@ -17,7 +17,11 @@ from designer.client import (
     screenshot_designer_handoff,
 )
 from designer.enqueue_validate import validate_positional_enqueue_args
-from designer.validate_rules import ValidateRulesOptions, run_validate_rules
+from designer.validate_options import ValidateRulesOptions
+from designer.validate_profiles import get_profile, list_profiles
+from designer.validate_rules import merge_cli_options, run_validate_rules
+from designer.validate_strip_rules import run_validate_strip_rules
+from store.store_listing import load_store_listing, normalize_platform
 
 from cli.io_utils import json_print, parse_args_json_payload
 
@@ -155,7 +159,7 @@ def register_designer(sub: Any) -> None:
         "--min-text-font-size-px",
         type=float,
         default=None,
-        help="Reject text layers with size below this px (default 14; set 0 to disable)",
+        help="Reject primary text layers with size below this px (default 48; captions excluded; 0 disables)",
     )
     ds_val.add_argument(
         "--text-unwanted-wrap-height-to-size-ratio",
@@ -163,7 +167,67 @@ def register_designer(sub: Any) -> None:
         default=None,
         help="Without explicit newlines, flag layers where height/size >= this (default 1.8; 0 disables)",
     )
+    ds_val.add_argument(
+        "--profile",
+        default="default",
+        choices=list_profiles(),
+        help="Validation profile: default, appstore_hero, play_feature",
+    )
+    ds_val.add_argument(
+        "--platform",
+        default=None,
+        choices=("iphone", "ipad", "phone", "tablet"),
+        help="Load store theme from output listing JSON for theme contrast checks",
+    )
+    ds_val.add_argument(
+        "--store-json",
+        type=Path,
+        default=None,
+        help="Path to store listing JSON (alternative to --platform)",
+    )
+    ds_val.add_argument("--min-device-height-ratio", type=float, default=None)
+    ds_val.add_argument("--max-device-height-ratio", type=float, default=None)
+    ds_val.add_argument("--large-text-size-px", type=float, default=None, help="WCAG large-text threshold (default 24)")
+    ds_val.add_argument("--min-contrast-normal", type=float, default=None, help="WCAG normal text ratio (default 4.5)")
+    ds_val.add_argument("--min-contrast-large", type=float, default=None, help="WCAG large text ratio (default 3.0)")
+    ds_val.add_argument("--min-text-gap-px", type=float, default=None, help="Min vertical gap between primary text layers")
+    ds_val.add_argument(
+        "--emit-fixes",
+        action="store_true",
+        help="Include compact suggested_fix list in JSON output",
+    )
     ds_val.set_defaults(handler=_cmd_designer_validate_rules)
+
+    ds_strip = designer_sub.add_parser(
+        "validate-strip-rules",
+        help="Validate multi-panel strip snapshot JSON (and optional per-panel PNG dir)",
+    )
+    ds_strip.add_argument(
+        "--panel-data",
+        type=Path,
+        required=True,
+        help="Full strip JSON from pull-preview-data (all panel_indexes)",
+    )
+    ds_strip.add_argument(
+        "--png-dir",
+        type=Path,
+        default=None,
+        help="Directory with panel0.png / panel{N}.png for color harmony checks",
+    )
+    ds_strip.add_argument(
+        "--profile",
+        default="default",
+        choices=list_profiles(),
+        help="Validation profile for strip thresholds",
+    )
+    ds_strip.add_argument(
+        "--expected-gap",
+        type=float,
+        default=None,
+        help="Override expected strip gap px from profile",
+    )
+    ds_strip.add_argument("--emit-fixes", action="store_true")
+    ds_strip.set_defaults(handler=_cmd_designer_validate_strip_rules)
 
 
 def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
@@ -204,37 +268,29 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
     sys.stdout.buffer.write(data)
 
 
+def _resolve_repo_root() -> Path:
+    # toolkit/scripts/cli/designer_cmds.py -> repo root apps_publisher
+    return Path(__file__).resolve().parents[3]
+
+
+def _load_theme_for_validate(ns: argparse.Namespace) -> dict[str, Any] | None:
+    if ns.store_json is not None:
+        import json as _json
+
+        raw = _json.loads(ns.store_json.read_text(encoding="utf-8"))
+        store = raw.get("store", raw) if isinstance(raw, dict) else raw
+        return store if isinstance(store, dict) else None
+    if ns.platform:
+        listing = load_store_listing(_resolve_repo_root(), normalize_platform(ns.platform))
+        store = listing.get("store")
+        return store if isinstance(store, dict) else None
+    return None
+
+
 def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
-    base_opt = ValidateRulesOptions()
-    opt = ValidateRulesOptions(
-        margin_frac=float(ns.margin_frac) if ns.margin_frac is not None else base_opt.margin_frac,
-        margin_floor_px=int(ns.margin_floor_px) if ns.margin_floor_px is not None else base_opt.margin_floor_px,
-        margin_max_px=float(ns.margin_max_px) if ns.margin_max_px is not None else base_opt.margin_max_px,
-        margin_tolerance_px=float(ns.margin_tolerance_px)
-        if ns.margin_tolerance_px is not None
-        else base_opt.margin_tolerance_px,
-        margin_text_bbox_shrink_px=float(ns.margin_text_bbox_shrink_px)
-        if ns.margin_text_bbox_shrink_px is not None
-        else base_opt.margin_text_bbox_shrink_px,
-        margin_text_horizontal_extra_px=float(ns.margin_text_horizontal_extra_px)
-        if ns.margin_text_horizontal_extra_px is not None
-        else base_opt.margin_text_horizontal_extra_px,
-        max_text_span=float(ns.max_text_span) if ns.max_text_span is not None else base_opt.max_text_span,
-        max_device_pair_overlap=float(ns.max_device_pair_overlap)
-        if ns.max_device_pair_overlap is not None
-        else base_opt.max_device_pair_overlap,
-        min_device_height_ratio=base_opt.min_device_height_ratio,
-        max_device_height_ratio=base_opt.max_device_height_ratio,
-        min_contrast_normal=base_opt.min_contrast_normal,
-        min_contrast_large=base_opt.min_contrast_large,
-        large_text_size_px=base_opt.large_text_size_px,
-        min_text_font_size_px=float(ns.min_text_font_size_px)
-        if ns.min_text_font_size_px is not None
-        else base_opt.min_text_font_size_px,
-        text_unwanted_wrap_height_to_size_ratio=float(ns.text_unwanted_wrap_height_to_size_ratio)
-        if ns.text_unwanted_wrap_height_to_size_ratio is not None
-        else base_opt.text_unwanted_wrap_height_to_size_ratio,
-    )
+    profile = get_profile(ns.profile)
+    opt = merge_cli_options(profile.panel, ns)
+    theme = _load_theme_for_validate(ns)
     out = run_validate_rules(
         ns.png,
         ns.panel_data,
@@ -242,6 +298,26 @@ def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
         ns.canvas_size,
         ns.preset_id,
         opt=opt,
+        theme=theme,
+        emit_fixes_only=bool(ns.emit_fixes),
+    )
+    json_print(out, compact)
+    if not out.get("ok"):
+        sys.exit(1)
+
+
+def _cmd_designer_validate_strip_rules(ns: argparse.Namespace, compact: bool) -> None:
+    profile = get_profile(ns.profile)
+    strip_opt = profile.strip
+    if ns.expected_gap is not None:
+        from dataclasses import replace
+
+        strip_opt = replace(strip_opt, expected_gap=float(ns.expected_gap))
+    out = run_validate_strip_rules(
+        ns.panel_data,
+        opt=strip_opt,
+        png_dir=ns.png_dir,
+        emit_fixes_only=bool(ns.emit_fixes),
     )
     json_print(out, compact)
     if not out.get("ok"):

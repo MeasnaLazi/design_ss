@@ -108,3 +108,106 @@ def save_jpeg(img: Image.Image, path: Path, quality: int = 90) -> None:
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def panel_edge_strip_boxes(width: int, height: int) -> list[tuple[int, int, int, int]]:
+    """Four edge strips for panel-wide background sampling."""
+    if width < 2 or height < 2:
+        return [(0, 0, width, height)]
+    strip = max(2, min(24, width // 24, height // 24))
+    return [
+        (0, 0, width, strip),
+        (0, height - strip, width, height),
+        (0, 0, strip, height),
+        (width - strip, 0, width, height),
+    ]
+
+
+def panel_edge_hexes(img: Image.Image) -> list[str]:
+    w, h = img.size
+    out: list[str] = []
+    for left, top, right, bottom in panel_edge_strip_boxes(w, h):
+        if right <= left or bottom <= top:
+            continue
+        out.append(region_hex(img, left, top, right, bottom))
+    return out
+
+
+def bbox_halo_strip_boxes(
+    width: int,
+    height: int,
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+    pad: int,
+) -> list[tuple[int, int, int, int]]:
+    """Thin strips outside text AABB in panel coordinates."""
+    li = int(max(0, min(width, round(left))))
+    ti = int(max(0, min(height, round(top))))
+    ri = int(max(0, min(width, round(right))))
+    bi = int(max(0, min(height, round(bottom))))
+    if ri <= li or bi <= ti:
+        return []
+    p = max(1, pad)
+    boxes: list[tuple[int, int, int, int]] = []
+    t0, t1 = max(0, ti - p), ti
+    if t1 > t0:
+        boxes.append((li, t0, ri, t1))
+    b0, b1 = bi, min(height, bi + p)
+    if b1 > b0:
+        boxes.append((li, b0, ri, b1))
+    l0, l1 = max(0, li - p), li
+    if l1 > l0:
+        boxes.append((l0, ti, l1, bi))
+    r0, r1 = ri, min(width, ri + p)
+    if r1 > r0:
+        boxes.append((r0, ti, r1, bi))
+    return boxes
+
+
+def bbox_halo_hexes(
+    img: Image.Image,
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+    pad: int,
+) -> list[str]:
+    w, h = img.size
+    return [
+        region_hex(img, *box)
+        for box in bbox_halo_strip_boxes(w, h, left, top, right, bottom, pad)
+    ]
+
+
+def region_luminance_variance(img: Image.Image, left: int, top: int, right: int, bottom: int) -> float:
+    """Variance of relative luminance in a region (flat band detection)."""
+    crop = img.crop((left, top, right, bottom)).convert("RGB")
+    if crop.width == 0 or crop.height == 0:
+        return 0.0
+    small = crop.resize((min(32, crop.width), min(32, crop.height)), Image.Resampling.LANCZOS)
+    pixels = list(small.getdata())
+    if not pixels:
+        return 0.0
+
+    def lum(px: tuple[int, ...]) -> float:
+        r, g, b = px[0], px[1], px[2]
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    values = [lum(p) for p in pixels]
+    mean = sum(values) / len(values)
+    return sum((v - mean) ** 2 for v in values) / len(values)
+
+
+def rgb_distance(a: str, b: str) -> float:
+    """Simple RGB Euclidean distance between two #rrggbb colors."""
+
+    def parse(h: str) -> tuple[float, float, float]:
+        c = h.strip().lstrip("#")[:6]
+        n = int(c, 16)
+        return float((n >> 16) & 255), float((n >> 8) & 255), float(n & 255)
+
+    ar, ag, ab = parse(a)
+    br, bg, bb = parse(b)
+    return ((ar - br) ** 2 + (ag - bg) ** 2 + (ab - bb) ** 2) ** 0.5

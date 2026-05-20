@@ -10,10 +10,20 @@ export type AgentPanelPreviewTextLayer = {
   color: string
   align: 'left' | 'center' | 'right'
   weight: string
+  /** CSS fontFamily / preset id when set on the Textbox */
+  font?: string
+  line_height?: number
+  letter_spacing?: number
   x: number
   y: number
   width: number
   height: number
+}
+
+/** Workspace background aligned with set_background enqueue contract */
+export type AgentPanelPreviewBackground = {
+  type: 'color' | 'gradient' | 'image'
+  value: string | Record<string, unknown> | null
 }
 
 export type AgentPanelPreviewDeviceLayer = {
@@ -49,5 +59,6 @@ export type AgentPanelPreviewData = {
   gap: number
   workspace_width: number
   workspace_height: number
+  background?: AgentPanelPreviewBackground
   panels: AgentPanelPreviewPanelEntry[]
 }

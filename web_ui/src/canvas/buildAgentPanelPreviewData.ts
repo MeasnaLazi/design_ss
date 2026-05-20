@@ -7,6 +7,7 @@ import { DEFAULT_DEVICE_FRAME_STYLE_ID } from '../constants/deviceFrameStyles'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import {
   AGENT_PANEL_PREVIEW_DATA_VERSION,
+  type AgentPanelPreviewBackground,
   type AgentPanelPreviewData,
   type AgentPanelPreviewLayer,
   type AgentPanelPreviewPanelEntry,
@@ -76,10 +77,26 @@ function normalizeTextAlign(raw: unknown): 'left' | 'center' | 'right' {
   return 'left'
 }
 
+function serializeBackground(config: ReturnType<typeof useDesignStore.getState>['config']): AgentPanelPreviewBackground | undefined {
+  const mode = String(config.backgroundMode ?? 'solid').toLowerCase()
+  if (mode === 'solid' || mode === 'color') {
+    const hex = normalizeHexColor(config.background)
+    return { type: 'color', value: hex }
+  }
+  if (mode === 'gradient' && config.backgroundGradient) {
+    return { type: 'gradient', value: config.backgroundGradient as Record<string, unknown> }
+  }
+  if (mode === 'image' && config.backgroundImageUrl) {
+    return { type: 'image', value: String(config.backgroundImageUrl) }
+  }
+  return undefined
+}
+
 function revisionPayload(
   gap: number,
   workspaceWidth: number,
   workspaceHeight: number,
+  background: AgentPanelPreviewBackground | undefined,
   panels: AgentPanelPreviewPanelEntry[],
 ): string {
   return JSON.stringify({
@@ -87,6 +104,7 @@ function revisionPayload(
     gap,
     workspace_width: workspaceWidth,
     workspace_height: workspaceHeight,
+    background: background ?? null,
     panels,
   })
 }
@@ -122,6 +140,9 @@ export function buildAgentPanelPreviewData(
 
     if (rec.kind === 'text' && obj instanceof Textbox) {
       const b = boundingRectForAlign(rec.id, obj)
+      const fontFamily = String(obj.fontFamily ?? '').trim()
+      const lineHeight = Number(obj.lineHeight)
+      const letterSpacing = Number(obj.charSpacing)
       bucket.push({
         layer_id: rec.id,
         kind: 'text',
@@ -131,6 +152,9 @@ export function buildAgentPanelPreviewData(
         color: normalizeHexColor(obj.fill),
         align: normalizeTextAlign(obj.textAlign),
         weight: String(obj.fontWeight ?? '400'),
+        ...(fontFamily ? { font: fontFamily } : {}),
+        ...(Number.isFinite(lineHeight) && lineHeight > 0 ? { line_height: lineHeight } : {}),
+        ...(Number.isFinite(letterSpacing) ? { letter_spacing: letterSpacing } : {}),
         x: Math.round(b.left - origin.x),
         y: Math.round(b.top - origin.y),
         width: Math.round(b.width),
@@ -175,7 +199,8 @@ export function buildAgentPanelPreviewData(
     })
   }
 
-  const revision = revisionPayload(gap, workspaceWidth, workspaceHeight, panels)
+  const background = serializeBackground(config)
+  const revision = revisionPayload(gap, workspaceWidth, workspaceHeight, background, panels)
 
   return {
     version: AGENT_PANEL_PREVIEW_DATA_VERSION,
@@ -184,6 +209,7 @@ export function buildAgentPanelPreviewData(
     gap,
     workspace_width: workspaceWidth,
     workspace_height: workspaceHeight,
+    ...(background ? { background } : {}),
     panels,
   }
 }
