@@ -25,6 +25,8 @@ class ValidateRulesOptions:
     min_text_font_size_px: float = 48.0
     text_unwanted_wrap_height_to_size_ratio: float = 1.8
     min_text_gap_px: float = 12.0
+    max_text_device_gap_frac: float = 0.10
+    max_text_device_gap_px: float = 0.0
     require_device_center_x: bool = False
     device_center_tolerance_px: float = 24.0
     strict_ink_margins: bool = False

@@ -52,6 +52,31 @@ def register_layout(sub: Any) -> None:
     cr.add_argument("--b", required=True)
     cr.set_defaults(handler=_cmd_contrast)
 
+    color = layout_sub.add_parser("color", help="Hex color helpers (theme gradient stops)")
+    color_sub = color.add_subparsers(dest="color_cmd", required=True)
+
+    cm = color_sub.add_parser("mix", help="Blend two hex colors")
+    cm.add_argument("--a", required=True)
+    cm.add_argument("--b", required=True)
+    cm.add_argument(
+        "--ratio",
+        type=float,
+        required=True,
+        help="0 = all --a, 1 = all --b",
+    )
+    cm.set_defaults(handler=_cmd_color_mix)
+
+    ct = color_sub.add_parser("toward", help="Mix hex toward black or white")
+    ct.add_argument("--hex", required=True)
+    ct.add_argument("--target", required=True, choices=["black", "white"])
+    ct.add_argument(
+        "--amount",
+        type=float,
+        required=True,
+        help="0 = unchanged, 1 = full target",
+    )
+    ct.set_defaults(handler=_cmd_color_toward)
+
     img = layout_sub.add_parser("image", help="Image load / inspect (Pillow)")
     img_sub = img.add_subparsers(dest="image_cmd", required=True)
 
@@ -119,6 +144,16 @@ def _cmd_store_json(ns: argparse.Namespace, compact: bool) -> None:
 def _cmd_contrast(ns: argparse.Namespace, compact: bool) -> None:
     r = color_mod.contrast_ratio(ns.a, ns.b)
     json_print({"ratio": round(r, 4), "passesAA": color_mod.passes_wcag_aa(r)}, compact)
+
+
+def _cmd_color_mix(ns: argparse.Namespace, compact: bool) -> None:
+    out = color_mod.mix_hex(ns.a, ns.b, ns.ratio)
+    json_print({"hex": out, "a": ns.a, "b": ns.b, "ratio": ns.ratio}, compact)
+
+
+def _cmd_color_toward(ns: argparse.Namespace, compact: bool) -> None:
+    out = color_mod.mix_toward(ns.hex, ns.target, ns.amount)
+    json_print({"hex": out, "source": ns.hex, "target": ns.target, "amount": ns.amount}, compact)
 
 
 def _cmd_img_info(ns: argparse.Namespace, compact: bool) -> None:

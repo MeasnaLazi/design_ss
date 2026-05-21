@@ -4,9 +4,13 @@ Use with live previews from **`designer-reference.md`** (`render_panel_preview` 
 
 ## Workflow (rules → vision → strip → user)
 
+**screenshot-designer-agent:** One panel at a time. **Do not** start **`panel_index` N+1** until **`validate-rules`** for **`N`** exits **`0`** (checklist alone is not enough). Log **`Panel N gate: validate-rules exit 0`** when advancing.
+
+**Plan ahead (fewer validate cycles):** Before the first **`enqueue-op`**, read check IDs below and **screenshot-designing** → **§ Validation-aware planning**. Build one **`batch`** that already satisfies margins, contrast, device height band, text↔device gap, etc. Use **`layout contrast`** while planning. On failure, fix **all** failed checks in **one** repair **`batch`**, then re-validate (target ≤ **2** runs per panel).
+
 1. For each **`panel_index`**: produce **`--png`** and **`--panel-data`** (required — do not skip panel JSON).
-2. Run **`validate-rules`**. On failure, apply **`suggested_fix`** objects via **`enqueue-op`** / **`batch`**, re-preview, repeat.
-3. When **`validate-rules`** exits **`0`**, run **vision rubric** (below) on the same PNG + checks summary.
+2. Run **`validate-rules`**. On failure, apply **all** **`suggested_fix`** / planned ops in **one** **`batch`**, re-preview, repeat **for the same panel** — do not advance.
+3. When **`validate-rules`** exits **`0`**, run **vision rubric** (below) on the same PNG + checks summary (recommended; rules gate is mandatory).
 4. After the **last** panel passes vision, run **`validate-strip-rules`** on the full multi-panel JSON (and optional **`--png-dir`**).
 5. Ask the user to review the full strip.
 
@@ -69,6 +73,7 @@ Each check has **`id`**, **`ok`**, **`detail`**. Violations in **`detail.violati
 | **`background_not_default_gray`** | Strict profiles: flat light-gray panel edges. |
 | **`text_ink_inside_safe_area`** | Strict ink margin ( **`appstore_hero`** ). |
 | **`panel_empty_margin_bands`** | Large flat **light** edge bands (mis-crop). |
+| **`text_device_vertical_gap`** | Vertical dead space between the text stack and device when separated (default **≤ 10%** of panel height; **appstore_hero** **≤ 8%**). |
 | **`device_region_not_blank`** | Device interior not uniform empty vs background. |
 
 ### Example (single panel)
@@ -149,6 +154,7 @@ After **`validate-rules`** passes, attach the **same PNG** and evaluate with thi
 - Alignment (grid, center axis, optical centering)
 - Contrast on gradients (where rules sampled weakly)
 - Device scale, bezels, rotation, composition
+- **Text ↔ device spacing:** no large empty band between headline block and device (rules: **`text_device_vertical_gap`**)
 - Visual (not just bbox) text–device overlap
 - Clutter and hierarchy clarity
 

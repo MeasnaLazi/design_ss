@@ -29,6 +29,22 @@ All commands run as **`python toolkit/scripts/layout.py <subcommand> …`** from
 | --- | --- | --- |
 | `python toolkit/scripts/layout.py contrast` | Required **`--a <hex>`**, **`--b <hex>`** (e.g. `#ffffff`, `#101827`). | WCAG contrast ratio between two colors |
 
+## Color helpers (theme gradient stops)
+
+Run as **`python toolkit/scripts/layout.py color <subcommand> …`**. Use these to derive **`set_background`** gradient stop hexes from theme **`P`** / **`S`** — do **not** use `python -c` or other ad-hoc Python for color math.
+
+| CLI | Arg | Summary |
+| --- | --- | --- |
+| `python toolkit/scripts/layout.py color mix` | Required **`--a <hex>`**, **`--b <hex>`**, **`--ratio <0–1>`** (`0` = all **a**, `1` = all **b**). | Blend two hex colors; stdout JSON `{ "hex": "…" }` |
+| `python toolkit/scripts/layout.py color toward` | Required **`--hex <hex>`**, **`--target black` \| `white`**, **`--amount <0–1>`** (`0` = unchanged, `1` = full target). | Darken/lighten one hex toward black or white |
+
+Examples (substitute theme values from **`layout store-json`** or **`screenshot_report.md`**):
+
+```bash
+python toolkit/scripts/layout.py color toward --hex "#3366cc" --target black --amount 0.45
+python toolkit/scripts/layout.py color mix --a "#3366cc" --b "#ff8844" --ratio 0.5
+```
+
 ## Image (`layout image …`, Pillow)
 
 Run as **`python toolkit/scripts/layout.py image <subcommand> …`** (optional **`--compact`** after `layout.py`). Subcommands:

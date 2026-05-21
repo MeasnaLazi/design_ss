@@ -30,7 +30,7 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
    | You need… | Read first |
    | --- | --- |
-   | Presets, store JSON paths, device packs, `contrast`, **`layout image`** (CLI tables + image QA conventions) | **`toolkit/references/layout-reference.md`** |
+   | Presets, store JSON paths, device packs, `contrast`, **`layout color`** (mix/toward for theme stops), **`layout image`** (CLI tables + image QA conventions) | **`toolkit/references/layout-reference.md`** |
    | `designer.py` handoff/session/preview, **`enqueue-op` names and args**, invalid op aliases | **`toolkit/references/designer-reference.md`** |
    | **`validate-rules`**, hybrid rules-then-vision workflow, check IDs / thresholds | **`toolkit/references/design-validate.md`** |
 
@@ -42,12 +42,13 @@ Use when you are about to run **`python toolkit/scripts/layout.py`** or **`pytho
 
 5. **Constraints agents often miss**
 
+   - **No ad-hoc Python:** Do **not** run `python -c`, `python3 -c`, heredoc scripts, or one-off `.py` files for toolkit work. Use **`python toolkit/scripts/layout.py`** and **`python toolkit/scripts/designer.py`** subcommands only (see references). Theme stop hexes: **`layout color mix`** / **`layout color toward`**; store theme: **`layout store-json`**; canvas ops: **`designer.py enqueue-op`**.
    - Run commands from the **publisher repo root** unless a reference explicitly says otherwise.
    - Optional **`--compact`** placement matches each reference (`layout.py` vs `designer.py`).
    - For **`enqueue-op`**, use **only** operation names and args documented in **`toolkit/references/designer-reference.md`** (and its tables); avoid deprecated aliases called out there (e.g. `delete_layer`, `set_bg`).
    - **`designer.py handoff` / session:** follow **Setup** and **Readiness** in **`toolkit/references/designer-reference.md`** before live **`enqueue-op`** (API reachability, dev server, designer tab subscribed on the correct display slug). If the reference’s conditions are not met, finish setup there or use a repo skill/agent whose role is bringing up the local dev stack—do not improvise URLs or operation names.
 
-6. **Cross-panel previews and validation** — use **`render_panel_preview`** then **`pull-preview`** per panel column; use **`capture_panel_preview_data`** with **all** strip **`panel_indexes`** once, then **`pull-preview-data`** for layout JSON. Always pass **`--panel-data`** to **`validate-rules`** (never skip to vision when panel JSON is missing). On failure, prefer **`suggested_fix`** in the JSON over guessing deltas. Run **`validate-rules`** with **`--profile`** when appropriate (`appstore_hero`, `play_feature`); optional **`--platform iphone`** for theme contrast. Before vision: **`validate-rules`** must exit **`0`**. Vision must follow the **Vision rubric** JSON in **`toolkit/references/design-validate.md`**. After the **last** panel passes vision, run **`validate-strip-rules`** on the full strip JSON (optional **`--png-dir`**), then **ask the user** to review the full strip.
+6. **Per-panel gate (screenshot-designer)** — for each **`panel_index`**: **`render_panel_preview`** → **`pull-preview --out`** → **`validate-rules` exit 0** → only then the next panel. Capture strip JSON once via **`capture_panel_preview_data`** + **`pull-preview-data`**. Never advance on checklist alone. On failure, prefer **`suggested_fix`** in the JSON over guessing deltas. Use **`--profile`** (`appstore_hero`, `play_feature`) and **`--platform`** when appropriate. After the **last** panel: **`validate-strip-rules`**, then user strip review. Details: **`toolkit/references/design-validate.md`** and **screenshot-designing** skill **§ Workflow**.
 
 ## Outcome
 

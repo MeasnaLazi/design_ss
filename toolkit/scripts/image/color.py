@@ -11,6 +11,41 @@ def is_hex_color(value: str) -> bool:
     return bool(_HEX.match(value.strip()))
 
 
+def normalize_hex(hex_color: str) -> str:
+    """Return lowercase `#rrggbb` (6-digit only)."""
+    clean = hex_color.strip()
+    if not is_hex_color(clean):
+        raise ValueError(f"invalid hex color: {hex_color!r}")
+    digits = clean.replace("#", "").lower()[:6]
+    return f"#{digits}"
+
+
+def _rgb_to_hex(r: float, g: float, b: float) -> str:
+    ri = int(round(max(0.0, min(255.0, r))))
+    gi = int(round(max(0.0, min(255.0, g))))
+    bi = int(round(max(0.0, min(255.0, b))))
+    return f"#{ri:02x}{gi:02x}{bi:02x}"
+
+
+def mix_hex(a: str, b: str, ratio: float) -> str:
+    """Blend two hex colors. ratio 0 → a, 1 → b."""
+    ratio = max(0.0, min(1.0, ratio))
+    ar, ag, ab = _hex_to_rgb(normalize_hex(a))
+    br, bg, bb = _hex_to_rgb(normalize_hex(b))
+    t = ratio
+    return _rgb_to_hex(
+        ar * (1 - t) + br * t,
+        ag * (1 - t) + bg * t,
+        ab * (1 - t) + bb * t,
+    )
+
+
+def mix_toward(hex_color: str, target: str, amount: float) -> str:
+    """Mix hex toward black or white. amount 0 → unchanged, 1 → target."""
+    target_hex = "#000000" if target == "black" else "#ffffff"
+    return mix_hex(hex_color, target_hex, amount)
+
+
 def _hex_to_rgb(hex_color: str) -> tuple[float, float, float]:
     clean = hex_color.replace("#", "").strip()
     value = clean[:6] if len(clean) == 8 else clean

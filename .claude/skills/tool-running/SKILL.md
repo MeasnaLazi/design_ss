@@ -29,7 +29,7 @@ Let **`R`** = the **apps_publisher** repository root.
    - **Toolkit deps:** Prefer an isolated env:
      - Create **`R/toolkit/.venv`** if missing: `python3 -m venv toolkit/.venv`
      - Install: **`toolkit/.venv/bin/pip install -r toolkit/requirements.txt`** (Windows: **`toolkit\.venv\Scripts\pip`**).
-   - Quick sanity optional: **`toolkit/.venv/bin/python -c "import pydantic, PIL"`** (packages from `requirements.txt`).
+   - Quick sanity optional: **`toolkit/.venv/bin/pip show pydantic`** and **`toolkit/.venv/bin/pip show pillow`** (packages from `requirements.txt`). Do **not** use `python -c` (repo policy blocks it for design agents).
 3. **Node toolchain**
    - Require **`node`** and **`npm`**. If missing, install Node LTS (e.g. **https://nodejs.org/** or **`brew install node`** on macOS).
    - In **`R/web_ui`**: if **`node_modules`** is missing or user asked for a clean reinstall, install deps:

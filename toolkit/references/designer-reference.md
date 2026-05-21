@@ -115,6 +115,8 @@ Details and examples: **Panel preview** and **Panel preview data** sections belo
 | **`angleDeg`** | number | Degrees |
 | **`stops`** | array (≥ 2) | Each: `{ "offset": 0–1, "color": "#rrggbb" }` |
 
+Derive stop hexes with **`layout color mix`** / **`layout color toward`** (**layout-reference**). Do **not** use `python -c` for color math.
+
 Example **`--args-json`** (gradient — substitute hex from **`screenshot_report.md`** Theme or same-store JSON **`theme.primary_color`** / **`secondary_color`**; do not use placeholder colors as-is):
 
 `'{"type":"gradient","value":{"kind":"linear","angleDeg":140,"stops":[{"offset":0,"color":"<primary_darkened>"},{"offset":1,"color":"<secondary_lightened>"}]}}'`

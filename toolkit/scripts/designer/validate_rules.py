@@ -153,6 +153,33 @@ def _device_bbox(layer: DeviceLayer) -> tuple[float, float, float, float]:
     return (layer.x - hw, layer.y - hh, layer.x + hw, layer.y + hh)
 
 
+def _text_stack_bbox(texts: list[TextLayer]) -> tuple[float, float, float, float] | None:
+    if not texts:
+        return None
+    left = min(t.x for t in texts)
+    top = min(t.y for t in texts)
+    right = max(t.x + t.width for t in texts)
+    bottom = max(t.y + t.height for t in texts)
+    return left, top, right, bottom
+
+
+def _vertical_gap_separated(
+    upper: tuple[float, float, float, float],
+    lower: tuple[float, float, float, float],
+) -> float | None:
+    """Gap in px when ``lower`` is strictly below ``upper`` (no vertical overlap)."""
+    if lower[1] >= upper[3] - 1.0:
+        return lower[1] - upper[3]
+    return None
+
+
+def _max_text_device_gap_allowed(panel_height: int, opt: ValidateRulesOptions) -> float:
+    by_frac = float(opt.max_text_device_gap_frac) * panel_height if opt.max_text_device_gap_frac > 0 else math.inf
+    if opt.max_text_device_gap_px > 0:
+        return min(by_frac, float(opt.max_text_device_gap_px))
+    return by_frac
+
+
 def _intersection_area(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
     dx = min(a[2], b[2]) - max(a[0], b[0])
     dy = min(a[3], b[3]) - max(a[1], b[1])
@@ -448,6 +475,43 @@ def run_validate_rules(
                 )
     checks.append(
         {"id": "text_device_no_overlap", "ok": not td_bad, "detail": {"violations": td_bad}}
+    )
+
+    # text_device_vertical_gap — dead space between copy block and device (common hero mis-layout)
+    gap_bad: list[dict[str, Any]] = []
+    stack = _text_stack_bbox(texts)
+    max_gap = _max_text_device_gap_allowed(ph, opt)
+    if stack is not None and devices and max_gap < math.inf:
+        for d in devices:
+            db = _device_bbox(d)
+            gap_px = _vertical_gap_separated(stack, db)
+            if gap_px is None:
+                gap_px = _vertical_gap_separated(db, stack)
+            if gap_px is None or gap_px <= max_gap + 1e-6:
+                continue
+            excess = gap_px - max_gap
+            gap_bad.append(
+                vf.attach_fix(
+                    {
+                        "device_layer_id": d.layer_id,
+                        "gap_px": round(gap_px, 2),
+                        "max_allowed_px": round(max_gap, 2),
+                        "excess_px": round(excess, 2),
+                    },
+                    vf.fix_device_move_delta(d.layer_id, 0, -round(excess), panel_index=pidx),
+                )
+            )
+    checks.append(
+        {
+            "id": "text_device_vertical_gap",
+            "ok": not gap_bad,
+            "detail": {
+                "max_allowed_px": round(max_gap, 2) if max_gap < math.inf else None,
+                "max_text_device_gap_frac": opt.max_text_device_gap_frac,
+                "violations": gap_bad,
+                "skipped": stack is None or not devices,
+            },
+        }
     )
 
     # device_height_band
@@ -918,7 +982,6 @@ def run_validate_rules(
             "detail": {"violations": device_blank_bad},
         }
     )
-
     ok_all = png_ok and all(c["ok"] for c in checks)
     result = {"ok": ok_all, "phase": "rules", "checks": checks, "panel_index": pidx}
     return _maybe_emit_fixes_only(result, emit_fixes_only)
@@ -980,6 +1043,10 @@ def merge_cli_options(
             profile_opt.text_unwanted_wrap_height_to_size_ratio,
         ),
         min_text_gap_px=pick_float("min_text_gap_px", profile_opt.min_text_gap_px),
+        max_text_device_gap_frac=pick_float(
+            "max_text_device_gap_frac", profile_opt.max_text_device_gap_frac
+        ),
+        max_text_device_gap_px=pick_float("max_text_device_gap_px", profile_opt.max_text_device_gap_px),
         require_device_center_x=profile_opt.require_device_center_x,
         device_center_tolerance_px=pick_float(
             "device_center_tolerance_px", profile_opt.device_center_tolerance_px

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from designer.validate_profiles import get_profile
 from designer.validate_rules import run_validate_rules
 
 
@@ -27,6 +28,65 @@ def test_png_only_mismatch(tmp_path: Path) -> None:
     assert ids == ["png_preset_match", "panel_data_required"]
     assert out["checks"][0]["ok"] is False
     assert out["checks"][1]["ok"] is False
+
+
+def test_text_device_vertical_gap_excessive_fails(tmp_path: Path) -> None:
+    pw, ph = 1290, 2796
+    png = tmp_path / "p.png"
+    _black_png(png, pw, ph)
+    data = {
+        "version": 1,
+        "panels": [
+            {
+                "panel_index": 0,
+                "panel_width": pw,
+                "panel_height": ph,
+                "layers": [
+                    {
+                        "layer_id": "title",
+                        "kind": "text",
+                        "color": "#ffffff",
+                        "size": 52,
+                        "x": 80,
+                        "y": 120,
+                        "width": 900,
+                        "height": 70,
+                    },
+                    {
+                        "layer_id": "sub",
+                        "kind": "text",
+                        "color": "#cccccc",
+                        "size": 28,
+                        "x": 80,
+                        "y": 210,
+                        "width": 800,
+                        "height": 40,
+                    },
+                    {
+                        "layer_id": "phone",
+                        "kind": "device",
+                        "x": 645,
+                        "y": 2100,
+                        "width": 700,
+                        "height": int(0.75 * ph),
+                    },
+                ],
+            }
+        ],
+    }
+    jpath = tmp_path / "d.json"
+    _write_json(jpath, data)
+    out = run_validate_rules(
+        png,
+        jpath,
+        0,
+        None,
+        "appstore_iphone_portrait",
+        opt=get_profile("appstore_hero").panel,
+    )
+    gap = next(c for c in out["checks"] if c["id"] == "text_device_vertical_gap")
+    assert gap["ok"] is False, gap
+    assert out["ok"] is False
 
 
 def test_text_overlap_fails(tmp_path: Path) -> None:

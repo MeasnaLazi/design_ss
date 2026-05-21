@@ -29,6 +29,7 @@ _PROFILES: dict[str, ValidationProfile] = {
             _DEFAULT_PANEL,
             margin_tolerance_px=12.0,
             min_text_gap_px=16.0,
+            max_text_device_gap_frac=0.08,
             require_device_center_x=True,
             device_center_tolerance_px=24.0,
             strict_ink_margins=True,

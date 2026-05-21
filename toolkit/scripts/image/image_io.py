@@ -181,6 +181,22 @@ def bbox_halo_hexes(
     ]
 
 
+def inset_bbox_fraction(
+    left: int,
+    top: int,
+    right: int,
+    bottom: int,
+    inset_frac: float,
+) -> tuple[int, int, int, int]:
+    """Shrink a box by ``inset_frac`` on each side (0.22 → inner ~56% width/height)."""
+    if right <= left or bottom <= top:
+        return left, top, right, bottom
+    frac = max(0.0, min(0.45, float(inset_frac)))
+    dx = int((right - left) * frac)
+    dy = int((bottom - top) * frac)
+    return left + dx, top + dy, right - dx, bottom - dy
+
+
 def region_luminance_variance(img: Image.Image, left: int, top: int, right: int, bottom: int) -> float:
     """Variance of relative luminance in a region (flat band detection)."""
     crop = img.crop((left, top, right, bottom)).convert("RGB")

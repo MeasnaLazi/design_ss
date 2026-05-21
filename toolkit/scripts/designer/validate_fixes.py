@@ -120,6 +120,23 @@ def fix_text_overlap_pair(a_id: str, b_id: str) -> dict[str, Any]:
     return fix_move_layer(b_id, dy=16)
 
 
+def fix_device_move_delta(
+    layer_id: str,
+    dx: float,
+    dy: float,
+    *,
+    panel_index: int | None = None,
+) -> dict[str, Any]:
+    args: dict[str, Any] = {
+        "layer_id": layer_id,
+        "dx": round(dx),
+        "dy": round(dy),
+    }
+    if panel_index is not None:
+        args["panel_index"] = panel_index
+    return {"operation": "device_move_delta", "args": args}
+
+
 def fix_text_device_overlap(text_id: str) -> dict[str, Any]:
     return fix_move_layer(text_id, dy=-24)
 

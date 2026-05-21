@@ -2,7 +2,7 @@
 
 import pytest
 
-from image.color import contrast_ratio, is_hex_color, relative_luminance
+from image.color import contrast_ratio, is_hex_color, mix_hex, mix_toward, relative_luminance
 from layout.presets import resolve_preset, resolve_preset_id
 
 
@@ -21,6 +21,16 @@ def test_relative_luminance_white_black() -> None:
 def test_contrast_ratio_known() -> None:
     # black vs white
     assert contrast_ratio("#000000", "#ffffff") == pytest.approx(21.0, rel=1e-5)
+
+
+def test_mix_hex_endpoints() -> None:
+    assert mix_hex("#ff0000", "#0000ff", 0.0) == "#ff0000"
+    assert mix_hex("#ff0000", "#0000ff", 1.0) == "#0000ff"
+
+
+def test_mix_toward_black() -> None:
+    assert mix_toward("#808080", "black", 1.0) == "#000000"
+    assert mix_toward("#808080", "white", 0.0) == "#808080"
 
 
 def test_resolve_preset_iphone() -> None:
