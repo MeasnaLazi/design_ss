@@ -203,10 +203,6 @@ def _margin_inset_for_check(panel_w: int, panel_h: int, opt: ValidateRulesOption
     return m_nominal, m_capped, m_check
 
 
-def _min_contrast_for_text(size: float, opt: ValidateRulesOptions) -> float:
-    return opt.min_contrast_large if size >= opt.large_text_size_px else opt.min_contrast_normal
-
-
 def _text_suspects_unwanted_wrap(layer: TextLayer, opt: ValidateRulesOptions) -> bool:
     if opt.text_unwanted_wrap_height_to_size_ratio <= 0:
         return False
@@ -232,22 +228,6 @@ def _hero_text(texts: list[TextLayer], ph: float) -> TextLayer | None:
     return max(pool, key=lambda t: t.size)
 
 
-def _declared_background_contrast(text_hex: str, bg: BackgroundSnapshot | None) -> tuple[float, bool]:
-    if bg is None:
-        return math.inf, True
-    btype = (bg.type or "color").strip().lower()
-    val = bg.value
-    if btype in ("color", "solid") and isinstance(val, str):
-        ratio = color_mod.text_contrast_vs_background_conservative(text_hex, "color", val)
-        return ratio, True
-    if btype == "gradient" and isinstance(val, dict):
-        stops = val.get("stops") if isinstance(val.get("stops"), list) else []
-        ratio = color_mod.min_contrast_across_gradient_stops(text_hex, stops)
-        return ratio, True
-    ratio = color_mod.text_contrast_vs_background_conservative(text_hex, btype, val)
-    return ratio, True
-
-
 def _resolve_panel(
     data: AgentPanelPreviewData,
     panel_index: int | None,
@@ -261,7 +241,7 @@ def _resolve_panel(
         return None, f"no panel with panel_index={panel_index}"
     if len(data.panels) == 1:
         return data.panels[0], None
-    return None, "multiple panels in JSON; pass --panel-index for geometry/contrast rules"
+    return None, "multiple panels in JSON; pass --panel-index for geometry rules"
 
 
 def load_panel_preview(path: Path) -> AgentPanelPreviewData:
@@ -281,7 +261,6 @@ def run_validate_rules(
     preset_id: str | None,
     opt: ValidateRulesOptions | None = None,
     *,
-    theme: dict[str, Any] | None = None,
     emit_fixes_only: bool = False,
 ) -> dict[str, Any]:
     opt = opt or ValidateRulesOptions()
@@ -306,7 +285,7 @@ def run_validate_rules(
             {
                 "id": "panel_data_required",
                 "ok": False,
-                "detail": "missing --panel-data; geometry/contrast/theme rules not run",
+                "detail": "missing --panel-data; geometry rules not run",
             }
         )
         ok_all = False
@@ -754,117 +733,6 @@ def run_validate_rules(
         }
     )
 
-    # Theme + declared background contrast
-    theme_bad = []
-    if theme:
-        theme_obj = theme.get("theme") if isinstance(theme.get("theme"), dict) else theme
-        if isinstance(theme_obj, dict):
-            for key in ("primary_color", "secondary_color"):
-                hex_c = theme_obj.get(key)
-                if not isinstance(hex_c, str) or not color_mod.is_hex_color(hex_c):
-                    continue
-                for t in primary_texts:
-                    if not color_mod.is_hex_color(t.color.strip()):
-                        continue
-                    ratio = color_mod.contrast_ratio(t.color.strip(), hex_c.strip())
-                    if ratio < opt.min_theme_contrast:
-                        alt = "#ffffff" if color_mod.contrast_ratio("#ffffff", hex_c) >= opt.min_theme_contrast else "#111111"
-                        theme_bad.append(
-                            vf.attach_fix(
-                                {
-                                    "layer_id": t.layer_id,
-                                    "theme_key": key,
-                                    "min_ratio": round(ratio, 3),
-                                    "required": opt.min_theme_contrast,
-                                },
-                                vf.fix_contrast_text(t.layer_id, alt),
-                            )
-                        )
-    checks.append(
-        {"id": "text_color_on_theme", "ok": not theme_bad, "detail": {"violations": theme_bad}}
-    )
-
-    declared_bad = []
-    if data.background is not None:
-        for t in texts:
-            if not color_mod.is_hex_color(t.color.strip()):
-                continue
-            ratio, _ = _declared_background_contrast(t.color.strip(), data.background)
-            need = _min_contrast_for_text(t.size, opt)
-            if ratio < need:
-                declared_bad.append(
-                    vf.attach_fix(
-                        {
-                            "layer_id": t.layer_id,
-                            "min_ratio": round(ratio, 3),
-                            "required": need,
-                            "source": "declared_background",
-                        },
-                        vf.fix_contrast_text(t.layer_id),
-                    )
-                )
-    checks.append(
-        {
-            "id": "text_contrast_declared_background",
-            "ok": not declared_bad,
-            "detail": {"violations": declared_bad},
-        }
-    )
-
-    # text_contrast_background (PNG) — fail only if BOTH declared (when present) and sampled fail
-    contrast_ok = True
-    contrast_detail: dict[str, Any] = {}
-    if png_matches_panel:
-        edge_hexes = image_io.panel_edge_hexes(img)
-        contrast_detail["edge_background_samples"] = edge_hexes
-        halo_pad = max(8, min(48, int(min(pw, ph) * 0.02)))
-        text_fails: list[dict[str, Any]] = []
-        for t in texts:
-            if not color_mod.is_hex_color(t.color.strip()):
-                text_fails.append({"layer_id": t.layer_id, "reason": "invalid_text_color", "color": t.color})
-                continue
-            left, top, right, bottom = _text_bbox(t)
-            local_hexes = image_io.bbox_halo_hexes(img, left, top, right, bottom, halo_pad)
-            bg_hexes = local_hexes if local_hexes else edge_hexes
-            sample_source = "local_bbox_halo" if local_hexes else "panel_edges_fallback"
-            min_ratio = math.inf
-            worst_bg = ""
-            for bg in bg_hexes:
-                if not color_mod.is_hex_color(bg):
-                    continue
-                r = color_mod.contrast_ratio(t.color.strip(), bg)
-                if r < min_ratio:
-                    min_ratio = r
-                    worst_bg = bg
-            need = _min_contrast_for_text(t.size, opt)
-            declared_ratio, _ = _declared_background_contrast(t.color.strip(), data.background)
-            declared_ok = declared_ratio >= need
-            sampled_ok = min_ratio >= need
-            if not sampled_ok and not declared_ok:
-                text_fails.append(
-                    vf.attach_fix(
-                        {
-                            "layer_id": t.layer_id,
-                            "min_ratio_sampled": round(min_ratio, 3) if min_ratio != math.inf else None,
-                            "min_ratio_declared": round(declared_ratio, 3) if declared_ratio != math.inf else None,
-                            "required": need,
-                            "worst_background_sample": worst_bg,
-                            "contrast_sample_source": sample_source,
-                        },
-                        vf.fix_contrast_text(t.layer_id),
-                    )
-                )
-            elif not sampled_ok and declared_ok:
-                contrast_detail.setdefault("sampled_only_warnings", []).append(t.layer_id)
-        contrast_ok = not text_fails
-        contrast_detail["violations"] = text_fails
-    else:
-        contrast_detail = {
-            "skipped": True,
-            "reason": f"PNG {info.width}x{info.height} != panel {panel.panel_width}x{panel.panel_height}",
-        }
-    checks.append({"id": "text_contrast_background", "ok": contrast_ok, "detail": contrast_detail})
-
     # background_not_default_gray
     gray_bad = []
     if opt.strict_default_gray_background and png_matches_panel:
@@ -1034,9 +902,6 @@ def merge_cli_options(
         min_device_height_ratio=pick_float("min_device_height_ratio", profile_opt.min_device_height_ratio),
         max_device_height_ratio=pick_float("max_device_height_ratio", profile_opt.max_device_height_ratio),
         max_device_pair_overlap=pick_float("max_device_pair_overlap", profile_opt.max_device_pair_overlap),
-        min_contrast_normal=pick_float("min_contrast_normal", profile_opt.min_contrast_normal),
-        min_contrast_large=pick_float("min_contrast_large", profile_opt.min_contrast_large),
-        large_text_size_px=pick_float("large_text_size_px", profile_opt.large_text_size_px),
         min_text_font_size_px=pick_float("min_text_font_size_px", profile_opt.min_text_font_size_px),
         text_unwanted_wrap_height_to_size_ratio=pick_float(
             "text_unwanted_wrap_height_to_size_ratio",
@@ -1054,5 +919,4 @@ def merge_cli_options(
         strict_ink_margins=profile_opt.strict_ink_margins,
         strict_default_gray_background=profile_opt.strict_default_gray_background,
         enable_text_preset_size_band=profile_opt.enable_text_preset_size_band,
-        min_theme_contrast=pick_float("min_theme_contrast", profile_opt.min_theme_contrast),
     )

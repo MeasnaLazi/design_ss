@@ -176,10 +176,6 @@ def fix_device_safe_bottom(
     return fix_device_set_position(layer_id, float(device.get("x", panel_width / 2)), cy, panel_index)
 
 
-def fix_contrast_text(layer_id: str, suggested_color: str = "#ffffff") -> dict[str, Any]:
-    return fix_text_set_color(layer_id, suggested_color)
-
-
 def attach_fix(violation: dict[str, Any], fix: dict[str, Any] | None) -> dict[str, Any]:
     if fix is None:
         return violation

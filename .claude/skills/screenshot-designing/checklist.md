@@ -30,7 +30,7 @@ Unless **Cross-panel exception** is **yes** with a rationale, this review pass c
 
 ## 2. Layout criteria (manual / toolkit-assisted)
 
-**`validate-rules`** already covers overlap, margins, contrast, text↔device gap, etc. Use this section for anything rules did not cover. Supplement with **`layout.py contrast`** per **layout-reference** when needed.
+**`validate-rules`** covers overlap, margins, text↔device gap, device sizing, etc. Use this section for visual judgment (including legibility).
 
 | Item | Value |
 | --- | --- |
@@ -50,7 +50,7 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 | **Caption (description):** optional — if omitted, note “skipped”; if present, sanitized **Description** | — | — |
 | Text layers: no bbox overlap with each other **in the same strip column** | — | — |
 | Text: inside safe zone / margins for its panel | — | — |
-| Text: contrast vs background | — | Use `layout contrast --a --b` vs dark/light gradient stops (not only a single flat hex) |
+| Text: legibility vs background | — | Eyeball only; not in `validate-rules` |
 | Artboard background | — | Theme-mixed gradient: stops derived from report **Primary** / **Secondary** (not generic slate); note P/S → stop mapping |
 | Text: horizontal span sensible vs panel width | — | — |
 | Text vs device: **no** bbox overlap | — | — |

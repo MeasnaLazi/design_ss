@@ -29,7 +29,7 @@ Do **not** guess `enqueue-op` operation names or flags; copy exact strings from 
 
 - Use only **`python toolkit/scripts/designer.py`** and **`python toolkit/scripts/layout.py`** subcommands documented in **`toolkit/references/`**.
 - **Never** use `python -c`, `python3 -c`, heredoc Python, or throwaway scripts for hex blending, contrast, store JSON, or `enqueue-op` payloads.
-- **Theme gradient stops:** `python toolkit/scripts/layout.py color mix` and `color toward` (see **layout-reference**). **Contrast:** `layout contrast`. **Store theme:** `layout store-json` or the report’s **Theme** section.
+- **Theme gradient stops:** `python toolkit/scripts/layout.py color mix` and `color toward` (see **layout-reference**). **Store theme:** `layout store-json` or the report’s **Theme** section.
 
 ## Repo root
 
@@ -102,7 +102,7 @@ python toolkit/scripts/designer.py enqueue-op \
   --args-json '{"type":"gradient","value":{"kind":"linear","angleDeg":140,"stops":[{"offset":0,"color":"<P_dark>"},{"offset":0.5,"color":"<P_S_blend>"},{"offset":1,"color":"<S_light>"}]}}'
 ```
 
-After **`set_background`**, check text contrast against **darkest and lightest** gradient stops with **`layout contrast`** (see [checklist.md](checklist.md)).
+After **`set_background`**, eyeball text legibility (contrast is not validated by **`validate-rules`**).
 
 ## Inputs
 
@@ -169,7 +169,6 @@ Planned checks addressed:
   - text_device_vertical_gap: <device y / gap estimate ≤ 8–10% H>
   - device_height_band: <height ≈ 0.75–0.85 H>
   - text_safe_margins, text_no_overlap, text_font_min_size: <positions/sizes>
-  - text_contrast_*: <layout contrast results for text vs gradient stops>
 Enqueue batch (ordered):
   1. set_background …
   2. add_text title …
@@ -179,7 +178,7 @@ Enqueue batch (ordered):
   6. set_z_index …
 ```
 
-Execute steps **1–6** as **one `batch`** when possible. Use **`layout contrast`** and **`layout color`** while writing the plan, not after validation fails.
+Execute steps **1–6** as **one `batch`** when possible. Use **`layout color`** while planning gradient stops.
 
 ### Preventive rules (common failures → plan ops upfront)
 
@@ -192,7 +191,6 @@ Execute steps **1–6** as **one `batch`** when possible. Use **`layout contrast
 | **`text_font_min_size`** | Title **`size` ≥ 48** (or preset **`title2`**+); subtitle smaller but readable. |
 | **`text_no_overlap`** / **`text_vertical_rhythm`** | Stack title → subtitle with **≥ 16px** gap; no overlapping bboxes. |
 | **`text_device_no_overlap`** | Separate text band and device band vertically (or side-by-side with clear columns). |
-| **`text_contrast_background`** / **`text_color_on_theme`** | **`layout contrast --a <text> --b <darkest stop>`**; lighten text or darken stop until pass. |
 | **`text_span_sensible`** | Avoid full-width text boxes; wrap copy or reduce **`width`**. |
 | **`layer_z_order_sane`** | If text overlaps device bbox, text **`z_index`** higher. |
 
@@ -238,8 +236,7 @@ python toolkit/scripts/designer.py validate-rules \
   --panel-data output/temp/strip.json \
   --panel-index N \
   --preset-id <from session or list-presets> \
-  --profile appstore_hero \
-  --platform iphone
+  --profile appstore_hero
 ```
 
 On exit **non-zero**: list **all** failed IDs → **one repair `batch`** (§ Validation-aware planning) → repeat C+D once (≤ **2** validate runs total per panel). **Never** open **Active panel: `N+1`** until step D exits **0**.

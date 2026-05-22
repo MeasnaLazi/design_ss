@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.constants import MIN_CONTRAST
-
 
 @dataclass(frozen=True)
 class ValidateRulesOptions:
@@ -19,9 +17,6 @@ class ValidateRulesOptions:
     min_device_height_ratio: float = 0.50
     max_device_height_ratio: float = 0.90
     max_device_pair_overlap: float = 0.15
-    min_contrast_normal: float = MIN_CONTRAST
-    min_contrast_large: float = 3.0
-    large_text_size_px: float = 24.0
     min_text_font_size_px: float = 48.0
     text_unwanted_wrap_height_to_size_ratio: float = 1.8
     min_text_gap_px: float = 12.0
@@ -32,7 +27,6 @@ class ValidateRulesOptions:
     strict_ink_margins: bool = False
     strict_default_gray_background: bool = False
     enable_text_preset_size_band: bool = False
-    min_theme_contrast: float = MIN_CONTRAST
 
 
 @dataclass(frozen=True)

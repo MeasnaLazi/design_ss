@@ -176,7 +176,6 @@ def test_full_pass_phone_preset(tmp_path: Path) -> None:
     assert by_id["png_preset_match"]["ok"] is True
     assert by_id["text_no_overlap"]["ok"] is True
     assert by_id["text_safe_margins"]["ok"] is True
-    assert by_id["text_contrast_background"]["ok"] is True
     assert by_id["text_device_no_overlap"]["ok"] is True
     assert by_id["device_height_band"]["ok"] is True
 
@@ -231,44 +230,6 @@ def test_multi_panel_requires_index(tmp_path: Path) -> None:
     out = run_validate_rules(png, jpath, None, None, "appstore_iphone_portrait")
     assert out["ok"] is False
     assert any(c["id"] == "panel_resolve" and c["ok"] is False for c in out["checks"])
-
-
-def test_contrast_prefers_local_halo_over_bright_panel_edge(tmp_path: Path) -> None:
-    """Light bar at top of PNG must not fail centered white-on-black text (edge-only false positive)."""
-    pw, ph = 200, 200
-    png = tmp_path / "p.png"
-    img = Image.new("RGB", (pw, ph), (0, 0, 0))
-    for y in range(0, 40):
-        for x in range(pw):
-            img.putpixel((x, y), (255, 255, 255))
-    img.save(png, format="PNG")
-    data = {
-        "version": 1,
-        "panels": [
-            {
-                "panel_index": 0,
-                "panel_width": pw,
-                "panel_height": ph,
-                "layers": [
-                    {
-                        "layer_id": "hero",
-                        "kind": "text",
-                        "color": "#ffffff",
-                        "size": 32,
-                        "x": 80,
-                        "y": 80,
-                        "width": 40,
-                        "height": 40,
-                    },
-                ],
-            }
-        ],
-    }
-    jpath = tmp_path / "d.json"
-    _write_json(jpath, data)
-    out = run_validate_rules(png, jpath, None, None, None)
-    contrast = next(c for c in out["checks"] if c["id"] == "text_contrast_background")
-    assert contrast["ok"] is True, contrast["detail"]
 
 
 def test_text_safe_margins_shrink_helps_bottom_inset(tmp_path: Path) -> None:

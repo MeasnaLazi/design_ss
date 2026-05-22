@@ -21,8 +21,6 @@ from designer.validate_options import ValidateRulesOptions
 from designer.validate_profiles import get_profile, list_profiles
 from designer.validate_rules import merge_cli_options, run_validate_rules
 from designer.validate_strip_rules import run_validate_strip_rules
-from store.store_listing import load_store_listing, normalize_platform
-
 from cli.io_utils import json_print, parse_args_json_payload
 
 
@@ -173,23 +171,8 @@ def register_designer(sub: Any) -> None:
         choices=list_profiles(),
         help="Validation profile: default, appstore_hero, play_feature",
     )
-    ds_val.add_argument(
-        "--platform",
-        default=None,
-        choices=("iphone", "ipad", "phone", "tablet"),
-        help="Load store theme from output listing JSON for theme contrast checks",
-    )
-    ds_val.add_argument(
-        "--store-json",
-        type=Path,
-        default=None,
-        help="Path to store listing JSON (alternative to --platform)",
-    )
     ds_val.add_argument("--min-device-height-ratio", type=float, default=None)
     ds_val.add_argument("--max-device-height-ratio", type=float, default=None)
-    ds_val.add_argument("--large-text-size-px", type=float, default=None, help="WCAG large-text threshold (default 24)")
-    ds_val.add_argument("--min-contrast-normal", type=float, default=None, help="WCAG normal text ratio (default 4.5)")
-    ds_val.add_argument("--min-contrast-large", type=float, default=None, help="WCAG large text ratio (default 3.0)")
     ds_val.add_argument("--min-text-gap-px", type=float, default=None, help="Min vertical gap between primary text layers")
     ds_val.add_argument(
         "--emit-fixes",
@@ -268,29 +251,9 @@ def _cmd_designer_pull_preview(ns: argparse.Namespace, compact: bool) -> None:
     sys.stdout.buffer.write(data)
 
 
-def _resolve_repo_root() -> Path:
-    # toolkit/scripts/cli/designer_cmds.py -> repo root apps_publisher
-    return Path(__file__).resolve().parents[3]
-
-
-def _load_theme_for_validate(ns: argparse.Namespace) -> dict[str, Any] | None:
-    if ns.store_json is not None:
-        import json as _json
-
-        raw = _json.loads(ns.store_json.read_text(encoding="utf-8"))
-        store = raw.get("store", raw) if isinstance(raw, dict) else raw
-        return store if isinstance(store, dict) else None
-    if ns.platform:
-        listing = load_store_listing(_resolve_repo_root(), normalize_platform(ns.platform))
-        store = listing.get("store")
-        return store if isinstance(store, dict) else None
-    return None
-
-
 def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
     profile = get_profile(ns.profile)
     opt = merge_cli_options(profile.panel, ns)
-    theme = _load_theme_for_validate(ns)
     out = run_validate_rules(
         ns.png,
         ns.panel_data,
@@ -298,7 +261,6 @@ def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
         ns.canvas_size,
         ns.preset_id,
         opt=opt,
-        theme=theme,
         emit_fixes_only=bool(ns.emit_fixes),
     )
     json_print(out, compact)

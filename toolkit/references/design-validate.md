@@ -1,12 +1,12 @@
 # Design validation (hybrid: rules CLI + agent vision)
 
-Use with live previews from **`designer-reference.md`** (`render_panel_preview` / `pull-preview`, `capture_panel_preview_data` / `pull-preview-data`). **Offline** color math matches **`layout-reference.md`** (`layout contrast`); the rules CLI calls the same contrast implementation in Python.
+Use with live previews from **`designer-reference.md`** (`render_panel_preview` / `pull-preview`, `capture_panel_preview_data` / `pull-preview-data`). Optional manual WCAG math: **`layout contrast`** in **`layout-reference.md`** (not part of **`validate-rules`**).
 
 ## Workflow (rules → vision → strip → user)
 
 **screenshot-designer-agent:** One panel at a time. **Do not** start **`panel_index` N+1** until **`validate-rules`** for **`N`** exits **`0`** (checklist alone is not enough). Log **`Panel N gate: validate-rules exit 0`** when advancing.
 
-**Plan ahead (fewer validate cycles):** Before the first **`enqueue-op`**, read check IDs below and **screenshot-designing** → **§ Validation-aware planning**. Build one **`batch`** that already satisfies margins, contrast, device height band, text↔device gap, etc. Use **`layout contrast`** while planning. On failure, fix **all** failed checks in **one** repair **`batch`**, then re-validate (target ≤ **2** runs per panel).
+**Plan ahead (fewer validate cycles):** Before the first **`enqueue-op`**, read check IDs below and **screenshot-designing** → **§ Validation-aware planning**. Build one **`batch`** that already satisfies margins, device height band, text↔device gap, etc. On failure, fix **all** failed checks in **one** repair **`batch`**, then re-validate (target ≤ **2** runs per panel).
 
 1. For each **`panel_index`**: produce **`--png`** and **`--panel-data`** (required — do not skip panel JSON).
 2. Run **`validate-rules`**. On failure, apply **all** **`suggested_fix`** / planned ops in **one** **`batch`**, re-preview, repeat **for the same panel** — do not advance.
@@ -32,7 +32,7 @@ python3 toolkit/scripts/designer.py validate-strip-rules \
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `python toolkit/scripts/designer.py validate-rules` | Required **`--png`**. Required **`--panel-data`**. Optional **`--panel-index`**, **`--preset-id`** / **`--canvas-size`**, **`--profile`** (`default` \| `appstore_hero` \| `play_feature`), **`--platform`** or **`--store-json`** (theme contrast), **`--emit-fixes`**. Tunables: margin, span, device overlap, font min, wrap ratio, contrast, device height band, text gap, etc. | JSON **`{ "ok", "phase": "rules", "checks": [...] }`**. Exit **`0`** only if every check has **`"ok": true`**. |
+| `python toolkit/scripts/designer.py validate-rules` | Required **`--png`**. Required **`--panel-data`**. Optional **`--panel-index`**, **`--preset-id`** / **`--canvas-size`**, **`--profile`** (`default` \| `appstore_hero` \| `play_feature`), **`--emit-fixes`**. Tunables: margin, span, device overlap, font min, wrap ratio, device height band, text↔device gap, etc. | JSON **`{ "ok", "phase": "rules", "checks": [...] }`**. Exit **`0`** only if every check has **`"ok": true`**. |
 
 ### Profiles
 
@@ -67,9 +67,6 @@ Each check has **`id`**, **`ok`**, **`detail`**. Violations in **`detail.violati
 | **`device_safe_bottom`** | Device bbox within bottom safe inset. |
 | **`layer_z_order_sane`** | Overlapping text must be above device in **`z_index`**. |
 | **`text_preset_size_band`** | Optional font preset vs size band (profile-gated). |
-| **`text_color_on_theme`** | Text vs store **`theme.primary_color`** / **`secondary_color`** (needs **`--platform`** or **`--store-json`**). |
-| **`text_contrast_declared_background`** | Text vs snapshot **`background`** (solid / gradient stops). |
-| **`text_contrast_background`** | Text vs PNG halo samples; fails only if **both** declared and sampled contrast fail. Large text: **`size` ≥ 24** → ratio **3.0**; else **4.5**. |
 | **`background_not_default_gray`** | Strict profiles: flat light-gray panel edges. |
 | **`text_ink_inside_safe_area`** | Strict ink margin ( **`appstore_hero`** ). |
 | **`panel_empty_margin_bands`** | Large flat **light** edge bands (mis-crop). |
@@ -152,7 +149,7 @@ After **`validate-rules`** passes, attach the **same PNG** and evaluate with thi
 - Inter-element padding (headline ↔ subtitle ↔ device)
 - Type scale (**title + subtitle only**; ignore caption unless illegible)
 - Alignment (grid, center axis, optical centering)
-- Contrast on gradients (where rules sampled weakly)
+- Contrast on gradients (judgment; use **`layout contrast`** if needed — not in **`validate-rules`**)
 - Device scale, bezels, rotation, composition
 - **Text ↔ device spacing:** no large empty band between headline block and device (rules: **`text_device_vertical_gap`**)
 - Visual (not just bbox) text–device overlap
@@ -166,5 +163,5 @@ After **`validate-rules`** passes, attach the **same PNG** and evaluate with thi
 
 ## Debugging
 
-- Contrast: `python toolkit/scripts/layout.py contrast --a <text_hex> --b <bg_hex>` (**`layout-reference.md`**).
+- Optional legibility: `python toolkit/scripts/layout.py contrast --a <text_hex> --b <bg_hex>` (**`layout-reference.md`**).
 - Compact fixes only: **`validate-rules ... --emit-fixes`**.
