@@ -75,7 +75,7 @@ Follow **`screenshot-designing`** → **§ Artboard background (`set_background`
 
 Follow **screenshot-designing** → **§ Validation-aware planning** (preventive table + plan template). In the plan include:
 
-- **Layout math:** panel **`panel_width` × `panel_height`** from **`session`**; target device height **~75–85%** of panel height; text↔device vertical gap **≤ 8–10%** of panel height when copy is above the frame (avoid “title top + phone bottom” dead band).
+- **Layout math:** panel **`panel_width` × `panel_height`** from **`session`**; target device height **~60–80%** of panel height; text↔device vertical gap **≤ 8–10%** of panel height when copy is above the frame (avoid “title top + phone bottom” dead band).
 - **Repair policy:** if **`validate-rules`** fails, bundle **all** failed checks’ fixes into **one** repair **`batch`**, then **one** re-preview + **one** re-validate — max **2** validate cycles per panel unless the user asks for more.
 
 ## Core loop

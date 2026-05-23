@@ -38,7 +38,7 @@ python3 toolkit/scripts/designer.py validate-strip-rules \
 
 | Profile | Panel behavior |
 | --- | --- |
-| **`default`** | Standard thresholds (48px min primary text, device height 50–90% of panel). |
+| **`default`** | Standard thresholds (48px min primary text, device height 60–80% of panel). |
 | **`appstore_hero`** | Stricter margins, 16px min text gap, device centered on X, strict ink/gray checks. |
 | **`play_feature`** | Slightly wider device band, looser device pair overlap. |
 
@@ -58,7 +58,7 @@ Each check has **`id`**, **`ok`**, **`detail`**. Violations in **`detail.violati
 | **`text_font_min_size`** | Primary text (not caption presets) **`size` ≥ 48px** (0 disables). |
 | **`text_single_line_bbox`** | Unintended wrap heuristic (no `\n`, tall bbox). |
 | **`text_device_no_overlap`** | No text vs device AABB overlap. |
-| **`device_height_band`** | Device height / panel height in **[0.50, 0.90]** (profile may widen). |
+| **`device_height_band`** | Device height / panel height in **[0.60, 0.80]** (profile may widen). |
 | **`device_pairs_low_overlap`** | Multi-device overlap fraction cap. |
 | **`text_vertical_rhythm`** | Min vertical gap between primary text layers. |
 | **`text_hierarchy_sizes`** | Hero (top band / largest) must dominate other primary text sizes. |

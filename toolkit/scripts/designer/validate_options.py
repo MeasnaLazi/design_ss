@@ -14,8 +14,8 @@ class ValidateRulesOptions:
     margin_text_bbox_shrink_px: float = 18.0
     margin_text_horizontal_extra_px: float = 16.0
     max_text_span: float = 0.94
-    min_device_height_ratio: float = 0.50
-    max_device_height_ratio: float = 0.90
+    min_device_height_ratio: float = 0.60
+    max_device_height_ratio: float = 0.80
     max_device_pair_overlap: float = 0.15
     min_text_font_size_px: float = 48.0
     text_unwanted_wrap_height_to_size_ratio: float = 1.8

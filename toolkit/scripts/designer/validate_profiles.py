@@ -46,8 +46,8 @@ _PROFILES: dict[str, ValidationProfile] = {
         "play_feature",
         replace(
             _DEFAULT_PANEL,
-            min_device_height_ratio=0.45,
-            max_device_height_ratio=0.92,
+            min_device_height_ratio=0.55,
+            max_device_height_ratio=0.85,
             max_device_pair_overlap=0.20,
             min_text_gap_px=10.0,
         ),

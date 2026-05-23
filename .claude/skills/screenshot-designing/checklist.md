@@ -54,7 +54,7 @@ Use **layout-reference** for numeric bands (safe margins, device height ratio, c
 | Artboard background | — | Theme-mixed gradient: stops derived from report **Primary** / **Secondary** (not generic slate); note P/S → stop mapping |
 | Text: horizontal span sensible vs panel width | — | — |
 | Text vs device: **no** bbox overlap | — | — |
-| Device height ~**75–90%** of canvas (panel) height | — | Visual check on preview |
+| Device height ~**60–80%** of canvas (panel) height | — | Visual check on preview |
 | Text ↔ device: no excessive vertical dead space | — | **`validate-rules`** → **`text_device_vertical_gap`**; move device up or copy block closer |
 | Device pairs: low overlap if multiple devices | — | — |
 

@@ -167,7 +167,7 @@ Profile: appstore_hero | default | play_feature
 Panel: WxH from session
 Planned checks addressed:
   - text_device_vertical_gap: <device y / gap estimate ≤ 8–10% H>
-  - device_height_band: <height ≈ 0.75–0.85 H>
+  - device_height_band: <height ≈ 0.60–0.80 H>
   - text_safe_margins, text_no_overlap, text_font_min_size: <positions/sizes>
 Enqueue batch (ordered):
   1. set_background …
@@ -185,7 +185,7 @@ Execute steps **1–6** as **one `batch`** when possible. Use **`layout color`**
 | Likely `checks[].id` | Plan ahead (before first validate) |
 | --- | --- |
 | **`text_device_vertical_gap`** | Place device so gap from text stack bottom to device top **≤ 8%** panel H (`appstore_hero`) or **10%** (`default`). Prefer **`device_set_position`** + **`device_set_size`** together—not title at `y≈80` and device center at `y≈0.75×H` with empty middle. |
-| **`device_height_band`** | Size device to **~75–85%** of panel height (`device_set_size` / `device_size_delta`). |
+| **`device_height_band`** | Size device to **~60–80%** of panel height (`device_set_size` / `device_size_delta`). |
 | **`device_horizontal_center`** | **`align`** device **`center_x`** to **`panel`** (`appstore_hero`). |
 | **`text_safe_margins`** / **`text_ink_inside_safe_area`** | Inset text from edges (~4% min side + profile margin). Use **`align`** to panel **`left`** / **`top`** with margin, not raw `x=0`. |
 | **`text_font_min_size`** | Title **`size` ≥ 48** (or preset **`title2`**+); subtitle smaller but readable. |
