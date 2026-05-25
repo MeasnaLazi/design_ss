@@ -5,7 +5,7 @@
 **apps_publisher** is an open-source toolkit for designing, validating, and automating **App Store** and **Play Store** screenshot layouts. It pairs a browser-based visual editor with a Python CLI and agent-friendly HTTP APIs so you can edit in the browser, drive the canvas from scripts or agents, and keep everything in your repo.
 
 ## Demo
-Design by human! 🧑🏽‍💻 ~ 5 minutes (continue after AI) <br>
+Design by Human! 🧑🏽‍💻 ~ 5 minutes (continue after AI) <br>
 ![Screenshot designer UI](docs/workspace.png)
 
 Design by Claude! 🤖 ~ 17 minutes <br><br>
@@ -81,15 +81,6 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env    # optional; sets DESIGNER_API_BASE
-```
-
-From the **repo root**, with the venv active:
-
-```bash
-export PYTHONPATH=toolkit/scripts
-
-python toolkit/scripts/layout.py list-presets
-python toolkit/scripts/designer.py handoff    # probes live designer API
 ```
 
 Details: [`toolkit/README.md`](toolkit/README.md)
