@@ -153,7 +153,7 @@ Issues and pull requests are welcome.
 | **Different isometric / 3D-style views** | e.g. `isometric-left`, `isometric-right`, and other perspective variants |
 | **More variants per device** | Several SVG styles per pack so layouts can mix poses on one artboard |
 
-Please use **original or properly licensed** artwork only, and include a short note in the PR describing the device model and which angles/edges each SVG represents. OR send to my email directly Sovannmeasna.ly@gmail.com
+Please use **original or properly licensed** artwork only, and include a short note in the PR describing the device model and which angles/edges each SVG represents. OR send to my email directly [sovannmeasna.ly@gmail.com](mailto:sovannmeasna.ly@gmail.com).
 
 ## License
 
