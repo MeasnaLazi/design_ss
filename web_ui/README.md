@@ -17,11 +17,29 @@ This UI is the **live editor** half of **apps_publisher**; offline layout helper
 |-------------|--------|
 | **Node.js** | **22.x** (see [`.nvmrc`](./.nvmrc), e.g. `22.15.0`). Use `nvm use` in `web_ui/` if you use nvm. |
 | **npm** | Comes with Node. Install dependencies once: `npm install` (from this directory). |
-| **Repo layout** | Run from the **apps_publisher** repo. The dev server reads/writes **`datasource/`** at the repo root (display JSON, screenshots, placeholders, agent preview scratch under `datasource/memories/`). |
+| **Repo layout** | Run from the **apps_publisher** repo. The dev server reads/writes **`datasource/`** and agents use **`output/`** at the repo root. See [Manual cleanup](#manual-cleanup-you-must-do-this). |
 | **Port** | Default dev/preview port **4713** ([`vite.config.ts`](./vite.config.ts)). Ensure nothing else binds that port, or change the config consistently with `DESIGNER_API_BASE` in `toolkit/.env`. |
 | **Toolkit (optional)** | For CLI/agent control: Python venv + `toolkit/requirements.txt`, `PYTHONPATH=toolkit/scripts`, and `DESIGNER_API_BASE` (defaults to `http://localhost:4713/__api/screenshot-designer`). Documented in [`toolkit/references/designer-reference.md`](../toolkit/references/designer-reference.md). |
 
 No separate `.env` is required for basic local UI use; optional Vite env vars (e.g. preview multiplier) are documented in toolkit references where relevant.
+
+Paths below are relative to the **apps_publisher repo root** (parent of `web_ui/`). The dev server and agents read/write them while you run `npm run dev`.
+
+## Manual cleanup (you must do this)
+
+**Nothing in these folders is removed automatically.** After agent runs or design sessions, **you need to clear them manually** when you want a fresh state, free disk space, or a clean tree before commit/share.
+
+| Clear when… | Folder (from repo root) | What to do |
+|-------------|-------------------------|------------|
+| Finished an agent screenshot pass or previews look wrong | **`output/temp/`** | Delete the folder contents (or the whole `temp/` directory). Agents recreate files on the next run. |
+| Debugging agents or the dev server feels stuck | **`datasource/screenshots/`** | Delete image files. |
+| Stale canvas previews from the open designer tab | **`datasource/memories/`** | Delete contents manually. |
+| Starting over on store metadata or reports | **`output/`** (keep only what you need) | Remove `appstore.json`, `playstore.json`, `screenshot_report.md`, etc. |
+| Resetting a preset’s saved layout | **`datasource/`** | Remove the matching `display_*.json` or screenshots you no longer need. |
+
+There is **no** `npm run clean`, toolkit purge command, or scheduled cleanup — **only manual deletion** (Finder, `rm`, or your editor).
+
+All of the above are gitignored (see [`.gitignore`](../.gitignore) at repo root). Toolkit preview examples often use **`output/temp/`**; treat it as disposable unless you are actively reviewing those files.
 
 ## How to use
 
