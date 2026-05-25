@@ -153,13 +153,7 @@ Issues and pull requests are welcome.
 | **Different isometric / 3D-style views** | e.g. `isometric-left`, `isometric-right`, and other perspective variants |
 | **More variants per device** | Several SVG styles per pack so layouts can mix poses on one artboard |
 
-A pack is a folder under `web_ui/public/device-frames/<pack_id>/` with:
-
-- **`frame.json`** — Lists each style (`name`, `framePath`, screen **`corners`**, optional `clipCornerRadiiPx`, `viewWidth` / `viewHeight`, etc.). Use [`iphone_12_pro/frame.json`](web_ui/public/device-frames/iphone_12_pro/frame.json) as the reference.
-- **SVG frame files** — Each with a screen cutout path **`id="screen"`** (see [`mask_analysis/`](mask_analysis/) to validate quads and export corner JSON before opening a PR).
-- **`index.json` entry** — Register the pack in [`web_ui/public/device-frames/index.json`](web_ui/public/device-frames/index.json) (`name`, `type`: `iphone` \| `ipad` \| `phone` \| `tablet`, `path`).
-
-Please use **original or properly licensed** artwork only, and include a short note in the PR describing the device model and which angles/edges each SVG represents.
+Please use **original or properly licensed** artwork only, and include a short note in the PR describing the device model and which angles/edges each SVG represents. OR send to my email directly Sovannmeasna.ly@gmail.com
 
 ## License
 
