@@ -58,6 +58,17 @@ The repo is intended for **local development**: run the Vite dev server, keep a 
 
 See [`toolkit/references/designer-reference.md`](toolkit/references/designer-reference.md) and [`toolkit/references/design-validate.md`](toolkit/references/design-validate.md) for the full command contracts.
 
+## Agents
+
+Specialized Claude Code agents live under [`.claude/agents/`](.claude/agents/). Each agent loads a matching skill under [`.claude/skills/`](.claude/skills/) (plus [`toolkit/SKILL.md`](toolkit/SKILL.md) for designer work). Typical order: **tool-running** → **data-gathering** → **planning** → **screenshot-designer**.
+
+| Agent | Skill | Summary |
+|-------|-------|---------|
+| [`tool-running-agent`](.claude/agents/tool-running-agent.md) | [`tool-running`](.claude/skills/tool-running/SKILL.md) | Verifies Python venv + `toolkit/requirements.txt`, `web_ui` npm deps, probes port **4713**, starts `npm run dev` when needed, and confirms the designer is reachable. |
+| [`data-gathering-agent`](.claude/agents/data-gathering-agent.md) | [`data-gathering`](.claude/skills/data-gathering/SKILL.md) | Reads [`config.json`](config.json), collects listing metadata (scan or Q&A), picks layout platform + device pack, writes `output/appstore.json` / `output/playstore.json` with five screenshot slots, and posts the full in-chat checklist. |
+| [`planning-agent`](.claude/agents/planning-agent.md) | [`planning`](.claude/skills/planning/SKILL.md) | Turns store JSON into a messaging-only creative brief at `output/screenshot_report.md` (theme hex, per-panel copy, continuity) and pastes the full report in chat for the designer. |
+| [`screenshot-designer-agent`](.claude/agents/screenshot-designer-agent.md) | [`screenshot-designing`](.claude/skills/screenshot-designing/SKILL.md), [`publisher-toolkit`](toolkit/SKILL.md) | Designs store panels one at a time via `designer.py` / `layout.py`, theme-mixed backgrounds, preview → `validate-rules` gate per panel, then strip-level checks. |
+
 ## Quick start
 
 ### 1. Web UI (required for visual design and designer commands)
