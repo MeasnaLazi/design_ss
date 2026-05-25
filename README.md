@@ -11,6 +11,23 @@ Design by Human! 🧑🏽‍💻 ~ 5 minutes (continue after AI) <br><br>
 Design by Claude! 🤖 ~ 17 minutes <br><br>
 [![Watch demo on YouTube](https://img.youtube.com/vi/NJOYo_1MTBE/hqdefault.jpg)](https://www.youtube.com/watch?v=NJOYo_1MTBE)
 
+## Workspace features
+
+The **[`web_ui/`](web_ui/)** screenshot designer is the visual workspace. Highlights:
+
+- **App Store and Play Store artboards** — Preset panel sizes for iPhone, iPad, Play phone, and Play tablet (portrait and landscape); switch presets without leaving the editor.
+- **Multi-panel carousels** — One horizontal strip with 1–N screenshot panels, adjustable gap, per-panel alignment guides, and export-sized slots.
+- **Device mockups** — Catalog of SVG device-frame packs (iPhone, iPad, Android phone/tablet) with multiple angles (front, isometric, perspective); drop a frame onto any panel column.
+- **Screenshots inside frames** — Upload an image into the device screen opening; rectangular and isometric frames warp the shot to the screen mask.
+- **Text layers** — Add plain text or store-scaled style presets (title, headline, body, captions); per-layer font, size, weight, color, and alignment from the contextual toolbar.
+- **Custom fonts** — Install `.ttf` / `.otf` / `.woff` fonts from your computer (stored in the browser for this workspace until you remove them).
+- **Images** — Upload image layers and optional full-artboard background images (saved under `datasource/screenshots/` when the dev server is running).
+- **Backgrounds** — Solid fills, multi-stop gradients, or image fills for the artboard.
+- **Layers and templates** — Reorder, rename, and select layers; save and reload layout templates from the sidebar.
+- **Editing workflow** — Undo/redo, copy/paste, keyboard nudges, zoom, auto-save and manual save to `datasource/display_*.json`.
+
+Agents and the Python toolkit can drive the same canvas over loopback while `npm run dev` is running — see [Agents](#agents) and [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md).
+
 ## What it does
 
 - **Multi-panel artboards** — Compose store-sized layouts with text, device mockups, images, and backgrounds (solid, gradient, or image).
