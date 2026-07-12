@@ -112,6 +112,19 @@ Rules:
 - Respect character limits from [reference-schemas.md](reference-schemas.md) (`title` ≤30, `subtitle` ≤40, `description` ≤80 for each slot).
 - Each order should highlight a **different** selling angle (e.g. onboarding, core action, trust, speed, delight).
 
+### 3b. Real app screenshots (for the designer)
+
+The **screenshot-designer-agent** needs **real app captures** in
+**`datasource/screenshots/<preset>/`** (preset = e.g. `appstore_iphone_portrait`) —
+one per slot ideally, matching the five angles from **§3**.
+
+1. Check what already exists there (view the PNGs — many may be placeholders).
+2. If a chosen slot has **no** matching real capture, ask the user once to drop
+   captures into that folder (list which slots are uncovered). Do not block on
+   it — record the gap.
+3. In your **§5 checklist**, add a `## 2b. Screenshot coverage` table: `Order |
+   Slot claim | Matching capture (filename or —)`.
+
 ### 4. Write outputs (publisher repo)
 
 Write under the **apps_publisher** repo root (workspace):

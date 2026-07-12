@@ -54,6 +54,12 @@ export function addTextboxToCanvas(
   const layerName = options?.layerName ?? presetDef?.layerName ?? 'Text'
 
   const text = new Textbox(initialText, {
+    // Explicit top-left anchoring: the Fabric library default origin can be
+    // 'center' (v6), which silently made `left`/`top` mean "box center" for
+    // text layers — every other layer creator in this app sets its origin
+    // explicitly. Agent ops, snapshots, and display documents assume top-left.
+    originX: 'left',
+    originY: 'top',
     left,
     top,
     width,

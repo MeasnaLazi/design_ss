@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Bio — App Store strip (composer test)</title>
+<style>
+  /* Theme from output/appstore.json: P #f5f1ee · S #0c0c0a · accent #DBB400 */
+  :root {
+    --p: #f5f1ee;
+    --s: #0c0c0a;
+    --gold: #DBB400;
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, 'Helvetica Neue', system-ui, sans-serif;
+  }
+  html, body { margin: 0; }
+  .strip { display: flex; gap: 40px; width: max-content; background: #333; }
+  .panel {
+    position: relative; overflow: hidden;
+    width: 1290px; height: 2796px;
+    background: var(--p);
+  }
+  [data-role="title"] {
+    font-family: var(--serif); font-weight: 700; color: var(--s);
+    font-size: 128px; line-height: 1.08; letter-spacing: -1px;
+  }
+  [data-role="subtitle"] {
+    font-family: var(--sans); font-weight: 400; color: #57534e;
+    font-size: 58px; line-height: 1.3;
+  }
+  .rule { width: 180px; height: 10px; background: var(--gold); border-radius: 5px; }
+  .shadow-lg { filter: drop-shadow(0 60px 90px rgba(12, 12, 10, 0.38)); }
+  .shadow-md { filter: drop-shadow(0 40px 60px rgba(12, 12, 10, 0.30)); }
+</style>
+<script>window.COMPOSER_CONFIG = { framesRoot: '/web_ui/public' }</script>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head>
+<body>
+<div class="strip">
+
+  <!-- Panel 0 · Your Life as a Book · hero, device cropped at bottom -->
+  <section class="panel" data-panel="0"
+           style="background: radial-gradient(140% 90% at 85% 8%, #fdfaf6 0%, var(--p) 45%, #ece4dc 100%);">
+    <div data-layer="decor" style="position:absolute; right:-330px; top:-360px; width:900px; height:900px;
+         border-radius:50%; background: radial-gradient(circle, rgba(219,180,0,0.16), transparent 65%);"></div>
+    <div data-layer="text" data-role="title" style="position:absolute; left:110px; top:190px; width:1040px;">
+      Your Life<br>as a Book
+    </div>
+    <div data-layer="decor" class="rule" style="position:absolute; left:116px; top:590px;"></div>
+    <div data-layer="text" data-role="subtitle" style="position:absolute; left:112px; top:650px; width:900px;">
+      Flip through your memories
+    </div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-right"
+         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/8169da36-d052-46ae-8980-70e30c607f0f.png"
+         class="shadow-lg"
+         style="position:absolute; width:1500px; left:-40px; top:880px;"></div>
+  </section>
+
+  <!-- Panel 1 · Capture in Any Form · text low, device high-right, waveform decor -->
+  <section class="panel" data-panel="1"
+           style="background: linear-gradient(170deg, #ece4dc 0%, var(--p) 55%);">
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="angled-left"
+         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/ebfaad3f-2d9a-4179-9e55-6824706b603e.png"
+         class="shadow-md"
+         style="position:absolute; width:730px; right:-130px; top:-180px;"></div>
+    <div data-layer="decor" style="position:absolute; left:110px; top:1620px; display:flex; align-items:flex-end; gap:14px; height:120px;">
+      <div style="width:16px; height:34%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:72%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:100%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:56%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:84%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:40%; background:var(--gold); border-radius:8px;"></div>
+      <div style="width:16px; height:64%; background:var(--gold); border-radius:8px;"></div>
+    </div>
+    <div data-layer="text" data-role="title" style="position:absolute; left:110px; top:1800px; width:1060px;">
+      Capture in<br>Any Form
+    </div>
+    <div data-layer="text" data-role="subtitle" style="position:absolute; left:112px; top:2210px; width:960px;">
+      Voice, photo, and rich text
+    </div>
+  </section>
+
+  <!-- Panel 2 · Every Chapter, in Order · centered, device cropped at bottom -->
+  <section class="panel" data-panel="2"
+           style="background: radial-gradient(120% 70% at 50% 0%, #fdfaf6 0%, var(--p) 55%, #e7ded4 100%);">
+    <div data-layer="text" data-role="title" style="position:absolute; left:0; top:210px; width:1290px; text-align:center;">
+      Every Chapter,<br>in Order
+    </div>
+    <div data-layer="text" data-role="subtitle" style="position:absolute; left:0; top:640px; width:1290px; text-align:center;">
+      Your journey, one timeline
+    </div>
+    <div data-layer="decor" class="rule" style="position:absolute; left:555px; top:800px;"></div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
+         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/1c320235-cdfa-488c-a5db-181bddae6ce1.png"
+         class="shadow-lg"
+         style="position:absolute; width:1030px; left:130px; top:940px;"></div>
+  </section>
+
+  <!-- Panel 3 · AI Rewrites Your Story · dark inversion for rhythm -->
+  <section class="panel" data-panel="3"
+           style="background: radial-gradient(130% 85% at 20% 100%, #201d18 0%, var(--s) 60%);">
+    <div data-layer="decor" style="position:absolute; left:110px; top:200px; padding:18px 44px;
+         background:var(--gold); color:var(--s); font-family:var(--sans); font-weight:700;
+         font-size:44px; letter-spacing:6px; border-radius:60px;">PRO · AI</div>
+    <div data-layer="text" data-role="title" style="position:absolute; left:110px; top:360px; width:1080px; color:var(--p);">
+      AI Rewrites<br>Your Story
+    </div>
+    <div data-layer="text" data-role="subtitle" style="position:absolute; left:112px; top:790px; width:980px; color:#b8b2aa;">
+      One tap, polished prose
+    </div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="tilted-right"
+         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/5083cbe2-2017-477d-b34d-48ff8a0fd0e8.png"
+         style="position:absolute; width:1350px; left:0px; top:1000px;
+                filter: drop-shadow(0 0 140px rgba(219,180,0,0.22)) drop-shadow(0 50px 80px rgba(0,0,0,0.6));"></div>
+  </section>
+
+  <!-- Panel 4 · Listen to Your Memories · closing, device low-left crop -->
+  <section class="panel" data-panel="4"
+           style="background: linear-gradient(200deg, #fdfaf6 0%, var(--p) 45%, #ece4dc 100%);">
+    <div data-layer="decor" style="position:absolute; right:-260px; bottom:-260px; width:760px; height:760px;
+         border-radius:50%; border:56px solid rgba(219,180,0,0.18);"></div>
+    <div data-layer="decor" style="position:absolute; right:-140px; bottom:-140px; width:520px; height:520px;
+         border-radius:50%; border:44px solid rgba(219,180,0,0.28);"></div>
+    <div data-layer="text" data-role="title" style="position:absolute; left:110px; top:190px; width:1080px;">
+      Listen to Your<br>Memories
+    </div>
+    <div data-layer="text" data-role="subtitle" style="position:absolute; left:112px; top:620px; width:940px;">
+      Text-to-speech built in
+    </div>
+    <div data-layer="text" data-role="caption" style="position:absolute; left:112px; top:750px; width:900px;
+         font-family:var(--sans); font-size:40px; color:#8a8378;">
+      Private by default — your story stays on your device
+    </div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
+         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/efb92220-ae28-4937-a9a3-4fd3c86f4ee7.png"
+         class="shadow-lg"
+         style="position:absolute; width:1460px; left:-120px; top:980px;"></div>
+  </section>
+
+</div>
+</body>
+</html>

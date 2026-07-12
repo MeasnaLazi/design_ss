@@ -25,6 +25,20 @@ const AGENT_PREVIEW_DATA_FILENAME = '.agent_last_preview_data.json'
 const MAX_AGENT_PREVIEW_BYTES = 25 * 1024 * 1024
 const MAX_AGENT_PREVIEW_DATA_BYTES = 512 * 1024
 
+/**
+ * One-way exclusive design mode (docs/implementation-plan.md Phase 4).
+ * `agent` — the agent is designing; the Web UI canvas is read-only (banner +
+ *           "Take over" button). Mutating enqueue-command ops are allowed.
+ * `human` — the human is designing; mutating enqueue-command ops are refused
+ *           with 409 `human_mode` so an agent halts at its next canvas call.
+ * Dev-server lifetime state; restart resets to `human`.
+ */
+type DesignerMode = { mode: 'human' | 'agent'; since: string; holder: string | null }
+let designerMode: DesignerMode = { mode: 'human', since: new Date().toISOString(), holder: null }
+
+/** Ops that only observe the canvas — allowed in either mode. */
+const MODE_EXEMPT_OPERATIONS = new Set(['noop', 'render_panel_preview', 'capture_panel_preview_data'])
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -536,6 +550,41 @@ export function datasourceApiPlugin(): Plugin {
           return
         }
 
+        if (pathname === '/__api/screenshot-designer/mode') {
+          if (req.method === 'GET') {
+            nodeRes.setHeader('Content-Type', 'application/json')
+            nodeRes.end(JSON.stringify({ ok: true, ...designerMode }))
+            return
+          }
+          if (req.method === 'POST') {
+            try {
+              const body = await readBody(req as IncomingMessage)
+              const parsed = JSON.parse(body) as Record<string, unknown>
+              const mode = String(parsed.mode ?? '')
+              if (mode !== 'human' && mode !== 'agent') {
+                nodeRes.statusCode = 400
+                nodeRes.setHeader('Content-Type', 'application/json')
+                nodeRes.end(JSON.stringify({ ok: false, error: 'invalid_mode', message: "mode must be 'human' or 'agent'" }))
+                return
+              }
+              const holder = typeof parsed.holder === 'string' && parsed.holder.trim() ? parsed.holder.trim() : null
+              designerMode = { mode, since: new Date().toISOString(), holder }
+              console.info('[screenshot-designer] mode set', designerMode)
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ ok: true, ...designerMode }))
+            } catch (e: unknown) {
+              const err = e as Error
+              nodeRes.statusCode = 400
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(JSON.stringify({ ok: false, error: String(err?.message ?? e) }))
+            }
+            return
+          }
+          nodeRes.statusCode = 405
+          nodeRes.end('Method not allowed')
+          return
+        }
+
         if (pathname === '/__api/screenshot-designer/enqueue-command' && req.method === 'POST') {
           try {
             const body = await readBody(req as IncomingMessage)
@@ -550,6 +599,21 @@ export function datasourceApiPlugin(): Plugin {
               nodeRes.statusCode = 400
               nodeRes.setHeader('Content-Type', 'application/json')
               nodeRes.end(JSON.stringify({ error: 'missing_operation' }))
+              return
+            }
+            if (designerMode.mode === 'human' && !MODE_EXEMPT_OPERATIONS.has(operation)) {
+              console.warn('[screenshot-designer] enqueue-command refused (human mode)', { operation })
+              nodeRes.statusCode = 409
+              nodeRes.setHeader('Content-Type', 'application/json')
+              nodeRes.end(
+                JSON.stringify({
+                  ok: false,
+                  error: 'human_mode',
+                  message:
+                    'Designer is in human mode — mutating canvas ops are refused. ' +
+                    "Ask the user for the canvas, then set agent mode: python toolkit/scripts/designer.py mode set agent",
+                }),
+              )
               return
             }
             const h = designerHintsFromRequest(req as IncomingMessage)

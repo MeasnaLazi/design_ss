@@ -1,0 +1,13 @@
+{
+  "name": "apps-publisher-composer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HTML/CSS strip composer: renders store-screenshot strips (HTML) to export-size PNGs via Playwright.",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -97,11 +97,22 @@ def validate_positional_enqueue_args(operation: str, args: dict[str, Any]) -> No
         _panel_preview_column_selector_ok(args, op)
         return
 
-    if op in ("add_device_frame", "add_text", "device_set_position"):
+    if op in ("add_device_frame", "add_text", "add_image", "device_set_position"):
         if not _has_panel_column(args):
             raise ValueError(
                 f"{op}: args must include panel_index (0-based) or panel_number (1-based) "
                 "for panel-local coordinates."
+            )
+        return
+
+    if op == "apply_screenshot_to_device":
+        layer_id = str(args.get("layer_id", "")).strip()
+        url = str(args.get("url", args.get("src", ""))).strip()
+        if not layer_id:
+            raise ValueError("apply_screenshot_to_device: args must include layer_id.")
+        if not url or not (url.startswith("/") or url.startswith("data:")):
+            raise ValueError(
+                "apply_screenshot_to_device: url must be a same-origin path (/…) or data: URL."
             )
         return
 

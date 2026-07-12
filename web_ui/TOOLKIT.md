@@ -15,6 +15,8 @@ All paths below are relative to that base (no trailing slash on the base).
 | POST | `/enqueue-command` | `{"operation": "<string>", "args": { ... }, "requestId"?: "<string>"}` | JSON ack or error JSON | Delivers to an **open** designer tab via SSE. Full contract: [POST enqueue-command](#post-enqueue-command) below. |
 | GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). Toolkit may poll until PNG changes. |
 | GET | `/agent-preview-data` | — | JSON object (`application/json`) | Last slim panel layout snapshot from the browser. **404** = no snapshot yet (`no_preview_data_yet`). Toolkit may poll until `revision` changes. |
+| GET | `/mode` | — | `{"ok": true, "mode": "human"\|"agent", "since": "<iso>", "holder": "<string>\|null"}` | One-way design mode (Phase 4). Dev-server lifetime state; restart resets to `human`. |
+| POST | `/mode` | `{"mode": "human"\|"agent", "holder"?: "<string>"}` | Same shape as GET | While `human`, mutating `enqueue-command` ops return **409 `human_mode`** (exempt: `noop`, `render_panel_preview`, `capture_panel_preview_data`). The Web UI polls this and shows a read-only overlay + **Take over** button while `agent`. |
 
 ### POST enqueue-command
 

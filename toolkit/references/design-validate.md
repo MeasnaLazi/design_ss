@@ -32,7 +32,20 @@ python3 toolkit/scripts/designer.py validate-strip-rules \
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `python toolkit/scripts/designer.py validate-rules` | Required **`--png`**. Required **`--panel-data`**. Optional **`--panel-index`**, **`--preset-id`** / **`--canvas-size`**, **`--profile`** (`default` \| `appstore_hero` \| `play_feature`), **`--emit-fixes`**. Tunables: margin, span, device overlap, font min, wrap ratio, device height band, text↔device gap, etc. | JSON **`{ "ok", "phase": "rules", "checks": [...] }`**. Exit **`0`** only if every check has **`"ok": true`**. |
+| `python toolkit/scripts/designer.py validate-rules` | Required **`--png`**. Required **`--panel-data`**. Optional **`--panel-index`**, **`--preset-id`** / **`--canvas-size`**, **`--profile`** (`default` \| `appstore_hero` \| `play_feature`), **`--tier`** (`safety` \| `all`; default **`safety`**), **`--emit-fixes`**. Tunables: margin, span, device overlap, font min, wrap ratio, device height band, text↔device gap, etc. | JSON **`{ "ok", "phase": "rules", "tier", "checks": [...], "style_failures": [...], "ok_all_checks" }`**. Exit code follows the **tier gate** (below). |
+
+### Tiers (`--tier`, default `safety`)
+
+Every check is classified **`safety`** (objective defect) or **`style`** (layout-taste heuristic) — see `designer/validate_tiers.py`. Professional layouts often violate style heuristics on purpose (cropped device, off-center hero, text over a shadowed frame), so style failures **warn** instead of failing the gate by default.
+
+| Tier value | Exit `0` when | Use |
+| --- | --- | --- |
+| **`safety`** (default) | Every **safety** check passes (style failures listed in **`style_failures`**) | Composer/agent gate — aesthetics are judged by vision review, not rules |
+| **`all`** | Every check passes (previous behavior) | Legacy canvas workflow, conservative layouts |
+
+**Safety checks:** `png_preset_match`, `panel_data_required`, `panel_data_version`, `panel_resolve`, `text_no_overlap`, `text_safe_margins`, `text_font_min_size`, `text_ink_inside_safe_area`, `layer_z_order_sane` (+ strip: `strip_multi_panel`, `strip_gap_consistent`). Unknown/future check ids default to safety (fail closed).
+
+**Style checks:** `text_span_sensible`, `text_single_line_bbox`, `text_device_no_overlap`, `text_device_vertical_gap`, `device_height_band`, `device_pairs_low_overlap`, `device_horizontal_center`, `device_safe_bottom`, `text_vertical_rhythm`, `text_hierarchy_sizes`, `text_align_consistency`, `text_preset_size_band`, `background_not_default_gray`, `panel_empty_margin_bands` (false-positives on intentional flat light themes), `device_region_not_blank` (+ strip: `cross_panel_*`, `strip_background_not_default_gray`).
 
 ### Profiles
 
@@ -100,7 +113,7 @@ python3 toolkit/scripts/designer.py validate-rules \
 
 | CLI | Arg | Summary |
 | --- | --- | --- |
-| `python toolkit/scripts/designer.py validate-strip-rules` | Required **`--panel-data`** (all panels). Optional **`--png-dir`** (`panel0.png`, `0.png`, …). **`--profile`**, **`--expected-gap`**, **`--emit-fixes`**. | Strip-level consistency. |
+| `python toolkit/scripts/designer.py validate-strip-rules` | Required **`--panel-data`** (all panels). Optional **`--png-dir`** (`panel0.png`, `0.png`, …). **`--profile`**, **`--expected-gap`**, **`--tier`** (`safety` \| `all`; default **`safety`**), **`--emit-fixes`**. | Strip-level consistency. Exit code follows the tier gate (see **§ Tiers**). |
 
 | `id` | Meaning |
 | --- | --- |

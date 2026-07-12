@@ -13,6 +13,12 @@ export type AddImageToCanvasOptions = {
   /** 0-based panel column to center within when `left`/`top` are omitted. */
   panelIndex?: number
   layerName?: string
+  /**
+   * Exact display width in document px (uniform scale from natural size).
+   * Overrides the default 85%-panel fit clamp — used by the agent
+   * `add_image` op / composer importer for pixel-exact placement.
+   */
+  targetWidth?: number
 }
 
 function layerNameFromFilename(filename: string): string {
@@ -119,9 +125,14 @@ export async function addImageToCanvasFromUrl(
   if (options?.left != null && options?.top != null) {
     const natW = img.width || 1
     const natH = img.height || 1
-    const maxW = panelW * 0.85
-    const maxH = panelH * 0.85
-    const scale = Math.min(1, maxW / natW, maxH / natH)
+    let scale: number
+    if (options.targetWidth != null && Number.isFinite(options.targetWidth) && options.targetWidth > 0) {
+      scale = options.targetWidth / natW
+    } else {
+      const maxW = panelW * 0.85
+      const maxH = panelH * 0.85
+      scale = Math.min(1, maxW / natW, maxH / natH)
+    }
     img.set({
       left: options.left,
       top: options.top,

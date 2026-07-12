@@ -164,6 +164,9 @@ export async function getScreenshotDesignerSession(
 const CLIENT_AUTHORITATIVE_OPERATIONS = new Set([
   'set_background',
   'add_device_frame',
+  'add_image',
+  'apply_screenshot_to_device',
+  'clear_user_layers',
   'add_text',
   'align',
   'move_layer',

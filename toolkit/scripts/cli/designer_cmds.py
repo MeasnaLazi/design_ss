@@ -10,6 +10,8 @@ from typing import Any
 
 from designer.client import (
     designer_enqueue_command as designer_enqueue_command_http,
+    designer_mode_get as designer_mode_get_http,
+    designer_mode_set as designer_mode_set_http,
     designer_pull_agent_preview as designer_pull_agent_preview_http,
     designer_session as designer_session_http,
     poll_agent_preview_data_until_changed,
@@ -21,6 +23,7 @@ from designer.validate_options import ValidateRulesOptions
 from designer.validate_profiles import get_profile, list_profiles
 from designer.validate_rules import merge_cli_options, run_validate_rules
 from designer.validate_strip_rules import run_validate_strip_rules
+from designer.validate_tiers import apply_tier
 from cli.io_utils import json_print, parse_args_json_payload
 
 
@@ -49,6 +52,20 @@ def register_designer(sub: Any) -> None:
     )
     ds_sess.add_argument("--timeout", type=float, default=60.0)
     ds_sess.set_defaults(handler=_cmd_designer_session)
+
+    ds_mode = designer_sub.add_parser(
+        "mode",
+        help="Get or set the one-way design mode (human | agent); mutating enqueue ops are refused in human mode",
+    )
+    mode_sub = ds_mode.add_subparsers(dest="mode_cmd", required=True)
+    ds_mode_get = mode_sub.add_parser("get", help="GET .../mode")
+    ds_mode_get.add_argument("--timeout", type=float, default=30.0)
+    ds_mode_get.set_defaults(handler=_cmd_designer_mode_get)
+    ds_mode_set = mode_sub.add_parser("set", help="POST .../mode")
+    ds_mode_set.add_argument("mode", choices=("human", "agent"))
+    ds_mode_set.add_argument("--holder", default=None, help="Optional name recorded with the mode (e.g. agent id)")
+    ds_mode_set.add_argument("--timeout", type=float, default=30.0)
+    ds_mode_set.set_defaults(handler=_cmd_designer_mode_set)
 
     ds_enq = designer_sub.add_parser(
         "enqueue-op",
@@ -179,6 +196,16 @@ def register_designer(sub: Any) -> None:
         action="store_true",
         help="Include compact suggested_fix list in JSON output",
     )
+    ds_val.add_argument(
+        "--tier",
+        default="safety",
+        choices=("safety", "all"),
+        help=(
+            "Gate scope for the exit code: 'safety' (default) fails only on objective "
+            "defects; 'all' also fails on style heuristics (previous behavior). "
+            "Style failures are always listed in style_failures."
+        ),
+    )
     ds_val.set_defaults(handler=_cmd_designer_validate_rules)
 
     ds_strip = designer_sub.add_parser(
@@ -210,6 +237,12 @@ def register_designer(sub: Any) -> None:
         help="Override expected strip gap px from profile",
     )
     ds_strip.add_argument("--emit-fixes", action="store_true")
+    ds_strip.add_argument(
+        "--tier",
+        default="safety",
+        choices=("safety", "all"),
+        help="Gate scope for the exit code: 'safety' (default) or 'all' (see validate-rules --tier)",
+    )
     ds_strip.set_defaults(handler=_cmd_designer_validate_strip_rules)
 
 
@@ -223,6 +256,21 @@ def _cmd_designer_handoff(ns: argparse.Namespace, compact: bool) -> None:
 
 def _cmd_designer_session(ns: argparse.Namespace, compact: bool) -> None:
     out = designer_session_http(resolve_designer_base_url(), timeout=ns.timeout)
+    json_print(out, compact)
+
+
+def _cmd_designer_mode_get(ns: argparse.Namespace, compact: bool) -> None:
+    out = designer_mode_get_http(resolve_designer_base_url(), timeout=ns.timeout)
+    json_print(out, compact)
+
+
+def _cmd_designer_mode_set(ns: argparse.Namespace, compact: bool) -> None:
+    out = designer_mode_set_http(
+        resolve_designer_base_url(),
+        ns.mode,
+        holder=ns.holder,
+        timeout=ns.timeout,
+    )
     json_print(out, compact)
 
 
@@ -263,6 +311,7 @@ def _cmd_designer_validate_rules(ns: argparse.Namespace, compact: bool) -> None:
         opt=opt,
         emit_fixes_only=bool(ns.emit_fixes),
     )
+    out = apply_tier(out, ns.tier)
     json_print(out, compact)
     if not out.get("ok"):
         sys.exit(1)
@@ -281,6 +330,7 @@ def _cmd_designer_validate_strip_rules(ns: argparse.Namespace, compact: bool) ->
         png_dir=ns.png_dir,
         emit_fixes_only=bool(ns.emit_fixes),
     )
+    out = apply_tier(out, ns.tier)
     json_print(out, compact)
     if not out.get("ok"):
         sys.exit(1)

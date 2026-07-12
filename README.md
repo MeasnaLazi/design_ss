@@ -42,7 +42,8 @@ The repo is intended for **local development**: run the Vite dev server, keep a 
 | Path | Role |
 |------|------|
 | [`web_ui/`](web_ui/) | **Screenshot / display designer** — Vite + React + Fabric.js editor; persists designs via the dev server into `datasource/`. |
-| [`toolkit/`](toolkit/) | **Python CLI** — Offline layout (`layout.py`) and live-canvas control (`designer.py`) against the running UI. |
+| [`composer/`](composer/) | **HTML-first strip composer** — agents author whole strips as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)), `render.mjs` exports store-size PNGs + validation snapshots via Playwright, `import-to-canvas.mjs` replays a strip into the live canvas as editable layers. |
+| [`toolkit/`](toolkit/) | **Python CLI** — Offline layout (`layout.py`) and live-canvas control (`designer.py`) against the running UI; `validate-rules --tier safety` gates composer output. |
 | [`datasource/`](datasource/) | Local design data and agent/browser scratch ([`temp/`](datasource/temp/), `memories/`). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
 | [`output/`](output/) | **Agent & toolkit outputs** at repo root: store JSON, `screenshot_report.md`, and **`output/temp/`** (agent working files). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
@@ -66,12 +67,15 @@ The repo is intended for **local development**: run the Vite dev server, keep a 
          datasource/  (displays, screenshots, temp/)  ·  output/  (store JSON, reports, temp/)
 ```
 
-**Typical automation loop** (one panel at a time):
+**Agent design loop (HTML-first, default):**
 
-1. Start `npm run dev` in `web_ui/` and open the designer for the target artboard slug.
-2. `python toolkit/scripts/designer.py enqueue-op` — mutate the canvas in the browser.
-3. `pull-preview` / `pull-preview-data` — fetch the latest PNG or panel layout JSON.
-4. `validate-rules` / `validate-strip-rules` — automated checks before moving on or requesting vision review.
+1. Agent writes the whole strip as one HTML document per [`composer/strip-schema.md`](composer/strip-schema.md) (real screenshots warped into device frames via `frame.json` homography).
+2. `node composer/render.mjs --strip … --out … --full` — export-size PNGs + `strip-data.json`.
+3. Agent reviews the PNGs against [`composer/references/`](composer/references/), edits the HTML, re-renders.
+4. `python toolkit/scripts/designer.py validate-rules … --tier safety` — objective-defect gate (style heuristics warn only).
+5. Optional handoff: `node composer/import-to-canvas.mjs --strip …` — rebuilds the strip in the live canvas as editable layers.
+
+**Canvas co-design loop (human + agent fallback):** `enqueue-op` → `pull-preview` → `validate-rules`, guarded by the **one-way design mode** (`designer.py mode get|set`): while the agent holds the canvas the UI is read-only with a **Take over** button; while a human holds it, mutating agent ops are refused (409).
 
 See [`toolkit/references/designer-reference.md`](toolkit/references/designer-reference.md) and [`toolkit/references/design-validate.md`](toolkit/references/design-validate.md) for the full command contracts.
 
@@ -84,7 +88,7 @@ Specialized Claude Code agents live under [`.claude/agents/`](.claude/agents/). 
 | [`tool-running-agent`](.claude/agents/tool-running-agent.md) | [`tool-running`](.claude/skills/tool-running/SKILL.md) | Verifies Python venv + `toolkit/requirements.txt`, `web_ui` npm deps, probes port **4713**, starts `npm run dev` when needed, and confirms the designer is reachable. |
 | [`data-gathering-agent`](.claude/agents/data-gathering-agent.md) | [`data-gathering`](.claude/skills/data-gathering/SKILL.md) | Reads [`config.json`](config.json), collects listing metadata (scan or Q&A), picks layout platform + device pack, writes `output/appstore.json` / `output/playstore.json` with five screenshot slots, and posts the full in-chat checklist. |
 | [`planning-agent`](.claude/agents/planning-agent.md) | [`planning`](.claude/skills/planning/SKILL.md) | Turns store JSON into a messaging-only creative brief at `output/screenshot_report.md` (theme hex, per-panel copy, continuity) and pastes the full report in chat for the designer. |
-| [`screenshot-designer-agent`](.claude/agents/screenshot-designer-agent.md) | [`screenshot-designing`](.claude/skills/screenshot-designing/SKILL.md), [`publisher-toolkit`](toolkit/SKILL.md) | Designs store panels one at a time via `designer.py` / `layout.py`, theme-mixed backgrounds, preview → `validate-rules` gate per panel, then strip-level checks. |
+| [`screenshot-designer-agent`](.claude/agents/screenshot-designer-agent.md) | [`strip-composing`](.claude/skills/strip-composing/SKILL.md), [`publisher-toolkit`](toolkit/SKILL.md) | **HTML-first**: authors the whole strip as one HTML/CSS document ([`composer/`](composer/)), renders with Playwright, self-reviews the PNGs against [`composer/references/`](composer/references/), iterates, then gates with `validate-rules --tier safety`. Canvas ops ([`screenshot-designing`](.claude/skills/screenshot-designing/SKILL.md)) remain as the human co-design fallback. |
 
 ## Quick start
 

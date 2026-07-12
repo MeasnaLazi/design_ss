@@ -9,11 +9,13 @@ import { useArtboardUrlQuerySync } from '../../hooks/useArtboardUrlQuerySync'
 import { useCopyPasteLayerHotkeys } from '../../hooks/useCopyPasteLayerHotkeys'
 import { useDeleteLayerHotkeys } from '../../hooks/useDeleteLayerHotkeys'
 import { useDatasourceAutoSave } from '../../hooks/useDatasourceAutoSave'
+import { useDesignerModeSync } from '../../hooks/useDesignerModeSync'
 import { useDesignHistoryRecorder } from '../../hooks/useDesignHistoryRecorder'
 import { useSaveDesignHotkey } from '../../hooks/useSaveDesignHotkey'
 import { useUndoRedoHotkeys } from '../../hooks/useUndoRedoHotkeys'
 import { ToastHost } from '../ui/ToastHost'
 
+import { AgentModeOverlay } from './AgentModeOverlay'
 import { BottomFooter } from './BottomFooter'
 import { CanvasArea } from './CanvasArea'
 import { LeftSidebar } from './LeftSidebar'
@@ -38,6 +40,7 @@ export function AppShell() {
   useArtboardPresetDisplaySync()
   useAgentCommandSync()
   useArtboardUrlQuerySync()
+  useDesignerModeSync()
 
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-zinc-950 text-zinc-100 antialiased">
@@ -47,6 +50,7 @@ export function AppShell() {
         <CanvasArea />
       </div>
       <BottomFooter />
+      <AgentModeOverlay />
       <ToastHost />
     </div>
   )

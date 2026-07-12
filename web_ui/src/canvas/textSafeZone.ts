@@ -115,34 +115,33 @@ function tryClampTarget(
 }
 
 /**
- * Keep design text inside per-panel safe margins during drags and after scales / new layers.
+ * Keep design text inside per-panel safe margins during **pointer-driven**
+ * drags/scales only.
+ *
+ * Programmatic changes (agent ops, composer import, document loads) are NOT
+ * clamped: they fire `object:modified` / `object:added` without a pointer
+ * event, and clamping there caused two bugs — (1) agent-placed text that
+ * already satisfied the safe zone was yanked to its edges because the clamp
+ * measured the textbox mid-layout (web fonts still loading → inflated
+ * extents), and (2) every programmatic move re-triggered the clamp, making
+ * positions creep. Programmatic layouts are validated separately
+ * (`validate-rules` `text_safe_margins`, safety tier).
  */
 export function attachTextboxSafeZoneClamp(canvas: Canvas): () => void {
-  const onMoving = (opt?: {
+  const onPointerDriven = (opt?: {
     target?: FabricObject
     transform?: Transform
     e?: TPointerEvent
   }) => {
-    tryClampTarget(canvas, opt?.target, opt?.transform, opt?.e)
-  }
-  const onModified = (opt?: {
-    target?: FabricObject
-    transform?: Transform
-    e?: TPointerEvent
-  }) => {
-    tryClampTarget(canvas, opt?.target, opt?.transform, opt?.e)
-  }
-  const onAdded = (opt?: { target?: FabricObject }) => {
-    tryClampTarget(canvas, opt?.target)
+    if (!opt?.e) return // no pointer event → programmatic change → do not clamp
+    tryClampTarget(canvas, opt.target, opt.transform, opt.e)
   }
 
-  canvas.on('object:moving', onMoving)
-  canvas.on('object:modified', onModified)
-  canvas.on('object:added', onAdded)
+  canvas.on('object:moving', onPointerDriven)
+  canvas.on('object:modified', onPointerDriven)
 
   return () => {
-    canvas.off('object:moving', onMoving)
-    canvas.off('object:modified', onModified)
-    canvas.off('object:added', onAdded)
+    canvas.off('object:moving', onPointerDriven)
+    canvas.off('object:modified', onPointerDriven)
   }
 }

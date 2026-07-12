@@ -17,7 +17,10 @@ import {
   type TextStylePresetId,
 } from '../constants/textStylePresets'
 import { addDeviceFrameToCanvas } from './addDeviceFrameToCanvas'
+import { addImageToCanvasFromUrl } from './addImageToCanvas'
+import { deleteLayerById } from './deleteLayerById'
 import { addTextboxToCanvas, type AddTextboxToCanvasOptions } from './addTextboxToCanvas'
+import { applyScreenshotToDeviceGroup } from './applyScreenshotToDevice'
 import { buildAgentPanelPreviewData } from './buildAgentPanelPreviewData'
 import { findObjectOnCanvasByAppId } from '../lib/fabricObjectRegistry'
 import { getArtboardDimensionsFromConfig } from '../constants/artboardPresets'
@@ -616,6 +619,95 @@ export async function applyAgentCommand(
       return
     }
 
+    case 'clear_user_layers': {
+      // Remove every user layer (text, device, image) — system objects
+      // (panels, guides, gutters) are untouched. Used by the composer
+      // importer for a clean slate before replaying a strip.
+      const ids = useDesignStore.getState().objects.map((o) => o.id)
+      for (const id of ids) deleteLayerById(id)
+      canvas.requestRenderAll()
+      console.log('[applyAgentCommand] clear_user_layers removed', ids.length)
+      return
+    }
+
+    case 'add_image': {
+      const url = String(args.url ?? args.src ?? '')
+      if (!url || !(url.startsWith('/') || url.startsWith('data:'))) {
+        useToastStore
+          .getState()
+          .showToast('add_image: url must be a same-origin path (/…) or data: URL.', 'warning')
+        return
+      }
+      const p = requirePanelIndexFromArgs(args, 'add_image')
+      if (p === null) return
+      const hasXY = args.x !== undefined && args.y !== undefined
+      let left: number | undefined
+      let top: number | undefined
+      if (hasXY) {
+        const lx = Number(args.x)
+        const ly = Number(args.y)
+        if (!Number.isFinite(lx) || !Number.isFinite(ly)) {
+          useToastStore.getState().showToast('add_image: x and y must be numeric.', 'warning')
+          return
+        }
+        const world = localToWorldTopLeft(p, lx, ly)
+        if (!world) {
+          useToastStore.getState().showToast('add_image: could not place image in panel.', 'warning')
+          return
+        }
+        left = world.left
+        top = world.top
+      }
+      const widthRaw = args.width
+      const hasWidth = widthRaw !== undefined && widthRaw !== null && String(widthRaw).trim() !== ''
+      const targetWidth = hasWidth ? Number(widthRaw) : undefined
+      if (hasWidth && (!Number.isFinite(targetWidth) || (targetWidth as number) <= 0)) {
+        useToastStore.getState().showToast('add_image: width must be a positive number when set.', 'warning')
+        return
+      }
+      await addImageToCanvasFromUrl(canvas, url, {
+        panelIndex: p,
+        ...(left != null && top != null ? { left, top } : {}),
+        ...(targetWidth != null ? { targetWidth } : {}),
+        ...(typeof args.layer_name === 'string' && args.layer_name.trim()
+          ? { layerName: args.layer_name.trim() }
+          : {}),
+      })
+      return
+    }
+
+    case 'apply_screenshot_to_device': {
+      const layerId = String(args.layer_id ?? '')
+      const url = String(args.url ?? args.src ?? '')
+      if (!layerId) {
+        useToastStore.getState().showToast('apply_screenshot_to_device: need layer_id.', 'warning')
+        return
+      }
+      if (!url || !(url.startsWith('/') || url.startsWith('data:'))) {
+        useToastStore
+          .getState()
+          .showToast('apply_screenshot_to_device: url must be a same-origin path (/…) or data: URL.', 'warning')
+        return
+      }
+      let file: File
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        const name = url.startsWith('data:')
+          ? 'screenshot.png'
+          : (url.split('/').pop() || 'screenshot.png').split('?')[0]!
+        file = new File([blob], name, { type: blob.type || 'image/png' })
+      } catch (e) {
+        useToastStore
+          .getState()
+          .showToast(`apply_screenshot_to_device: could not fetch url (${String(e)}).`, 'warning')
+        return
+      }
+      await applyScreenshotToDeviceGroup(canvas, layerId, file)
+      return
+    }
+
     case 'set_background': {
       const payload =
         typeof args.background === 'object' && args.background !== null && !Array.isArray(args.background)
@@ -682,15 +774,16 @@ export async function applyAgentCommand(
       if (Number.isFinite(x) && Number.isFinite(y)) {
         const panelIndex = requirePanelIndexFromArgs(args, 'move_layer')
         if (panelIndex === null) return
-        const world =
-          target.kind === 'device'
-            ? localToWorldCenter(panelIndex, x, y)
-            : localToWorldTopLeft(panelIndex, x, y)
-        if (!world) {
+        const origin = refRectForPanelIndex(panelIndex)
+        if (!origin) {
           useToastStore.getState().showToast('move_layer: invalid panel_index for current layout.', 'warning')
           return
         }
-        target.obj.set(world)
+        // no_snap: exact placement (composer importer parity); default snaps to grid.
+        const noSnap = args.no_snap === true || args.no_snap === 'true'
+        const sx = noSnap ? x : snapGrid(x)
+        const sy = noSnap ? y : snapGrid(y)
+        target.obj.set({ left: origin.x + sx, top: origin.y + sy })
         target.obj.setCoords()
         fireObjectModified(canvas, target.obj)
         return
@@ -892,16 +985,22 @@ export async function applyAgentCommand(
         textAlign = presetDef.textAlign
       }
 
+      // no_snap: exact placement (composer importer parity); default keeps grid snap.
+      const noSnap = args.no_snap === true || args.no_snap === 'true'
       const opts: AddTextboxToCanvasOptions = {
         preset: presetId,
-        left: snapGrid(x),
-        top: snapGrid(y),
+        left: noSnap ? x : snapGrid(x),
+        top: noSnap ? y : snapGrid(y),
         text: content.trim() !== '' ? content : presetDef.initialText,
         fill: color,
         textAlign,
       }
       if (hasExplicitSize) opts.fontSize = clampTextFontSize(sizeNum)
       if (hasExplicitWeight) opts.fontWeight = normalizeAddTextFontWeight(String(weightRaw))
+      const familyRaw = args.font_family
+      if (typeof familyRaw === 'string' && familyRaw.trim()) {
+        opts.fontFamily = familyRaw.trim()
+      }
 
       addTextboxToCanvas(canvas, opts)
       return

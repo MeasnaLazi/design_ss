@@ -2,19 +2,28 @@
 name: screenshot-designing
 disable-model-invocation: true
 description: >-
-  Senior store screenshot UI workflow for apps_publisher: read output/screenshot_report.md,
-  drive designer.py / enqueue-op in one panel at a time by default, pull-preview for crops.
-  Artboard backgrounds: theme-mixed gradients via set_background (primary/secondary from
-  report or same-store JSON). Per panel: required title + subtitle text layers; description
-  caption optional. Use when acting as screenshot-designer-agent or when the user
-  names this skill.
+  LEGACY canvas co-design workflow (enqueue-op, one panel at a time) for
+  apps_publisher. The default design workflow is now strip-composing
+  (HTML-first). Use this skill ONLY when the user explicitly asks for live
+  canvas edits or to continue a human design in the Fabric editor.
 ---
 
-# Screenshot designing
+# Screenshot designing (legacy canvas fallback)
+
+> **Superseded for design work.** The screenshot-designer-agent designs strips
+> HTML-first via **`strip-composing`** (`.claude/skills/strip-composing/SKILL.md`)
+> and `composer/`. This skill remains the contract for **canvas co-design**:
+> explicit user requests to edit the live Fabric canvas, or refining a design
+> imported with `composer/import-to-canvas.mjs`.
+>
+> **Before any mutating op:** `python toolkit/scripts/designer.py mode set agent`.
+> A **409 `human_mode`** response means the user took the canvas — stop and ask.
+> Validation now defaults to `--tier safety`; style checks are advisory
+> (`toolkit/references/design-validate.md` § Tiers).
 
 ## When this applies
 
-Use **whenever** you act as **screenshot-designer-agent** or the user asks you to load this skill. It governs **single-panel-first** iteration, toolkit usage, and acceptance checks.
+Use **only** when the user explicitly requests canvas-level edits. It governs **single-panel-first** iteration, toolkit usage, and acceptance checks.
 
 ## Required reading (order)
 

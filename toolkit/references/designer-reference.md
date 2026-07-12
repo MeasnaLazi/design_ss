@@ -23,6 +23,8 @@ Optional global flag on the parent CLI: **`--compact`** (one-line JSON where the
 | --- | --- |
 | `python toolkit/scripts/designer.py handoff` | Resolve `web_ui_url` and `designer_api_base`; optional GET **`/session`** probe (`web_ui_status`: `ready` or `unverified`). |
 | `python toolkit/scripts/designer.py session` | GET **`/session`** — canvas width/height, `presetId`, `displayFile`, optional `savedAt`. |
+| `python toolkit/scripts/designer.py mode get` | GET **`/mode`** — one-way design mode `{ mode: "human" \| "agent", since, holder }`. |
+| `python toolkit/scripts/designer.py mode set <human\|agent>` | POST **`/mode`** (optional **`--holder <name>`**). **Agents must `mode set agent` before mutating ops**; in `human` mode the server refuses mutating **`enqueue-op`** with **409 `human_mode`** (only `noop`, `render_panel_preview`, `capture_panel_preview_data` stay allowed). The Web UI shows a read-only banner in `agent` mode; its **Take over** button sets `human` and halts the agent at its next mutating call. Dev-server restart resets to `human`. |
 
 
 ## `enqueue-op` (all client-authoritative ops)
@@ -52,6 +54,7 @@ All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--opera
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
 | **`remove_layer`** | **`layer_id`** | `'{"layer_id":"text_1"}'` | Deletes the layer from the canvas and store. |
+| **`clear_user_layers`** | `{}` | `'{}'` | Deletes **all** user layers (text, device, image); system objects (panels, guides) untouched. Used by `composer/import-to-canvas.mjs` for a clean slate — destructive, prefer explicit user/agent intent. |
 | **`move_layer`** | **`layer_id`**; **`dx`**, **`dy`** *or* **`x`**, **`y`** + **`panel_index`** / **`panel_number`** | `'{"layer_id":"text_1","dx":8,"dy":0}'` or `'{"layer_id":"text_1","x":120,"y":64,"panel_index":0}'` | Delta move (grid-snapped), or absolute panel-local position (text: top-left, device: center). |
 | **`align`** | **`layer_id`**, **`anchor`**, **`reference`** (`panel` or other **`layer_id`**); **`panel_index`** / **`panel_number`** when **`reference`** is **`panel`** | `'{"layer_id":"text_1","anchor":"right","reference":"panel","panel_index":0}'` | **`anchor`** must be **`center_x`**, **`center_y`**, **`top`**, **`bottom`**, **`left`**, or **`right`**. Aligns bounding box; **`reference: canvas`** is rejected. |
 | **`layer_patch`** | **`layer_id`**, **`patch`**; **`panel_index`** / **`panel_number`** when **`patch`** sets **`x`** and/or **`y`** | `'{"layer_id":"text_1","patch":{"content":"Hello"},"panel_index":0}'` | Partial field update on one layer. **Text:** if **`patch`** sets **`width`** or **`height`**, **both** **`width`** and **`height`** are required (positive numbers). **Device:** at least one of **`width`** / **`height`** may be set. |
@@ -65,7 +68,7 @@ All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--opera
 
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
-| **`add_text`** | **`panel_index`** / **`panel_number`**, **`x`**, **`y`**, **`color`**, **`font`**; optional **`content`**, **`size`**, **`align`**, **`weight`** | `'{"panel_index":0,"x":32,"y":48,"content":"Headline","color":"#111111","font":"title2"}'` | New textbox at panel-local top-left. **`font`** is a **`TextStylePresetId`** (same as sidebar: **`largeTitle`**, **`title1`**, **`title2`**, **`title3`**, **`headline`**, **`body`**, **`callout`**, **`subheadline`**, **`footnote`**, **`caption1`**, **`caption2`**; default **`body`**). **`caption`** is accepted as an alias for **`caption1`**. Preset supplies width, size, weight, alignment unless overridden by **`size`** / **`align`** / **`weight`**. |
+| **`add_text`** | **`panel_index`** / **`panel_number`**, **`x`**, **`y`**, **`color`**, **`font`**; optional **`content`**, **`size`**, **`align`**, **`weight`**, **`font_family`** (CSS family override, e.g. `Georgia`), **`no_snap`** (`true` = exact placement, skip 16px grid — composer importer parity) | `'{"panel_index":0,"x":32,"y":48,"content":"Headline","color":"#111111","font":"title2"}'` | New textbox at panel-local top-left. **`font`** is a **`TextStylePresetId`** (same as sidebar: **`largeTitle`**, **`title1`**, **`title2`**, **`title3`**, **`headline`**, **`body`**, **`callout`**, **`subheadline`**, **`footnote`**, **`caption1`**, **`caption2`**; default **`body`**). **`caption`** is accepted as an alias for **`caption1`**. Preset supplies width, size, weight, alignment unless overridden by **`size`** / **`align`** / **`weight`**. |
 | **`text_font_size_delta`** | **`layer_id`**, **`delta`** | `'{"layer_id":"text_1","delta":-2}'` | Change font size by delta px (clamped **8–400**). |
 | **`text_set_font_size`** | **`layer_id`**, **`size`** | `'{"layer_id":"text_1","size":24}'` | Absolute font size (clamped **8–400**). |
 | **`text_set_font_style`** | **`layer_id`**, **`variant`**: `regular` \| `bold` \| `italic` \| `bold_italic` | `'{"layer_id":"text_1","variant":"bold"}'` | Font style variant. |
@@ -86,11 +89,13 @@ All rows use **`python toolkit/scripts/designer.py enqueue-op`** with **`--opera
 | **`device_set_angle`** | **`layer_id`**, **`angle`** (degrees) | `'{"layer_id":"device_1","angle":-3}'` | Rotation. |
 | **`device_set_size`** | **`layer_id`**; **`width`** and/or **`height`**; optional **`fit`**: `contain` \| `cover` | `'{"layer_id":"device_1","width":900,"fit":"contain"}'` | Uniform resize (aspect preserved on device frame). |
 | **`device_set_frame_style`** | **`layer_id`**; **`style`** or **`frame`** (bezel variant id, e.g. **`front`**); optional **`pack_id`** (device pack id, e.g. **`iphone_12_pro`** — defaults to the layer’s pack / UI selection) | `'{"layer_id":"<id>","style":"front","pack_id":"iphone_12_pro"}'` | Frame style / pack swap. |
+| **`apply_screenshot_to_device`** | **`layer_id`** (device group), **`url`** (same-origin path `/…` or `data:` URL) | `'{"layer_id":"device_1","url":"/__api/datasource/screenshots/appstore_iphone_portrait/<id>.png"}'` | Fetches the image in the browser and bakes it into the device screen opening (rect or homography quad per frame pack). Replaces any existing screenshot/placeholder. |
 
 ### Image
 
 | CLI | Arg | Sample | Summary |
 | --- | --- | --- | --- |
+| **`add_image`** | **`panel_index`** / **`panel_number`**; **`url`** (same-origin path `/…` or `data:` URL); optional **`x`**, **`y`** (panel-local top-left — both or neither; omit to center in panel), **`width`** (exact display width px, uniform scale), **`layer_name`** | `'{"panel_index":0,"url":"/__api/datasource/screenshots/<id>.png","x":80,"y":120,"width":400}'` | New user image layer. Without **`width`** the image is clamped to ≤85% of the panel. |
 | **`render_panel_preview`** | **`panel_indexes`** *or* **`panel_index`** *or* **`panel_number`**; optional **`preview_multiplier`** `1` \| `2` | `'{"panel_indexes":[0],"preview_multiplier":1}'` | Crops strip → browser POSTs PNG → **`pull-preview`** reads **`/agent-preview`**. |
 | **`capture_panel_preview_data`** | Same column selectors as **`render_panel_preview`** (no **`preview_multiplier`**) | `'{"panel_indexes":[0]}'` | Slim layout JSON → browser POSTs → **`pull-preview-data`** reads **`/agent-preview-data`**. |
 

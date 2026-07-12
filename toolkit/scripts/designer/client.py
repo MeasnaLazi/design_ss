@@ -209,6 +209,33 @@ def designer_session(
     return _json_request("GET", url, timeout=timeout)
 
 
+def designer_mode_get(
+    base_url: str,
+    *,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    """GET ``{base}/mode`` — current one-way design mode (``human`` | ``agent``)."""
+    base = validate_designer_base_url(base_url)
+    return _json_request("GET", f"{base}/mode", timeout=timeout)
+
+
+def designer_mode_set(
+    base_url: str,
+    mode: str,
+    *,
+    holder: str | None = None,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    """POST ``{base}/mode`` — switch design mode. ``mode`` must be ``human`` or ``agent``."""
+    if mode not in ("human", "agent"):
+        raise DesignerClientError(f"mode must be 'human' or 'agent', got {mode!r}")
+    base = validate_designer_base_url(base_url)
+    body: dict[str, Any] = {"mode": mode}
+    if holder:
+        body["holder"] = holder
+    return _json_request("POST", f"{base}/mode", body=body, timeout=timeout)
+
+
 def designer_enqueue_command(
     base_url: str,
     operation: str,
