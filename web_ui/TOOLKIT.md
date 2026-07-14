@@ -1,20 +1,20 @@
-# Toolkit ↔ Web UI API
+# Screenshot-designer Web UI API
 
-The Python **toolkit** talks to the running **web_ui** Vite dev server only on **loopback** (`localhost`, `127.0.0.1`, `::1`). Base URL is `DESIGNER_API_BASE` or defaults to:
+`composer/import-to-canvas.mjs` drives the running **web_ui** Vite dev server over these **loopback** endpoints (`localhost`, `127.0.0.1`, `::1`) to replay a rendered strip into the canvas. Base URL is the importer's `--api` (default `http://localhost:4713`) plus `/__api/screenshot-designer`:
 
 `http://localhost:4713/__api/screenshot-designer`
 
 All paths below are relative to that base (no trailing slash on the base).
 
-## Toolkit HTTP client (`toolkit/scripts/designer/client.py`)
+## Screenshot-designer HTTP endpoints
 
 | Method | Path | Request body | Success response | Notes |
 |--------|------|----------------|------------------|-------|
 | GET | `/session` | — | JSON object: canvas width/height, `presetId`, optional `savedAt`, `displayFile` | Session probe and handoff. Server resolves preset from cookies / referer / defaults (see server). |
 | POST | `/execute` | `{"operation": "<string>", "args": { ... }}` | JSON object (operation-specific) | Runs on **server** path. Operations that only run in the browser return an error message pointing to `enqueue-command`. |
 | POST | `/enqueue-command` | `{"operation": "<string>", "args": { ... }, "requestId"?: "<string>"}` | JSON ack or error JSON | Delivers to an **open** designer tab via SSE. Full contract: [POST enqueue-command](#post-enqueue-command) below. |
-| GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). Toolkit may poll until PNG changes. |
-| GET | `/agent-preview-data` | — | JSON object (`application/json`) | Last slim panel layout snapshot from the browser. **404** = no snapshot yet (`no_preview_data_yet`). Toolkit may poll until `revision` changes. |
+| GET | `/agent-preview` | — | PNG bytes (`image/png`) | Last preview pushed from the browser. **404** = no preview yet (`no_preview_yet`). The importer may poll until the PNG changes. |
+| GET | `/agent-preview-data` | — | JSON object (`application/json`) | Last slim panel layout snapshot from the browser. **404** = no snapshot yet (`no_preview_data_yet`). The importer may poll until `revision` changes. |
 | GET | `/mode` | — | `{"ok": true, "mode": "human"\|"agent", "since": "<iso>", "holder": "<string>\|null"}` | One-way design mode (Phase 4). Dev-server lifetime state; restart resets to `human`. |
 | POST | `/mode` | `{"mode": "human"\|"agent", "holder"?: "<string>"}` | Same shape as GET | While `human`, mutating `enqueue-command` ops return **409 `human_mode`** (exempt: `noop`, `render_panel_preview`, `capture_panel_preview_data`). The Web UI polls this and shows a read-only overlay + **Take over** button while `agent`. |
 
@@ -33,7 +33,7 @@ Server implementation: `web_ui/vite-plugin-datasource-api.ts`. Browser subscribe
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `operation` | string | yes | Operation name (e.g. `render_panel_preview`). Must be non-empty. |
-| `args` | object | no | Defaults to `{}` if missing or not an object. Operation-specific keys (validated in toolkit for some ops via `designer/enqueue_validate.py`). |
+| `args` | object | no | Defaults to `{}` if missing or not an object. Operation-specific keys (see the operation table below). |
 | `requestId` | string | no | Echoed on the SSE payload and in the success JSON as `requestId` (or `null` if omitted). Useful for correlating enqueue → apply → logs. |
 
 **Display slug (routing)**
@@ -81,7 +81,7 @@ Initial SSE connection also sends `{ "type": "hello", "slug" }` (ignored by the 
 
 **Browser → server follow-up**
 
-After applying (or failing), the tab POSTs to `/__api/screenshot-designer/command-result` with `slug`, `operation`, `requestId`, `ok`, optional `error`. This is for dev-server logging only; the Python toolkit does not call this endpoint.
+After applying (or failing), the tab POSTs to `/__api/screenshot-designer/command-result` with `slug`, `operation`, `requestId`, `ok`, optional `error`. This is for dev-server logging only; `import-to-canvas.mjs` does not call this endpoint.
 
 **Operations that must use enqueue** (not `/execute` on the server)
 
@@ -121,45 +121,40 @@ Names come from `CLIENT_AUTHORITATIVE_OPERATIONS` in `web_ui/screenshot-designer
 | `render_panel_preview` | **`panel_indexes`** (contiguous strip) **or** **`panel_index`** (0-based) **or** **`panel_number`** (1-based): crops that strip/single panel → agent preview PNG; optional **`preview_multiplier`**. Use a contiguous `panel_indexes` range spanning all columns for a full-strip capture. |
 | `capture_panel_preview_data` | Same column selectors as **`render_panel_preview`** (no **`preview_multiplier`**): builds a **minimal** JSON snapshot for the requested strip (layer ids, panel-local layout fields for **`text`** / **`device`** only) and POSTs it to **`/agent-preview-data`**. Use PNG preview for visual/copy checks. |
 
-**Toolkit**
+**Caller**
 
 | API | Location |
 |-----|----------|
-| `designer_enqueue_command(base_url, operation, args, request_id=…)` | `toolkit/scripts/designer/client.py` |
-| CLI | `python toolkit/scripts/designer.py enqueue-op --operation … --args-json … [--request-id …]` |
+| `enqueue(operation, args)` helper (POST `/enqueue-command`) | `composer/import-to-canvas.mjs` |
 
-### CLI entrypoints
-
-| Command area | Script | Purpose |
-|--------------|--------|---------|
-| Designer HTTP | `toolkit/scripts/cli/designer_cmds.py` (e.g. `python toolkit/scripts/designer.py …`) | `handoff`, `session`, `enqueue-op`, `pull-preview`, `pull-preview-data`, etc. |
+No CLI calls these endpoints — only the browser (SSE) and `composer/import-to-canvas.mjs`.
 
 ### Not HTTP (same repo)
 
-| What | How toolkit uses `web_ui` |
+| What | How the tooling uses `web_ui` |
 |------|---------------------------|
 | Device frames catalog | Reads `web_ui/public/device-frames/index.json` from disk (`layout device-packs`). |
-| Placeholder image URLs | Strings in `toolkit/scripts/layout/presets.py` (e.g. `…/__api/datasource/placeholder/iphone.jpg`) for **browser** fetches when applying commands—not Python `GET`. |
+| Placeholder image URLs | Served by the dev server at `…/__api/datasource/placeholder/…` for **browser** fetches when applying commands. |
 
 ## Related screenshot-designer routes (browser / plugin)
 
-These are served under the same Vite `/__api` middleware but are **not** called by `designer/client.py`:
+These are served under the same Vite `/__api` middleware, driven by the browser (SSE) and `composer/import-to-canvas.mjs`:
 
 | Method | Full path pattern | Used by |
 |--------|-------------------|---------|
 | GET | `/__api/screenshot-designer/command-events?slug=…` | Browser (SSE subscriber) |
 | POST | `/__api/screenshot-designer/command-result` | Browser (result after applying command) |
 | POST | `/__api/screenshot-designer/agent-preview` | Browser (upload latest PNG) |
-| GET | `/__api/screenshot-designer/agent-preview-data` | Toolkit (`pull-preview-data` / `designer/client.py`) |
+| GET | `/__api/screenshot-designer/agent-preview-data` | `composer/import-to-canvas.mjs` (poll after capture) |
 | POST | `/__api/screenshot-designer/agent-preview-data` | Browser (upload latest panel JSON after **`capture_panel_preview_data`**) |
 
 The dev server persists the last preview under **`datasource/memories/`** (`.agent_last_preview.png`, `.agent_last_preview_data.json`). That directory is gitignored except `.gitkeep`.
 
 ### Panel preview data (enqueue + pull)
 
-1. **`enqueue-op`** — `capture_panel_preview_data` with **`panel_indexes`** (or **`panel_index`** / **`panel_number`**).
+1. **enqueue** — `import-to-canvas.mjs` POSTs `capture_panel_preview_data` to `/enqueue-command` with **`panel_indexes`** (or **`panel_index`** / **`panel_number`**).
 2. **Browser** — SSE delivers the op; Fabric projects a slim JSON DTO and POSTs to **`/agent-preview-data`**.
-3. **`pull-preview-data`** — GET **`/agent-preview-data`**; poll until **`revision`** changes after enqueue.
+3. **poll** — GET **`/agent-preview-data`**; poll until **`revision`** changes after enqueue.
 
 **GET `/agent-preview-data` JSON (version `1`)** — top-level: `version`, `revision`, `capturedAt`, `gap`, `workspace_width`, `workspace_height`, optional `background` (`type` + `value`), `panels[]`. **`revision`** includes `background` so background-only edits invalidate polls. Text layers may include `font`, `line_height`, `letter_spacing`. Each panel: `panel_index`, `panel_width`, `panel_height`, `panel_x`, `panel_y`, `layers[]` (panel-local geometry; see `web_ui/src/types/agentPanelPreviewData.ts`).
 
@@ -167,4 +162,4 @@ Live reads after canvas edits must use enqueue + pull; persisted `display_*.json
 
 ## Datasource `/__api/datasource/…`
 
-Used from **web_ui** TypeScript (`fetch` in `src/lib/*`). The toolkit does **not** implement a Python HTTP client for these; placeholder URLs may appear inside **args** sent to `/execute` or `/enqueue-command`.
+Used from **web_ui** TypeScript (`fetch` in `src/lib/*`); placeholder URLs may appear inside **args** sent to `/execute` or `/enqueue-command`.

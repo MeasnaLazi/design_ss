@@ -1,6 +1,6 @@
 # Reference gallery
 
-Anchor images for the designer agent's self-review (strip-composing skill
+Anchor images for the designer agent's self-review (screenshot-design skill
 § Self-review). The agent compares its rendered panels against these before
 iterating — this is what replaces "design to pass the rules" with "design to
 look like the best work in the category".

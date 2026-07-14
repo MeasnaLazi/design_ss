@@ -206,7 +206,7 @@ export async function screenshotDesignerExecuteOperation(
   }
   if (CLIENT_AUTHORITATIVE_OPERATIONS.has(operation)) {
     throw new Error(
-      `Operation "${operation}" runs in the Web UI only. Open web_ui with the designer, subscribe to GET /__api/screenshot-designer/command-events?slug=…, then POST /__api/screenshot-designer/enqueue-command (same cookies/query as before). Use: python toolkit/scripts/designer.py enqueue-op --operation ${operation} --args-json '…'`,
+      `Operation "${operation}" runs in the Web UI only. Open web_ui with the designer, subscribe to GET /__api/screenshot-designer/command-events?slug=…, then POST /__api/screenshot-designer/enqueue-command (same cookies/query as before). composer/import-to-canvas.mjs drives this flow.`,
     )
   }
   throw new Error(`Unknown operation "${operation}"`)

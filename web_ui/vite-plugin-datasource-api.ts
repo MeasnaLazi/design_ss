@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto'
 /** Same as {@link DESIGNER_ARTBOARD_COOKIE} in `src/lib/artboardUrlParam.ts` (avoid DOM imports in Node build). */
 const DESIGNER_ARTBOARD_COOKIE = 'screenshotDesignerArtboard'
 
-/** Agent toolkit scratch: preview PNG (not committed; see repo `.gitignore`). */
+/** Agent scratch: preview PNG (not committed; see repo `.gitignore`). */
 const AGENT_MEMORIES_DIR = 'memories'
 const AGENT_PREVIEW_FILENAME = '.agent_last_preview.png'
 const AGENT_PREVIEW_DATA_FILENAME = '.agent_last_preview_data.json'
@@ -611,7 +611,7 @@ export function datasourceApiPlugin(): Plugin {
                   error: 'human_mode',
                   message:
                     'Designer is in human mode — mutating canvas ops are refused. ' +
-                    "Ask the user for the canvas, then set agent mode: python toolkit/scripts/designer.py mode set agent",
+                    "Ask the user for the canvas, then set agent mode via POST /__api/screenshot-designer/mode {\"mode\":\"agent\"} (composer/import-to-canvas.mjs does this automatically).",
                 }),
               )
               return

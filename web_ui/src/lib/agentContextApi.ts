@@ -100,7 +100,7 @@ export async function pushLiveCanvasPreviewRect(
   await pushAgentPreviewBlob(blob)
 }
 
-/** Upload the latest slim panel layout snapshot for toolkit `pull-preview-data`. */
+/** Upload the latest slim panel layout snapshot for the importer to poll via GET `/agent-preview-data`. */
 export async function pushAgentPreviewDataJson(
   payload: AgentPanelPreviewData,
 ): Promise<{ ok: boolean; bytes?: number }> {

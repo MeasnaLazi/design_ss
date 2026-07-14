@@ -81,15 +81,5 @@ node composer/render.mjs --strip output/strips/appstore_strip.html \
 
 Exit 0 + JSON summary; the out dir receives `panel<N>.png` per panel, optional
 `strip.png`, and **`strip-data.json`** — an AgentPanelPreviewData v1 snapshot
-extracted from the DOM (text + device blocks). Validate each panel:
-
-```bash
-python toolkit/scripts/designer.py validate-rules \
-  --png output/strips/rendered/panel0.png \
-  --panel-data output/strips/rendered/strip-data.json \
-  --panel-index 0 --preset-id appstore_iphone_portrait \
-  --profile appstore_hero --tier safety
-```
-
-`--tier safety` gates on objective defects only; style heuristics are
-reported as warnings (see `toolkit/references/design-validate.md` § Tiers).
+extracted from the DOM (text + device blocks). `strip-data.json` is what
+`composer/import-to-canvas.mjs` replays into the canvas editor.

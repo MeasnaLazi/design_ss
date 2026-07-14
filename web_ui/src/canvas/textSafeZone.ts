@@ -5,7 +5,7 @@ import { getFabricObjectId } from '../lib/fabricObjectRegistry'
 import { useDesignStore } from '../store/useDesignStore'
 import { syncFabricDragTransformOffsets } from './syncFabricDragTransformOffsets'
 
-/** Match `toolkit/scripts/core/constants.py` — App Store–style headline margins per panel. */
+/** App Store–style headline margins per panel. */
 export const TEXT_SAFE_ZONE_TOP = 120
 export const TEXT_SAFE_ZONE_BOTTOM = 120
 export const TEXT_SAFE_ZONE_SIDES = 60
@@ -125,7 +125,7 @@ function tryClampTarget(
  * measured the textbox mid-layout (web fonts still loading → inflated
  * extents), and (2) every programmatic move re-triggered the clamp, making
  * positions creep. Programmatic layouts are validated separately
- * (`validate-rules` `text_safe_margins`, safety tier).
+ * (safe-area margins for text ink).
  */
 export function attachTextboxSafeZoneClamp(canvas: Canvas): () => void {
   const onPointerDriven = (opt?: {

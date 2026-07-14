@@ -56,7 +56,7 @@ function resolveAddTextPresetId(fontRaw: string): TextStylePresetId | null {
   return null
 }
 
-/** Maps common toolkit strings to Fabric-friendly weight values. */
+/** Maps common weight strings to Fabric-friendly values. */
 function normalizeAddTextFontWeight(raw: string): string | number {
   const s = raw.trim().toLowerCase()
   if (s === 'regular' || s === 'normal') return '400'

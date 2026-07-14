@@ -2,7 +2,7 @@
 
 **Main purpose:** This project is built **for developers** — app engineers and publisher workflows who need repeatable, scriptable control over store screenshots, not a consumer-facing design product.
 
-**apps_publisher** is an open-source toolkit for designing, validating, and automating **App Store** and **Play Store** screenshot layouts. It pairs a browser-based visual editor with a Python CLI and agent-friendly HTTP APIs so you can edit in the browser, drive the canvas from scripts or agents, and keep everything in your repo.
+**apps_publisher** is an open-source toolkit for designing and automating **App Store** and **Play Store** screenshot layouts. It pairs a browser-based visual editor with an HTML-first composer and agent-friendly HTTP APIs so you can edit in the browser, drive the canvas from scripts or agents, and keep everything in your repo.
 
 ## Demo
 Design by Human! 🧑🏽‍💻 ~ 5 minutes (continue from AI) <br><br>
@@ -26,28 +26,28 @@ The **[`web_ui/`](web_ui/)** screenshot designer is the visual workspace. Highli
 - **Layers and templates** — Reorder, rename, and select layers; save and reload layout templates from the sidebar.
 - **Editing workflow** — Undo/redo, copy/paste, keyboard nudges, zoom, auto-save and manual save to `datasource/display_*.json`.
 
-Agents and the Python toolkit can drive the same canvas over loopback while `npm run dev` is running — see [Agents](#agents) and [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md).
+Agents can drive the same canvas over loopback (via `composer/import-to-canvas.mjs`) while `npm run dev` is running — see [Agents](#agents) and [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md).
 
 ## What it does
 
 - **Multi-panel artboards** — Compose store-sized layouts with text, device mockups, images, and backgrounds (solid, gradient, or image).
 - **Preset-driven workflows** — Switch between iPhone, iPad, phone, and tablet sizes; each preset maps to a display document under `datasource/`.
-- **Live + offline tooling** — Edit in the browser while scripts run layout math, image QA, contrast checks, and rule-based validation without guessing file formats.
-- **Agent integration** — Queue canvas operations over Server-Sent Events, pull panel previews (PNG + slim JSON), and gate progress with automated strip rules.
+- **Live + offline tooling** — Edit in the browser while per-skill `script/` helpers resolve device packs and frame paths without guessing file formats.
+- **Agent integration** — Author strips as HTML, render to PNGs with Playwright, then replay them into the canvas over Server-Sent Events for human touch-up.
 
-The repo is intended for **local development**: run the Vite dev server, keep a designer tab open, and drive changes from the UI or from `toolkit/` on loopback.
+The repo is intended for **local development**: run the Vite dev server, keep a designer tab open, and drive changes from the UI or from `composer/import-to-canvas.mjs` on loopback.
 
 ## Repository layout
 
 | Path | Role |
 |------|------|
 | [`web_ui/`](web_ui/) | **Screenshot / display designer** — Vite + React + Fabric.js editor; persists designs via the dev server into `datasource/`. |
-| [`composer/`](composer/) | **HTML-first strip composer** — agents author whole strips as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)), `render.mjs` exports store-size PNGs + validation snapshots via Playwright, `import-to-canvas.mjs` replays a strip into the live canvas as editable layers. |
-| [`toolkit/`](toolkit/) | **Python CLI** — Offline layout (`layout.py`) and live-canvas control (`designer.py`) against the running UI; `validate-rules --tier safety` gates composer output. |
+| [`composer/`](composer/) | **HTML-first strip composer** — agents author whole strips as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)), `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot via Playwright, `import-to-canvas.mjs` replays a strip into the live canvas as editable layers. |
+| [`.claude/skills/`](.claude/skills/) | **Agents & skills** — the `screenshot-brief` skill bundles its `script/` helpers (`device-packs.mjs`, `load-frame.mjs`). Plain Node, no deps. |
 | [`datasource/`](datasource/) | Local design data and agent/browser scratch ([`temp/`](datasource/temp/), `memories/`). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
-| [`output/`](output/) | **Agent & toolkit outputs** at repo root: store JSON, `screenshot_report.md`, and **`output/temp/`** (agent working files). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
+| [`output/`](output/) | **Agent outputs** at repo root: store JSON, `screenshot_report.md`, and **`output/temp/`** (agent working files). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
-| [`config.json`](config.json) | Optional paths to sibling app projects (e.g. iOS/Android) for publisher workflows. |
+| [`config.json`](config.json) | **Optional override** — explicit `ios_project_path` / `android_project_path`. By default the app project is the **parent folder** of apps_publisher (place this repo in your app project's root). |
 
 ## Architecture
 
@@ -55,11 +55,11 @@ The repo is intended for **local development**: run the Vite dev server, keep a 
 ┌─────────────────────────────────────────────────────────────────┐
 │                        apps_publisher (repo)                     │
 ├──────────────────────────────┬──────────────────────────────────┤
-│  web_ui (Vite dev :4713)     │  toolkit (Python 3.10+)          │
-│  • Fabric canvas editor      │  • layout.py  — presets, color,  │
-│  • datasource read/write     │    image QA, store JSON (offline)│
-│  • /__api/screenshot-designer│  • designer.py — handoff,        │
-│    SSE enqueue + previews    │    enqueue-op, validate-rules    │
+│  web_ui (Vite dev :4713)     │  composer (Node + Playwright)    │
+│  • Fabric canvas editor      │  • render.mjs — HTML strip → PNGs│
+│  • datasource read/write     │  • import-to-canvas.mjs — replay │
+│  • /__api/screenshot-designer│  skill-local script/ helpers     │
+│    (import-to-canvas replay) │  (Node, no deps)                 │
 └──────────────┬───────────────┴──────────────┬───────────────────┘
                │ loopback HTTP + SSE           │
                └──────────────┬────────────────┘
@@ -71,28 +71,23 @@ The repo is intended for **local development**: run the Vite dev server, keep a 
 
 1. Agent writes the whole strip as one HTML document per [`composer/strip-schema.md`](composer/strip-schema.md) (real screenshots warped into device frames via `frame.json` homography).
 2. `node composer/render.mjs --strip … --out … --full` — export-size PNGs + `strip-data.json`.
-3. Agent reviews the PNGs against [`composer/references/`](composer/references/), edits the HTML, re-renders.
-4. `python toolkit/scripts/designer.py validate-rules … --tier safety` — objective-defect gate (style heuristics warn only).
-5. Optional handoff: `node composer/import-to-canvas.mjs --strip …` — rebuilds the strip in the live canvas as editable layers.
+3. Agent reviews the PNGs against [`composer/references/`](composer/references/), edits the HTML, re-renders until it looks right.
+4. Handoff to the editor: `node composer/import-to-canvas.mjs --strip …` — rebuilds the strip in the live canvas as editable layers for human touch-up (requires the dev server and an open designer tab).
 
-**Canvas co-design loop (human + agent fallback):** `enqueue-op` → `pull-preview` → `validate-rules`, guarded by the **one-way design mode** (`designer.py mode get|set`): while the agent holds the canvas the UI is read-only with a **Take over** button; while a human holds it, mutating agent ops are refused (409).
-
-See [`toolkit/references/designer-reference.md`](toolkit/references/designer-reference.md) and [`toolkit/references/design-validate.md`](toolkit/references/design-validate.md) for the full command contracts.
+After import, the human finishes the design in the **`web_ui`** editor. The agent does not drive the canvas directly.
 
 ## Agents
 
-Specialized Claude Code agents live under [`.claude/agents/`](.claude/agents/). Each agent loads a matching skill under [`.claude/skills/`](.claude/skills/) (plus [`toolkit/SKILL.md`](toolkit/SKILL.md) for designer work). Typical order: **tool-running** → **data-gathering** → **planning** → **screenshot-designer**.
+Claude Code agents live under [`.claude/agents/`](.claude/agents/). One command runs the whole pipeline: **`screenshot-agent --platform ios|android`** does the prep phases, then spawns a focused **`screenshot-design-agent`** subagent for the design.
 
 | Agent | Skill | Summary |
 |-------|-------|---------|
-| [`tool-running-agent`](.claude/agents/tool-running-agent.md) | [`tool-running`](.claude/skills/tool-running/SKILL.md) | Verifies Python venv + `toolkit/requirements.txt`, `web_ui` npm deps, probes port **4713**, starts `npm run dev` when needed, and confirms the designer is reachable. |
-| [`data-gathering-agent`](.claude/agents/data-gathering-agent.md) | [`data-gathering`](.claude/skills/data-gathering/SKILL.md) | Reads [`config.json`](config.json), collects listing metadata (scan or Q&A), picks layout platform + device pack, writes `output/appstore.json` / `output/playstore.json` with five screenshot slots, and posts the full in-chat checklist. |
-| [`planning-agent`](.claude/agents/planning-agent.md) | [`planning`](.claude/skills/planning/SKILL.md) | Turns store JSON into a messaging-only creative brief at `output/screenshot_report.md` (theme hex, per-panel copy, continuity) and pastes the full report in chat for the designer. |
-| [`screenshot-designer-agent`](.claude/agents/screenshot-designer-agent.md) | [`strip-composing`](.claude/skills/strip-composing/SKILL.md), [`publisher-toolkit`](toolkit/SKILL.md) | **HTML-first**: authors the whole strip as one HTML/CSS document ([`composer/`](composer/)), renders with Playwright, self-reviews the PNGs against [`composer/references/`](composer/references/), iterates, then gates with `validate-rules --tier safety`. Canvas ops ([`screenshot-designing`](.claude/skills/screenshot-designing/SKILL.md)) remain as the human co-design fallback. |
+| [`screenshot-agent`](.claude/agents/screenshot-agent.md) | [`screenshot-brief`](.claude/skills/screenshot-brief/SKILL.md) | **Entry point.** Takes `--platform`; **Phase 1** gathers listing metadata + theme, picks the device pack, writes `output/appstore.json` / `output/playstore.json` (five slots) and posts the in-chat checklist; **Phase 2** turns it into the creative brief `output/screenshot_report.md`. Pauses for review, then launches the design subagent. |
+| [`screenshot-design-agent`](.claude/agents/screenshot-design-agent.md) | [`screenshot-design`](.claude/skills/screenshot-design/SKILL.md) | **Design subagent.** Ensures the composer/web_ui dev stack, authors the whole strip as one HTML/CSS document ([`composer/`](composer/)), renders with Playwright, self-reviews against [`composer/references/`](composer/references/), iterates, then hands off via `import-to-canvas.mjs` for human touch-up in the editor. |
 
 ## Quick start
 
-### 1. Web UI (required for visual design and designer commands)
+### 1. Web UI (required for visual design and the import handoff)
 
 ```bash
 cd web_ui
@@ -105,17 +100,17 @@ Open **http://localhost:4713** (default port). The dev server reads and writes *
 
 Details: [`web_ui/README.md`](web_ui/README.md) · API contract: [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md)
 
-### 2. Python toolkit
+### 2. Composer (HTML renderer)
+
+The per-skill layout helpers under `.claude/skills/*/script/` need no install (plain Node ESM). For the HTML renderer:
 
 ```bash
-cd toolkit
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env    # optional; sets DESIGNER_API_BASE
+cd composer
+npm install
+npx playwright install chromium
 ```
 
-Details: [`toolkit/README.md`](toolkit/README.md)
+Details: [`composer/README.md`](composer/README.md)
 
 ### 3. Mask analysis (optional)
 
@@ -134,8 +129,9 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 | Component | Requirement |
 |-----------|-------------|
 | **web_ui** | Node.js **22.x**, npm |
-| **toolkit** | Python **3.10+** (tested on 3.13), venv recommended |
-| **Designer API** | `web_ui` dev server on port **4713** (configurable via `toolkit/.env`) |
+| **composer** | Node.js **22.x**, npm, Playwright Chromium |
+| **skill scripts** | Node.js **22.x** (no dependencies) |
+| **Designer API** | `web_ui` dev server on port **4713** (only for the `import-to-canvas` handoff) |
 | **mask_analysis** | Any static HTTP server; network for OpenCV.js CDN on first load |
 
 ## Documentation map
@@ -145,10 +141,8 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 | Web UI setup & usage | [`web_ui/README.md`](web_ui/README.md) |
 | Manual cleanup (`datasource/`, `output/`, `temp/`) | [`web_ui/README.md` — Manual cleanup](web_ui/README.md#manual-cleanup-you-must-do-this) |
 | Designer HTTP / SSE API | [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md) |
-| Toolkit overview | [`toolkit/README.md`](toolkit/README.md) |
-| Layout CLI reference | [`toolkit/references/layout-reference.md`](toolkit/references/layout-reference.md) |
-| Designer CLI & enqueue allowlist | [`toolkit/references/designer-reference.md`](toolkit/references/designer-reference.md) |
-| Rules + hybrid validation workflow | [`toolkit/references/design-validate.md`](toolkit/references/design-validate.md) |
+| Layout helpers (`device-packs`, `load-frame`) | `.claude/skills/screenshot-brief/script/` |
+| HTML strip composer | [`composer/README.md`](composer/README.md) · [`composer/strip-schema.md`](composer/strip-schema.md) |
 | SVG screen mask tool | [`mask_analysis/README.MD`](mask_analysis/README.MD) |
 
 ## Development notes
@@ -157,23 +151,20 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 
 Generated paths are in [`.gitignore`](.gitignore). **You must clear `datasource/`, `output/`, and their `temp/` folders manually** — see [`web_ui/README.md` — Manual cleanup](web_ui/README.md#manual-cleanup-you-must-do-this).
 
-- **`output/`** — `appstore.json`, `playstore.json`, `screenshot_report.md`; agents also use **`output/temp/`** for preview PNGs and panel JSON during design/validation.
+- **`output/`** — `appstore.json`, `playstore.json`, `screenshot_report.md`; agents also use **`output/temp/`** for preview PNGs and panel JSON during design.
 - **`datasource/`** — Canvas saves (`display_*.json`), screenshots, templates; **`datasource/temp/`** and **`datasource/memories/`** hold session/agent scratch from the dev server.
-
-**`layout.py store-json`** reads `output/appstore.json` and `output/playstore.json` when present.
 
 ### Tooling
 
-- **Tests** — From `toolkit/`: `pytest` (see `toolkit/pytest.ini`).
 - **Lint** — From `web_ui/`: `npm run lint`.
 
-The screenshot designer is built for **`npm run dev`** workflows, not as a hosted production app. If you change the dev port, update `DESIGNER_API_BASE` in `toolkit/.env` to match.
+The screenshot designer is built for **`npm run dev`** workflows, not as a hosted production app.
 
 ## Contributing
 
 Issues and pull requests are welcome.
 
-**Code & automation** — When changing toolkit or designer APIs, update the relevant reference under `toolkit/references/` and keep CLI behavior aligned with [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md).
+**Code & automation** — When changing the `script/` helpers or the `/__api/screenshot-designer/` endpoints, update the relevant skill's `script/` and keep [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md) aligned.
 
 **Device frames (especially welcome)** — The catalog is small today (see [`web_ui/public/device-frames/`](web_ui/public/device-frames/)). Contributors who can supply **device mockup packs** are a big help. We are looking for:
 

@@ -138,8 +138,7 @@ async function main() {
     }
 
     // Emit an AgentPanelPreviewData v1 snapshot (same shape as the canvas's
-    // capture_panel_preview_data) so composer strips can run
-    // `designer.py validate-rules --tier safety` unchanged.
+    // capture_panel_preview_data) so import-to-canvas can replay the strip.
     const snapshot = await page.evaluate((panelSelector) => {
       const toHex = (rgb) => {
         const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
