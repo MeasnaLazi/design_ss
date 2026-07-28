@@ -5,15 +5,6 @@ truth: the editor renders it in Chromium — the same engine `composer/render.mj
 exports with — so *what you edit is what ships*. No importer, no second
 rendering engine, nothing to keep in sync.
 
-Full brief and phase plan: [`../docs/strip-editor-plan.md`](../docs/strip-editor-plan.md).
-
-> **Status: Phases P0–P5a complete.** Viewing, selection, move/resize, text,
-> device/image/decor/panel editing, and add/delete/duplicate/z-order — all with
-> save. **Undo/redo (P5b) is next**, so mistakes are currently undone by
-> reloading from disk.
-
-## Run
-
 ```bash
 cd strip_editor
 nvm use          # 22.15.0
@@ -23,85 +14,54 @@ npm run dev      # http://localhost:4714
 
 `web_ui` keeps port 4713, so both editors can run side by side.
 
-## What P5a adds
+## What it does
 
-- **Add** a title, subtitle, caption, device, image or decor from the toolbar.
-  New blocks land in the selected block's panel, positioned where you can see
-  them, built to `strip-schema.md`.
-- **Delete** (⌫) and **duplicate** (⌘D) the selection; duplicates are offset so
-  they are not hidden behind the original.
-- **Z-order**: bring to front / send to back in the toolbar, forward / backward
-  from the hover controls on each layer-tree row.
-- **New strip** on the landing screen: name, export preset, panel count → a
-  blank schema-conformant document in `output/strips/`.
+**Open** any strip under `output/strips/` or `composer/test/`, or create a blank
+one (name, export preset, panel count). The document loads in a same-origin
+iframe served at its repo path, so `/datasource/…`,
+`/web_ui/public/device-frames/…` and `/composer/…` resolve exactly as they do
+under `render.mjs`.
 
-## What P4 adds
+**Select** by clicking the canvas or the layer tree; empty panel space selects
+the panel. The inspector shows measured geometry beside the *authored* inline
+style, which is how you tell "the file says this" from "the browser did that".
 
-- **Device**: pose picker (the pose SVGs are their own thumbnails), screenshot
-  picker with upload, `data-fit`, screen fill colour, and drop-shadow presets.
-  Changing pose or screenshot re-runs the composer runtime for that one block, so
-  the frame is correct before you can touch anything else; a rebuild failure is
-  reported rather than left as an empty frame.
-- **Image**: `src` with the same picker and upload, plus `object-fit`.
-- **Decor**: background, border, and the shared appearance controls.
-- **Panel**: background presets plus a raw CSS field.
-- **Shared appearance** on image and decor: opacity, border-radius, filter,
-  transform, z-index. Rotation has no handle — write it in the transform field.
+**Edit:**
 
-## What P3 adds
+| | |
+| --- | --- |
+| Geometry | Drag to move, handles to resize, arrows to nudge, or type exact numbers. Snaps to panel edges and centres; ⌥ suppresses it |
+| Text | Double-click to edit in place, or use the inspector's copy box. Family, size, weight, line-height, letter-spacing, colour, align |
+| Device | Pose picker, screenshot picker with upload, fit, screen fill colour, shadow presets |
+| Image | `src` picker with upload, `object-fit` |
+| Decor | Background, border, radius, opacity, filter, transform |
+| Panel | Background presets and raw CSS |
+| Structure | Add title/subtitle/caption/device/image/decor, ⌘D duplicate, ⌫ delete, z-order |
 
-- **Edit copy on canvas**: double-click a text block. Enter inserts `<br>`,
-  ⇧/⌘+Enter commits, Escape reverts, clicking away commits. Paste arrives as
-  plain text. Zoom is never changed for you — ⌘/Ctrl+wheel in first if the text
-  is too small to type into comfortably.
-- **Or in the inspector**: a plain-text box where newlines are line breaks.
-- **Type controls**: family, size, weight, line-height, letter-spacing, colour,
-  align. The family list offers the strip's own `--serif` / `--sans` custom
-  properties first, then system fonts only — strips must not load network assets,
-  so a web font would render here and silently fall back on export.
-- Blank style fields mean *inherit*. Clearing one hands the property back to the
-  stylesheet instead of freezing today's computed value into the file.
+**Undo/redo** (⌘Z / ⇧⌘Z) covers every edit type, one gesture at a time.
 
-## What P2 adds
+**Save** (⌘S) writes atomically with an mtime precondition. **Export** renders
+panel PNGs through `render.mjs` into `output/strips/rendered/<strip>/`.
 
-- **Move**: drag any block (select-and-drag in one gesture, 3px threshold so a
-  click cannot nudge). Arrow keys nudge 1px, ⇧ + arrow 10px.
-- **Resize**: drag the handles. Devices and text get `w`/`e` handles only —
-  height is never written for them (device height follows the pose aspect; text
-  height follows its content). Images and decor get all eight.
-- **Inspector geometry is editable**: numeric fields commit on Enter or blur,
-  revert on Escape, and are labelled by the block's *own* anchor.
-- **Save** (⌘S) with a dirty counter, an atomic `tmp`+`rename` write, and an
-  mtime precondition — if the file changed on disk since you opened it, the save
-  is refused and you choose reload-or-overwrite explicitly.
+**While you work**, the file is watched on disk: if something else changes it the
+editor reloads, or asks first when you have unsaved work. A green **live** chip
+confirms the watcher is connected. An agent can claim the document via the mode
+endpoint, which makes the canvas read-only until you take over.
 
-## What P1 adds
+Press **?** for the keyboard map.
 
-- **Layer tree** (left rail): panels with their blocks, listed front-to-back.
-- **Selection**: click a block on the canvas or a tree row; click empty panel
-  space to select the panel. Hover previews the hit target. `Esc` deselects.
-- **Selection chrome**: outline, kind/size label, eight resize handles (drawn,
-  not yet draggable), and a `crops` badge when the block overhangs its panel.
-- **Inspector** (right rail): measured panel-relative geometry, the *authored*
-  inline style declarations, computed position/z-index/opacity/transform/filter,
-  and kind-specific properties — text copy and font metrics, device
-  pack/pose/screenshot/fit/aspect plus whether the runtime actually built it,
-  image src and natural size, decor background/radius/border.
+## Things worth knowing
 
-## What P0 does
-
-- Lists strips from `output/strips/` and `composer/test/`.
-- Opens one in a **same-origin iframe**, served at its repo path so
-  `/datasource/…`, `/web_ui/public/device-frames/…` and `/composer/…` resolve
-  exactly as they do under `render.mjs`'s static server.
-- Waits for `window.__composerReady` **and** `document.fonts.ready` before
-  measuring anything — device blocks build asynchronously, and geometry read
-  too early is geometry read wrong.
-- Scales the whole strip with one CSS `transform: scale()`; zoom controls,
-  fit-width default, ⌘/Ctrl+wheel to zoom.
-- Overlays panel outlines (index + export size) and hatches the inter-panel gap.
-- Surfaces device-build failures that `device-frames.mjs` reports in
-  `window.__composerErrors`.
+- **Blocks may overhang their panel** — `overflow: hidden` crops them, and that
+  is how the cropped-device look is built. The editor never clamps a position,
+  and snapping cannot reach a block that far out.
+- **Devices and text are width-only.** Device height follows the pose aspect
+  ratio; text height follows its content. Neither is ever written to the file.
+- **Blank style fields mean inherit.** Clearing one hands the property back to
+  the strip's stylesheet rather than freezing today's computed value.
+- **Saves are surgical.** Moving one headline changes one line; the rest of the
+  file, including `<head>` and your attribute line breaks, is untouched. The one
+  exception is a panel whose *structure* you changed, which is re-emitted whole.
 
 ## Architecture notes
 
@@ -184,6 +144,43 @@ test missed it because it assigned the strip realm's constructors to
 `globalThis`, which the browser never does. Realm-crossing tests now build two
 separate jsdom windows and assert up front that they really are distinct.
 
+**Watching and locking answer different questions.** The watcher asks "has the
+file changed underneath me?" — a fact about the filesystem, true regardless of
+who wrote it, so an agent, a `git checkout` and a hand edit are all handled
+identically. The mode lock asks "whose turn is it?" — a convention that only
+works if the other party opts in, and exists so an agent turn and a human turn
+are not interleaved on one document. Neither substitutes for the other.
+
+**The watcher follows the directory, not the file.** Atomic saves replace the
+inode, so a watch bound to the file goes deaf the moment anyone saves properly —
+including this editor. Watching the parent and filtering by name survives that.
+Events carry the mtime, which is also how the editor recognises its own save
+(an mtime it already holds) without any echo-suppression bookkeeping on the
+server.
+
+**Undo and redo are the same function.** Every command carries both sides of
+its change — `before`/`after` for properties, `beforeIndex`/`afterIndex` for
+structure — so undoing and redoing differ only in which side they aim at. There
+is no separate inverse-command type to keep in step. A cursor over the log marks
+how much is applied; `log[0…cursor)` is the document, the rest is redoable until
+a new edit truncates it. Undo/redo write the DOM **directly**, never through
+`mutate`: recording them would append commands and the log would grow instead of
+rewinding.
+
+**Structural undo carries the element, not its markup.** Undoing a delete by
+re-parsing a saved snapshot would produce a *different* element object, losing
+the node's identity along with any pending edits keyed to it. A removed element
+is detached, not destroyed, so the command holds the reference and puts the very
+same element back. Positions are child indices, with `null` meaning "not in the
+panel" — which makes insert (`null → n`), delete (`n → null`) and reorder
+(`n → m`) one operation.
+
+**The save point can become unreachable.** Undo below a save and then make a new
+edit, and the command that held the save point is discarded with the redo
+branch. Clamping `savedAt` would make the document read as *clean* while
+differing from disk, so it is marked unreachable instead and the document stays
+dirty.
+
 **One gesture is one entry in the log.** A drag emits a command per pointer
 move — hundreds for a single move. `record` folds commands that share a
 `gesture` label and a target into one, keeping the *earliest* `before` and the
@@ -227,6 +224,15 @@ expando that cannot serialize into HTML), so `cleanClone` removes exactly those
 and leaves authored styles alone. Guessing would either bake one pose's
 `aspect-ratio` into the file or strip a `position` the author actually wrote.
 
+**Snapping bends the "never auto-correct" rule, deliberately and visibly.** That
+rule is about the editor quietly moving a legal position behind the author's
+back — the canvas editor's safe-zone clamp. Snapping happens only inside a
+gesture the human is making, draws a guide showing exactly what it did, and is
+suppressed by holding ⌥. Its threshold is in **screen** pixels divided by zoom,
+not document pixels: six document pixels is under one screen pixel at fit-width
+(unhittable) and a twelve-pixel magnet at 200%. What should stay constant is the
+felt distance.
+
 **Never auto-correct layout.** Blocks may deliberately overhang a panel
 (`overflow: hidden` crops them — that is the cropped-device look). The editor
 must not clamp positions, and layout policy belongs to the validator, not to
@@ -246,9 +252,9 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `GET /__api/strip-editor/raw?path=` | ✅ serve the strip document to the iframe |
 | `GET\|POST /__api/strip-editor/mode` | ✅ endpoint live (same shape as web_ui's designer mode); banner + take-over UI is P6 |
 | `PUT /__api/strip-editor/file?path=&expectMtime=` | ✅ atomic write, 409 on stale mtime |
-| `GET /__api/strip-editor/watch?path=` (SSE) | P6 |
-| `POST /__api/strip-editor/export?path=` | P6 |
-| `POST /__api/strip-editor/validate?path=` | **blocked — see below** |
+| `GET /__api/strip-editor/watch?path=` (SSE) | ✅ directory watch, debounced, mtime-carrying |
+| `POST /__api/strip-editor/export?path=` | ✅ spawns `render.mjs`, returns a JSON summary |
+| `POST /__api/strip-editor/validate?path=` | dropped — see P6 above |
 | `GET\|POST /__api/strip-editor/screenshots` | P4 |
 | Static `/datasource/*`, `/web_ui/public/*`, `/composer/*`, `/output/*` | ✅ |
 | Alias `/__api/datasource/*` → `/datasource/*` | ✅ |
@@ -279,7 +285,6 @@ Every path is jailed to the repo root; strip reads are further restricted to
   nothing is selected. The view scrolls to whatever was just created, so a block
   added to a panel you were not looking at does not read as a block that never
   appeared.
-- **No undo yet.** P5b. Until then, reload from disk to discard a mistake.
 - **Comments inside a restructured panel are lost**, and that panel's
   indentation is normalised. Other panels are untouched.
 - **No gradient stop editor.** Panel backgrounds offer presets and a raw CSS
@@ -289,6 +294,12 @@ Every path is jailed to the repo root; strip reads are further restricted to
   another one belongs to its parent block. Neither test strip nests, and
   `render.mjs` treats them flatly, so this only matters if a future strip nests
   deliberately.
+
+## Verification history
+
+Each phase was checked against the plan's acceptance criteria before moving on.
+Kept because several entries record bugs that were silent, and the reasoning is
+easier to re-derive from the check than from the fix.
 
 ## Verified for P0
 
@@ -437,6 +448,58 @@ Run against `appstore_strip.html` with the real modules under jsdom:
   `position:relative; overflow:hidden`, runtime script and `COMPOSER_CONFIG`),
   and a title + subtitle + device design built entirely through the editor saves
   correctly into it.
+
+## Verified for P5b
+
+The plan's acceptance case, run against `appstore_strip.html`:
+
+- A **20-step mixed run** — moves, a retype, two device attributes, a resize,
+  decor styling, two inserts, a duplicate, two reorders, a delete, a panel
+  background, and nudges — records exactly 20 undoable steps.
+- **Undo everything → byte-identical to the file on disk.** Redo everything →
+  identical to the edited document. Undo everything again → byte-identical
+  again.
+- Dirty state is honest across the save point: clean at it, dirty below it,
+  clean again on redoing back, and **still dirty** when a new edit discards the
+  branch that held it.
+- A new edit after undoing discards the redo branch and redo becomes
+  unavailable.
+
+## Verified for P7
+
+Snap maths, in isolation:
+
+- Snaps whichever of the block's own left/centre/right (top/middle/bottom) is
+  nearest a panel line, deciding each axis independently.
+- Right and bottom edges snap, not just left and top; centre lines work.
+- Nothing within tolerance is left untouched, and no guides are drawn.
+- **Deliberately cropped blocks are never grabbed** — the real bleed positions
+  (`-40`, `-330`, right-anchored overhang) are far outside any tolerance.
+- Threshold scales with zoom: at 15% a 30px gap snaps (40px tolerance), at 100%
+  the same gap does not (6px). A fixed document-px threshold would be 0.9px at
+  fit-width — the bug this design avoids.
+- Tolerance 0 is a clean no-op, which is how ⌥ disables it.
+
+## Verified for P6
+
+Against a live dev server on a scratch copy:
+
+- The watch stream opens with the file's current mtime, fires on an external
+  `touch`, **and fires on an atomic tmp+rename save** — the case a file-bound
+  watch would miss entirely.
+- The mtime a save returns is exactly the one the stream then reports, which is
+  what lets the editor ignore its own writes instead of reloading a moment after
+  saving.
+- Mode round-trips human → agent (with holder) → human; an invalid mode is
+  rejected with 400.
+- `../` traversal and paths outside the allowed strip dirs are rejected by both
+  `watch` and `export`.
+- `export` spawns `composer/render.mjs` with the right arguments and surfaces
+  the renderer's own error verbatim when it fails.
+
+Not verifiable here: a **successful** export — this Linux sandbox has no
+Chromium, and the download is blocked. On your Mac it should render normally;
+worth confirming once.
 
 **Worth doing by hand once:** move a title, save, then
 `node composer/render.mjs --strip <path> --out output/strips/rendered --full`

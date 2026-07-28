@@ -3,7 +3,7 @@
  * the round trip is not clean, write atomically.
  */
 import { StaleFileError, writeStrip } from '../lib/api'
-import { foldEdits, useHistoryStore } from '../store/useHistoryStore'
+import { appliedCommands, foldEdits, isDirty, useHistoryStore } from '../store/useHistoryStore'
 import { getStageIframe } from './stageRef'
 import { serializeWithEdits } from './serializeStrip'
 import { useEditorStore } from '../store/useEditorStore'
@@ -24,13 +24,15 @@ export async function saveStrip(force = false): Promise<SaveOutcome> {
   const { filePath, originalHtml, mtime } = store
 
   if (!filePath || originalHtml === null) return { status: 'error', message: 'no document open' }
-  if (history.log.length === history.savedAt) return { status: 'nothing-to-save' }
+  if (!isDirty(history)) return { status: 'nothing-to-save' }
 
   // The live document is only consulted for panels whose structure changed; every
 // other edit is still spliced from the pristine text.
   const { html, missing, unlocatable, applied } = serializeWithEdits(
     originalHtml,
-    foldEdits(history.log),
+    // Only commands before the cursor are applied; anything undone must not
+    // reach the file.
+    foldEdits(appliedCommands(history)),
     getStageIframe()?.contentDocument ?? null,
   )
 

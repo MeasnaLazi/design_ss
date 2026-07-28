@@ -27,7 +27,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
 import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
+import nodeFs from 'node:fs'
 import path from 'node:path'
 
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -171,6 +173,129 @@ async function serveStatic(urlPath: string, res: ServerResponse): Promise<boolea
     res.end('not found')
   }
   return true
+}
+
+/**
+ * Stream file-change events for one strip.
+ *
+ * Watches the **directory**, not the file. Atomic saves — including this
+ * editor's own tmp+rename — replace the inode, and a watch bound to the old
+ * file goes deaf the moment anyone saves properly. Watching the parent and
+ * filtering by name survives that.
+ *
+ * Events carry the mtime so the client can tell its own save (mtime it already
+ * holds) from someone else's (mtime it has never seen) without any
+ * echo-suppression bookkeeping here.
+ */
+function watchStrip(abs: string, req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-store',
+    Connection: 'keep-alive',
+    // Vite sits behind no proxy in dev, but this is free insurance.
+    'X-Accel-Buffering': 'no',
+  })
+
+  const send = (event: string, data: unknown): void => {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    } catch {
+      /* client gone */
+    }
+  }
+
+  const name = path.basename(abs)
+  let timer: NodeJS.Timeout | null = null
+
+  const emitChange = (): void => {
+    // Editors and atomic renames fire several events per save; collapse them.
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      void fs
+        .stat(abs)
+        .then((stat) => send('change', { mtime: stat.mtime.toISOString(), size: stat.size }))
+        .catch(() => send('removed', { path: toRepoRel(abs) }))
+    }, 120)
+  }
+
+  let watcher: nodeFs.FSWatcher | null = null
+  try {
+    watcher = nodeFs.watch(path.dirname(abs), (_type, changed) => {
+      if (changed === null || changed === name) emitChange()
+    })
+  } catch (e: unknown) {
+    send('error', { message: String((e as Error)?.message ?? e) })
+  }
+
+  // Proxies and browsers drop idle streams; a comment line keeps it warm.
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': keep-alive\n\n')
+    } catch {
+      /* client gone */
+    }
+  }, 25_000)
+
+  const close = (): void => {
+    clearInterval(keepAlive)
+    if (timer) clearTimeout(timer)
+    watcher?.close()
+  }
+  req.on('close', close)
+  res.on('close', close)
+
+  // Named `snapshot`, not `open`: EventSource fires its *own* `open` event when
+  // the connection is established, and a listener bound to that name would
+  // receive both — one of them with no data at all.
+  void fs.stat(abs).then((stat) => send('snapshot', { mtime: stat.mtime.toISOString(), size: stat.size }))
+}
+
+/**
+ * Render the strip with `composer/render.mjs` — the same exporter the design
+ * ships through, run as a child process rather than reimplemented, so the
+ * editor can never disagree with it about what an export looks like.
+ */
+async function runExport(abs: string): Promise<Record<string, unknown>> {
+  const rel = toRepoRel(abs)
+  const slug = path.basename(abs, path.extname(abs))
+  const outDir = path.posix.join('output/strips/rendered', slug)
+
+  return new Promise((resolve) => {
+    const started = Date.now()
+    const child = spawn(
+      process.execPath,
+      [path.join(REPO_ROOT, 'composer', 'render.mjs'), '--strip', rel, '--out', outDir, '--full'],
+      { cwd: REPO_ROOT },
+    )
+
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => (stdout += d.toString()))
+    child.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
+
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 120_000)
+
+    child.on('error', (e) => {
+      clearTimeout(timeout)
+      resolve({ ok: false, error: `could not start the renderer: ${e.message}` })
+    })
+
+    child.on('close', (code) => {
+      clearTimeout(timeout)
+      const ms = Date.now() - started
+      if (code !== 0) {
+        resolve({ ok: false, error: stderr.trim() || stdout.trim() || `renderer exited with code ${code}`, ms })
+        return
+      }
+      // render.mjs prints a JSON summary on success.
+      try {
+        const summary = JSON.parse(stdout) as { panels?: unknown[]; strip?: string }
+        resolve({ ok: true, outDir, ms, panels: summary.panels ?? [], strip: summary.strip ?? null })
+      } catch {
+        resolve({ ok: true, outDir, ms, panels: [], raw: stdout.slice(0, 2000) })
+      }
+    })
+  })
 }
 
 export function editorApiPlugin(): Plugin {
@@ -401,6 +526,28 @@ export function editorApiPlugin(): Plugin {
         await fs.writeFile(path.join(dir, name), Buffer.concat(chunks))
         console.info(`[strip-editor] uploaded ${SCREENSHOTS_DIR}/${preset}/${name} (${bytes} bytes)`)
         sendJson(res, 200, { ok: true, name, url: `/${SCREENSHOTS_DIR}/${preset}/${name}`, size: bytes })
+        return
+      }
+
+      // --- GET /__api/strip-editor/watch?path= (SSE) -----------------------
+      if (route === 'watch' && req.method === 'GET') {
+        const abs = resolveStripPath(url.searchParams.get('path'))
+        if (!abs) {
+          sendJson(res, 400, { ok: false, error: 'bad_path' })
+          return
+        }
+        watchStrip(abs, req, res)
+        return
+      }
+
+      // --- POST /__api/strip-editor/export?path= ---------------------------
+      if (route === 'export' && req.method === 'POST') {
+        const abs = resolveStripPath(url.searchParams.get('path'))
+        if (!abs) {
+          sendJson(res, 400, { ok: false, error: 'bad_path' })
+          return
+        }
+        sendJson(res, 200, await runExport(abs))
         return
       }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 import { HoverOutline, SelectionOverlay } from './SelectionOverlay'
-import { boxToDeclarations, moveBox, resizeBox, resolveAnchors } from '../editor/geometry'
+import { SNAP_THRESHOLD_SCREEN_PX, boxToDeclarations, moveBox, resizeBox, resolveAnchors, snapToPanel } from '../editor/geometry'
 import { docRectOf, getElement, hitTest, indexStrip, isPanelNodeId, readBlock } from '../editor/blockRegistry'
 import { applyGeometry } from '../editor/mutate'
 import { beginTextEditing, endTextEditing } from '../editor/textEditing'
@@ -11,7 +11,7 @@ import { readStrip, stripDocumentUrl } from '../lib/api'
 import { setStageIframe, setStageScroller } from '../editor/stageRef'
 import { useEditorStore } from '../store/useEditorStore'
 import { useHistoryStore } from '../store/useHistoryStore'
-import type { GestureContext, HandleId } from '../editor/geometry'
+import type { GestureContext, Guide, HandleId } from '../editor/geometry'
 import type { Rect } from '../editor/blockRegistry'
 
 /** Breathing room around the strip inside the scroll container, in screen px. */
@@ -28,6 +28,8 @@ type Gesture = {
   originY: number
   label: string
   moved: boolean
+  /** Panel origin in strip-document coordinates, for drawing snap guides. */
+  panelOrigin: { x: number; y: number }
 }
 
 /**
@@ -47,6 +49,7 @@ export function StripStage(): React.ReactElement {
   const selectedId = useEditorStore((s) => s.selectedId)
   const hoveredId = useEditorStore((s) => s.hoveredId)
   const editingId = useEditorStore((s) => s.editingId)
+  const readOnly = useEditorStore((s) => s.mode === 'agent')
   const readout = useEditorStore((s) => s.readout)
   const zoom = useEditorStore((s) => s.zoom)
   const zoomMode = useEditorStore((s) => s.zoomMode)
@@ -67,6 +70,7 @@ export function StripStage(): React.ReactElement {
   const gestureRef = useRef<Gesture | null>(null)
   const [viewportWidth, setViewportWidth] = useState(0)
   const [hoverRect, setHoverRect] = useState<Rect | null>(null)
+  const [guides, setGuides] = useState<Array<Guide & { origin: { x: number; y: number }; panel: { width: number; height: number } }>>([])
 
   useEffect(() => {
     setStageIframe(iframeRef.current)
@@ -181,6 +185,9 @@ export function StripStage(): React.ReactElement {
         originY: docY,
         label: `${handle ? 'resize' : 'move'}:${nodeId}:${Date.now()}`,
         moved: false,
+        // docRect and rect measure the same box in two frames; their difference
+        // is where the panel starts.
+        panelOrigin: { x: r.docRect.left - r.rect.left, y: r.docRect.top - r.rect.top },
       }
       return true
     },
@@ -212,6 +219,7 @@ export function StripStage(): React.ReactElement {
       const iframe = iframeRef.current
       const p = toDocPoint(e.clientX, e.clientY)
       if (!iframe || !p || status !== 'ready') return
+      if (useEditorStore.getState().mode === 'agent') return
       const id = hitTest(iframe, p.x, p.y)
       const node = id ? nodes.find((n) => n.id === id) : null
       if (!id || node?.kind !== 'text') return
@@ -228,6 +236,13 @@ export function StripStage(): React.ReactElement {
       if (!iframe || !p || status !== 'ready') return
       // While a text session owns the iframe, the surface is inert.
       if (useEditorStore.getState().editingId) return
+      // Selection stays available in read-only mode — inspecting is harmless;
+      // only the gesture that would mutate is withheld.
+      if (readOnly) {
+        const id = hitTest(iframe, p.x, p.y)
+        if (id !== selectedId) select(id)
+        return
+      }
 
       const id = hitTest(iframe, p.x, p.y)
       if (id !== selectedId) select(id)
@@ -240,7 +255,7 @@ export function StripStage(): React.ReactElement {
         surfaceRef.current?.setPointerCapture(e.pointerId)
       }
     },
-    [toDocPoint, status, selectedId, select, beginGesture],
+    [toDocPoint, status, selectedId, select, beginGesture, readOnly],
   )
 
   const onHandleDown = useCallback(
@@ -273,7 +288,19 @@ export function StripStage(): React.ReactElement {
       if (!g.moved && Math.hypot(dx, dy) * zoom < DRAG_THRESHOLD) return
       g.moved = true
 
-      const box = g.handle ? resizeBox(g.ctx, g.handle, dx, dy) : moveBox(g.ctx.rect, dx, dy)
+      let box = g.handle ? resizeBox(g.ctx, g.handle, dx, dy) : moveBox(g.ctx.rect, dx, dy)
+
+      // Snap on move only. Resizing is usually a deliberate dimension, and Alt
+      // suppresses snapping entirely for the times the design wants an
+      // off-alignment position.
+      if (!g.handle && !e.altKey) {
+        const snapped = snapToPanel(g.ctx.panel, box, SNAP_THRESHOLD_SCREEN_PX / zoom)
+        box = snapped.box
+        setGuides(snapped.guides.map((guide) => ({ ...guide, origin: g.panelOrigin, panel: g.ctx.panel })))
+      } else {
+        setGuides([])
+      }
+
       applyGeometry(g.nodeId, boxToDeclarations(g.ctx, box), g.label)
     },
     [toDocPoint, status, zoom, setHovered],
@@ -284,6 +311,7 @@ export function StripStage(): React.ReactElement {
       surfaceRef.current?.releasePointerCapture(e.pointerId)
       gestureRef.current = null
     }
+    setGuides([])
   }, [])
 
   // Ctrl/⌘ + wheel zooms, matching every design tool. Plain wheel scrolls.
@@ -315,7 +343,8 @@ export function StripStage(): React.ReactElement {
       if (!d) return
 
       const iframe = iframeRef.current
-      const { selectedId: id, nodes: ns } = useEditorStore.getState()
+      const { selectedId: id, nodes: ns, mode } = useEditorStore.getState()
+      if (mode === 'agent') return
       const node = id ? ns.find((n) => n.id === id) : null
       const el = id ? getElement(id) : null
       if (!iframe || !id || !node || !el || node.kind === 'panel') return
@@ -410,6 +439,29 @@ export function StripStage(): React.ReactElement {
 
           {status === 'ready' && (
             <div className="pointer-events-none absolute inset-0">
+              {guides.map((guide, i) =>
+                guide.axis === 'x' ? (
+                  <div
+                    key={`gx-${i}`}
+                    className={`absolute w-px ${guide.kind === 'center' ? 'bg-fuchsia-400' : 'bg-fuchsia-400/70'}`}
+                    style={{
+                      left: (guide.origin.x + guide.position) * zoom,
+                      top: guide.origin.y * zoom,
+                      height: guide.panel.height * zoom,
+                    }}
+                  />
+                ) : (
+                  <div
+                    key={`gy-${i}`}
+                    className={`absolute h-px ${guide.kind === 'center' ? 'bg-fuchsia-400' : 'bg-fuchsia-400/70'}`}
+                    style={{
+                      top: (guide.origin.y + guide.position) * zoom,
+                      left: guide.origin.x * zoom,
+                      width: guide.panel.width * zoom,
+                    }}
+                  />
+                ),
+              )}
               {showHover && <HoverOutline rect={hoverRect} zoom={zoom} />}
               {selectedNode && readout && (
                 <SelectionOverlay
@@ -417,7 +469,7 @@ export function StripStage(): React.ReactElement {
                   rect={readout.docRect}
                   zoom={zoom}
                   overhangs={Object.values(readout.overhang).some(Boolean)}
-                  movable={readout.movable}
+                  movable={readout.movable && !readOnly}
                   editing={editingId === selectedNode.id}
                   onHandleDown={onHandleDown}
                 />

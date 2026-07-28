@@ -43,6 +43,27 @@ type EditorState = {
   /** Set when the file changed on disk under us; the user picks how to resolve. */
   conflict: { expected: string; actual: string } | null
 
+  /**
+   * Who currently owns the document. While `agent`, the editing surface is
+   * read-only — the same one-way lock web_ui uses, so an agent turn is never
+   * interleaved with human edits on the same file.
+   */
+  mode: 'human' | 'agent'
+  modeSince: string | null
+  modeHolder: string | null
+  /** The file changed on disk and the editor has unsaved work to reconcile. */
+  externalChange: { mtime: string } | null
+  /** Last export result, for the toolbar panel. */
+  exporting: boolean
+  /**
+   * Whether the file-watch stream is connected. Shown in the toolbar because a
+   * watcher that silently stopped working looks exactly like a watcher that has
+   * nothing to report.
+   */
+  watchState: 'connecting' | 'live' | 'offline'
+  /** Transient toolbar message (saved, exported, reloaded). */
+  notice: string | null
+
   /** Selectable nodes of the open document, panels and layers interleaved. */
   nodes: BlockNode[]
   selectedId: string | null
@@ -72,6 +93,11 @@ type EditorState = {
   setSaving: (saving: boolean) => void
   setSaveError: (message: string | null) => void
   setConflict: (conflict: { expected: string; actual: string } | null) => void
+  setMode: (mode: 'human' | 'agent', since: string | null, holder: string | null) => void
+  setExternalChange: (change: { mtime: string } | null) => void
+  setExporting: (exporting: boolean) => void
+  setWatchState: (state: 'connecting' | 'live' | 'offline') => void
+  setNotice: (notice: string | null) => void
   /** After a successful write: the saved text becomes the new patch baseline. */
   onSaved: (html: string, mtime: string) => void
   setZoom: (zoom: number) => void
@@ -95,6 +121,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   saving: false,
   saveError: null,
   conflict: null,
+
+  mode: 'human',
+  modeSince: null,
+  modeHolder: null,
+  externalChange: null,
+  exporting: false,
+  watchState: 'connecting',
+  notice: null,
 
   nodes: [],
   selectedId: null,
@@ -124,6 +158,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       mtime: null,
       saveError: null,
       conflict: null,
+      externalChange: null,
       zoomMode: 'fit',
     })),
   closeFile: () =>
@@ -142,6 +177,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       mtime: null,
       saveError: null,
       conflict: null,
+      externalChange: null,
     }),
   reload: () =>
     set((s) => ({
@@ -159,6 +195,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       mtime: null,
       saveError: null,
       conflict: null,
+      externalChange: null,
     })),
   setLoading: () => set({ status: 'loading', error: null }),
   setReady: (geometry, nodes, composerErrors) =>
@@ -172,7 +209,13 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSaving: (saving) => set({ saving }),
   setSaveError: (saveError) => set({ saveError }),
   setConflict: (conflict) => set({ conflict }),
-  onSaved: (html, mtime) => set({ originalHtml: html, mtime, saving: false, saveError: null, conflict: null }),
+  setMode: (mode, modeSince, modeHolder) => set({ mode, modeSince, modeHolder }),
+  setExternalChange: (externalChange) => set({ externalChange }),
+  setExporting: (exporting) => set({ exporting }),
+  setWatchState: (watchState) => set({ watchState }),
+  setNotice: (notice) => set({ notice }),
+  onSaved: (html, mtime) =>
+    set({ originalHtml: html, mtime, saving: false, saveError: null, conflict: null, externalChange: null }),
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom), zoomMode: 'manual' }),
   // Fit updates must not flip the mode — they come from the resize observer.

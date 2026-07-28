@@ -46,15 +46,20 @@ export type AttributeCommand = {
 /**
  * A change to a panel's *child structure* — insert, delete, duplicate, reorder.
  *
- * Unlike the other commands this records the panel, not the block: once a
- * panel's children change, the file's markup for that whole panel is rewritten
- * from the live DOM at save time, because there is no honest way to express
- * "insert this element between these two" as a source-offset splice without
- * reimplementing an HTML printer for someone else's formatting.
+ * Two things are unusual here.
  *
- * `before` is the panel's cleaned inner markup prior to the change, kept for
- * undo. There is no `after`: the current state is always read from the live DOM,
- * so a structural change followed by ten style tweaks still saves correctly.
+ * It names the panel, not just the block: once a panel's children change, the
+ * file's markup for that whole panel is rewritten from the live DOM at save
+ * time, because there is no honest way to express "insert this element between
+ * these two" as a source-offset splice without reimplementing an HTML printer
+ * for someone else's formatting.
+ *
+ * And it holds the **element itself** rather than a markup snapshot. Undoing a
+ * delete by re-parsing saved markup would produce a *different* element object,
+ * losing the node's identity and with it any pending edits keyed to it. Keeping
+ * the reference means the very same element goes back into the panel — a
+ * removed element is detached, not destroyed. Positions are child indices:
+ * `null` means the element was not in the panel at that point.
  */
 export type StructureCommand = {
   type: 'structure'
@@ -62,7 +67,10 @@ export type StructureCommand = {
   /** What happened, for the undo label. */
   op: 'insert' | 'remove' | 'duplicate' | 'reorder'
   nodeId: string
-  before: string
+  /** Live element reference — deliberately not serializable. */
+  element: HTMLElement
+  beforeIndex: number | null
+  afterIndex: number | null
   gesture?: string
 }
 
@@ -78,12 +86,20 @@ export type FoldedEdits = {
 
 type HistoryState = {
   log: EditCommand[]
-  /** Log length at the last successful save; anything beyond it is unsaved. */
+  /**
+   * How many commands are currently applied. `log[0…cursor)` is the document's
+   * state; `log[cursor…]` has been undone and can be redone until a new edit
+   * truncates it.
+   */
+  cursor: number
+  /** Cursor position at the last successful save; -1 once unreachable. */
   savedAt: number
   /** Bumped on every mutation so views re-measure without diffing the log. */
   revision: number
 
   record: (cmd: EditCommand) => void
+  /** Move the cursor after the DOM has been changed by `editor/undoRedo.ts`. */
+  setCursor: (cursor: number) => void
   markSaved: () => void
   /** Discard all history — on document open, close, or reload. */
   reset: () => void
@@ -123,26 +139,49 @@ function coalesceIndex(log: EditCommand[], cmd: EditCommand, savedAt: number): n
 
 export const useHistoryStore = create<HistoryState>((set) => ({
   log: [],
+  cursor: 0,
   savedAt: 0,
   revision: 0,
   record: (cmd) =>
     set((s) => {
-      const at = coalesceIndex(s.log, cmd, s.savedAt)
-      if (at === -1) return { log: [...s.log, cmd], revision: s.revision + 1 }
+      // A new edit after undoing discards the redo branch. If the save point
+      // lived in the branch just dropped, it is gone for good — mark it
+      // unreachable so the document reads as dirty rather than falsely clean.
+      const log = s.cursor < s.log.length ? s.log.slice(0, s.cursor) : s.log
+      const savedAt = s.savedAt > s.cursor ? -1 : s.savedAt
 
-      const previous = s.log[at]
+      const at = coalesceIndex(log, cmd, Math.max(savedAt, 0))
+      if (at === -1) {
+        return { log: [...log, cmd], cursor: log.length + 1, savedAt, revision: s.revision + 1 }
+      }
+
+      const previous = log[at]
       // Keep the original `before`; take the new `after`.
-      const merged = { ...cmd, before: previous.before } as EditCommand
-      const log = s.log.slice()
-      log[at] = merged
-      return { log, revision: s.revision + 1 }
+      const merged = { ...cmd, before: (previous as { before?: unknown }).before } as EditCommand
+      const next = log.slice()
+      next[at] = merged
+      return { log: next, cursor: next.length, savedAt, revision: s.revision + 1 }
     }),
-  markSaved: () => set((s) => ({ savedAt: s.log.length })),
-  reset: () => set({ log: [], savedAt: 0, revision: 0 }),
+  setCursor: (cursor) => set((s) => ({ cursor, revision: s.revision + 1 })),
+  markSaved: () => set((s) => ({ savedAt: s.cursor })),
+  reset: () => set({ log: [], cursor: 0, savedAt: 0, revision: 0 }),
 }))
 
-export function isDirty(state: { log: unknown[]; savedAt: number }): boolean {
-  return state.log.length !== state.savedAt
+export function isDirty(state: { cursor: number; savedAt: number }): boolean {
+  return state.cursor !== state.savedAt
+}
+
+export function canUndo(state: { cursor: number }): boolean {
+  return state.cursor > 0
+}
+
+export function canRedo(state: { log: unknown[]; cursor: number }): boolean {
+  return state.cursor < state.log.length
+}
+
+/** Commands currently applied to the document — everything before the cursor. */
+export function appliedCommands(state: { log: EditCommand[]; cursor: number }): EditCommand[] {
+  return state.log.slice(0, state.cursor)
 }
 
 /**

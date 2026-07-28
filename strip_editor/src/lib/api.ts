@@ -138,6 +138,69 @@ export function getMode(): Promise<EditorMode> {
   return getJson<EditorMode>(`${API_PREFIX}/mode`)
 }
 
+export async function setMode(mode: 'human' | 'agent', holder?: string): Promise<EditorMode> {
+  const res = await fetch(`${API_PREFIX}/mode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, holder }),
+  })
+  const body = (await res.json()) as EditorMode & { ok?: boolean; error?: string }
+  if (!res.ok || body.ok === false) throw new Error(body.error ?? 'could not change mode')
+  return body
+}
+
+export type ExportResult = {
+  ok: boolean
+  error?: string
+  outDir?: string
+  ms?: number
+  panels?: Array<{ panel: string; file: string; width: number; height: number }>
+  strip?: string | null
+}
+
+export async function exportStrip(path: string): Promise<ExportResult> {
+  const res = await fetch(`${API_PREFIX}/export?path=${encodeURIComponent(path)}`, { method: 'POST' })
+  return (await res.json()) as ExportResult
+}
+
+export type WatchEvent =
+  | { type: 'snapshot' | 'change'; mtime: string; size: number }
+  | { type: 'removed' }
+  /** Connection state, reported by EventSource itself rather than the server. */
+  | { type: 'connected' }
+  | { type: 'disconnected' }
+
+/**
+ * Subscribe to on-disk changes for one strip.
+ *
+ * The stream reports the file's mtime rather than "something changed", so the
+ * caller can recognise its own save (an mtime it already holds) without the
+ * server needing to track who wrote what.
+ */
+export function watchStrip(path: string, onEvent: (event: WatchEvent) => void): () => void {
+  const source = new EventSource(`${API_PREFIX}/watch?path=${encodeURIComponent(path)}`)
+
+  const relay = (type: 'snapshot' | 'change' | 'removed') => (e: MessageEvent) => {
+    try {
+      onEvent({ type, ...(JSON.parse(e.data as string) as object) } as WatchEvent)
+    } catch {
+      /* malformed frame — ignore rather than tear down the stream */
+    }
+  }
+  source.addEventListener('snapshot', relay('snapshot') as EventListener)
+  source.addEventListener('change', relay('change') as EventListener)
+  source.addEventListener('removed', relay('removed') as EventListener)
+
+  // Connection state comes from EventSource, not from the server. Reporting it
+  // is the difference between "live reload is off" and "live reload is broken
+  // and nobody said so" — the second is how a watcher silently stops working
+  // after a dev-server restart.
+  source.onopen = () => onEvent({ type: 'connected' })
+  source.onerror = () => onEvent({ type: 'disconnected' })
+
+  return () => source.close()
+}
+
 /**
  * URL the editing iframe loads. `bust` forces a fresh document on reload —
  * strip assets are served `no-store`, but the HTML itself must not come from

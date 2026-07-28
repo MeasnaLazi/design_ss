@@ -12,7 +12,7 @@
  */
 import { adoptElement, freshNodeId, getElement } from './blockRegistry'
 import { blockTemplate } from './schema'
-import { cleanClone, emitPanelContent } from './emitMarkup'
+import { cleanClone } from './emitMarkup'
 import { useHistoryStore } from '../store/useHistoryStore'
 import type { InsertSpec } from './schema'
 
@@ -47,18 +47,38 @@ function panelOf(el: HTMLElement): { panel: HTMLElement; panelId: string } | nul
   return { panel, panelId: `panel:${Number.isFinite(index) ? index : 0}` }
 }
 
+/**
+ * Record a structural change as a pair of child positions.
+ *
+ * `null` means "not in the panel": an insert is `null → n`, a delete is
+ * `n → null`, a reorder is `n → m`. Undo and redo are then the same operation
+ * run toward different targets, and because the *element* travels with the
+ * command rather than a markup snapshot, the block keeps its identity across
+ * both.
+ */
 function recordStructure(
   panelId: string,
   op: 'insert' | 'remove' | 'duplicate' | 'reorder',
   nodeId: string,
-  before: string,
+  element: HTMLElement,
+  beforeIndex: number | null,
+  afterIndex: number | null,
 ): void {
-  useHistoryStore.getState().record({ type: 'structure', panelId, op, nodeId, before, gesture: `${op}:${nodeId}` })
+  useHistoryStore.getState().record({
+    type: 'structure',
+    panelId,
+    op,
+    nodeId,
+    element,
+    beforeIndex,
+    afterIndex,
+    gesture: `${op}:${nodeId}:${Date.now()}`,
+  })
 }
 
-/** Panel markup as it would be written to the file right now — the undo baseline. */
-function snapshot(panel: HTMLElement): string {
-  return emitPanelContent(panel)
+/** Child index of an element among its panel's element children. */
+function indexIn(panel: HTMLElement, el: HTMLElement): number {
+  return Array.from(panel.children).indexOf(el)
 }
 
 export type StructureResult = { nodeId: string | null; error?: string }
@@ -75,7 +95,6 @@ export async function insertBlock(
   const panel = getElement(panelId)
   if (!panel) return { nodeId: null, error: 'panel not found' }
 
-  const before = snapshot(panel)
   const rect = panel.getBoundingClientRect()
   const spec: InsertSpec = {
     kind,
@@ -94,7 +113,7 @@ export async function insertBlock(
   panel.appendChild(el)
   const nodeId = freshNodeId()
   adoptElement(el, nodeId)
-  recordStructure(panelId, 'insert', nodeId, before)
+  recordStructure(panelId, 'insert', nodeId, el, null, indexIn(panel, el))
 
   const error = await buildDevicesIn(el)
   return { nodeId, error }
@@ -107,9 +126,9 @@ export function removeBlock(nodeId: string): StructureResult {
   const owner = panelOf(el)
   if (!owner) return { nodeId: null, error: 'block is not inside a panel' }
 
-  const before = snapshot(owner.panel)
+  const at = indexIn(owner.panel, el)
   el.remove()
-  recordStructure(owner.panelId, 'remove', nodeId, before)
+  recordStructure(owner.panelId, 'remove', nodeId, el, at, null)
   return { nodeId: null }
 }
 
@@ -123,7 +142,6 @@ export async function duplicateBlock(nodeId: string): Promise<StructureResult> {
   const owner = panelOf(el)
   if (!owner) return { nodeId: null, error: 'block is not inside a panel' }
 
-  const before = snapshot(owner.panel)
   // Clone the *declarative* element, not the runtime-populated one: a copied
   // device must rebuild from its attributes, not inherit a stale warped stage.
   const copy = cleanClone(el)
@@ -139,7 +157,7 @@ export async function duplicateBlock(nodeId: string): Promise<StructureResult> {
   el.after(copy)
   const newId = freshNodeId()
   adoptElement(copy, newId)
-  recordStructure(owner.panelId, 'duplicate', newId, before)
+  recordStructure(owner.panelId, 'duplicate', newId, copy, null, indexIn(owner.panel, copy))
 
   const error = await buildDevicesIn(copy)
   return { nodeId: newId, error }
@@ -165,7 +183,6 @@ export function reorderBlock(nodeId: string, move: ZMove): StructureResult {
   const at = siblings.indexOf(el)
   if (at === -1) return { nodeId: null, error: 'block is not a direct child of its panel' }
 
-  const before = snapshot(owner.panel)
   switch (move) {
     case 'front':
       owner.panel.appendChild(el)
@@ -184,9 +201,10 @@ export function reorderBlock(nodeId: string, move: ZMove): StructureResult {
   // Already at the end it was asked to move to: nothing happened, so record
   // nothing. Compare positions, not markup — two blocks can serialize
   // identically while occupying different slots.
-  if (Array.from(owner.panel.children).indexOf(el) === at) return { nodeId }
+  const now = indexIn(owner.panel, el)
+  if (now === at) return { nodeId }
 
-  recordStructure(owner.panelId, 'reorder', nodeId, before)
+  recordStructure(owner.panelId, 'reorder', nodeId, el, at, now)
 
   const explicitZ = el.ownerDocument.defaultView?.getComputedStyle(el).zIndex
   if (explicitZ && explicitZ !== 'auto') {

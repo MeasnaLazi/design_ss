@@ -6,20 +6,13 @@
  * positional ids would shift, but `indexStrip` reuses the id each element
  * already carries, so pending edits keyed by id keep pointing at the same block.
  */
-import { docRectOf, indexStrip } from './blockRegistry'
+import { docRectOf } from './blockRegistry'
 import { duplicateBlock, insertBlock, removeBlock, reorderBlock } from './structure'
 import { getStageIframe, getStageScroller } from './stageRef'
+import { reindexLive } from './reindex'
 import { useEditorStore } from '../store/useEditorStore'
 import type { InsertSpec } from './schema'
 import type { ZMove } from './structure'
-
-/** Re-index the live document, preserving identity, and refresh the store. */
-function reindex(): void {
-  const iframe = getStageIframe()
-  const store = useEditorStore.getState()
-  if (!iframe || !store.geometry) return
-  store.setReady(store.geometry, indexStrip(iframe), store.composerErrors)
-}
 
 function report(error?: string): void {
   if (error) useEditorStore.getState().setSaveError(error)
@@ -68,7 +61,7 @@ export async function addBlock(kind: InsertSpec['kind'], role?: InsertSpec['role
   const panelId = targetPanelId()
   if (!panelId) return
   const { nodeId, error } = await insertBlock(panelId, kind, { role })
-  reindex()
+  reindexLive()
   if (nodeId) {
     useEditorStore.getState().select(nodeId)
     reveal(nodeId)
@@ -82,7 +75,7 @@ export function deleteSelection(): void {
   // Panels are structural to the export preset, not content — never deletable.
   if (!node || node.kind === 'panel') return
   const { error } = removeBlock(node.id)
-  reindex()
+  reindexLive()
   useEditorStore.getState().select(null)
   report(error)
 }
@@ -92,7 +85,7 @@ export async function duplicateSelection(): Promise<void> {
   const node = nodes.find((n) => n.id === selectedId)
   if (!node || node.kind === 'panel') return
   const { nodeId, error } = await duplicateBlock(node.id)
-  reindex()
+  reindexLive()
   if (nodeId) {
     useEditorStore.getState().select(nodeId)
     reveal(nodeId)
@@ -105,7 +98,7 @@ export function moveSelection(move: ZMove): void {
   const node = nodes.find((n) => n.id === selectedId)
   if (!node || node.kind === 'panel') return
   const { error } = reorderBlock(node.id, move)
-  reindex()
+  reindexLive()
   useEditorStore.getState().select(node.id)
   report(error)
 }

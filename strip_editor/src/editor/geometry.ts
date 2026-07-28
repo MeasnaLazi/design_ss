@@ -179,6 +179,93 @@ export function boxToDeclarations(ctx: GestureContext, box: Rect): Declaration[]
   return out
 }
 
+/**
+ * Snapping, while dragging, to the panel's own edges and centre lines.
+ *
+ * ## Why the threshold is in screen pixels
+ *
+ * The plan said "6px", but document pixels are the wrong unit: at fit-width zoom
+ * (~15% for a five-panel strip) six document pixels is under one screen pixel —
+ * unhittable — while at 200% it is a twelve-pixel magnet. What should stay
+ * constant is the *felt* distance, so the threshold is screen pixels and the
+ * caller divides by zoom to get the document-space tolerance.
+ *
+ * ## Why this does not contradict "never auto-correct layout"
+ *
+ * That rule is about the editor quietly moving a legal position behind the
+ * author's back — the canvas editor's safe-zone clamp. Snapping is the opposite:
+ * it happens only inside a gesture the human is actively making, shows a guide
+ * for exactly what it did, and is suppressed by holding a modifier. It also
+ * cannot reach a deliberately cropped block bleeding off the panel, because that
+ * sits far outside any sane threshold.
+ */
+export const SNAP_THRESHOLD_SCREEN_PX = 6
+
+export type Guide = {
+  axis: 'x' | 'y'
+  /** Panel-relative position of the line. */
+  position: number
+  kind: 'edge' | 'center'
+}
+
+type SnapLine = { position: number; kind: 'edge' | 'center' }
+
+/** Nearest line to any of the block's own alignment points, within tolerance. */
+function nearestSnap(points: number[], lines: SnapLine[], tolerance: number): { delta: number; line: SnapLine } | null {
+  let best: { delta: number; line: SnapLine } | null = null
+  for (const point of points) {
+    for (const line of lines) {
+      const delta = line.position - point
+      if (Math.abs(delta) > tolerance) continue
+      if (!best || Math.abs(delta) < Math.abs(best.delta)) best = { delta, line }
+    }
+  }
+  return best
+}
+
+/**
+ * Nudge a moved box onto a panel edge or centre if it is close enough.
+ *
+ * The block's own left/centre/right (and top/middle/bottom) are all candidates,
+ * so a block can align by any of its edges — whichever is nearest wins, and each
+ * axis is decided independently.
+ */
+export function snapToPanel(
+  panel: { width: number; height: number },
+  box: Rect,
+  tolerance: number,
+): { box: Rect; guides: Guide[] } {
+  if (tolerance <= 0) return { box, guides: [] }
+
+  const xLines: SnapLine[] = [
+    { position: 0, kind: 'edge' },
+    { position: panel.width / 2, kind: 'center' },
+    { position: panel.width, kind: 'edge' },
+  ]
+  const yLines: SnapLine[] = [
+    { position: 0, kind: 'edge' },
+    { position: panel.height / 2, kind: 'center' },
+    { position: panel.height, kind: 'edge' },
+  ]
+
+  const x = nearestSnap([box.left, box.left + box.width / 2, box.left + box.width], xLines, tolerance)
+  const y = nearestSnap([box.top, box.top + box.height / 2, box.top + box.height], yLines, tolerance)
+
+  const guides: Guide[] = []
+  if (x) guides.push({ axis: 'x', position: x.line.position, kind: x.line.kind })
+  if (y) guides.push({ axis: 'y', position: y.line.position, kind: y.line.kind })
+
+  return {
+    box: {
+      left: box.left + (x?.delta ?? 0),
+      top: box.top + (y?.delta ?? 0),
+      width: box.width,
+      height: box.height,
+    },
+    guides,
+  }
+}
+
 export function cursorFor(handle: HandleId): string {
   if (handle === 'n' || handle === 's') return 'ns-resize'
   if (handle === 'e' || handle === 'w') return 'ew-resize'
