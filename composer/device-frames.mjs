@@ -107,10 +107,23 @@ async function buildDevice(el) {
   const quad = quadFromFrameCorners(frame.corners)
 
   // Container: author sets width; height follows the pose aspect ratio.
+  //
+  // Record which inline properties are *derived* rather than authored. Tooling
+  // that writes the strip back to disk (the strip editor) must not persist
+  // these — they are recomputed from the pose on every load, and baking them in
+  // would freeze one pose's aspect ratio into the file. A JS expando is used
+  // deliberately: unlike a data attribute it can never serialize into HTML.
+  const derived = []
   const cs = getComputedStyle(el)
-  if (cs.position === 'static') el.style.position = 'relative'
+  if (cs.position === 'static') {
+    el.style.position = 'relative'
+    derived.push('position')
+  }
   el.style.aspectRatio = `${viewW} / ${viewH}`
+  derived.push('aspect-ratio')
   el.style.overflow = 'visible'
+  derived.push('overflow')
+  el.__composerDerivedProps = derived
 
   // Stage in viewBox units, uniformly scaled to the container width.
   const rect = el.getBoundingClientRect()
@@ -175,8 +188,30 @@ export async function initDevices() {
   window.__composerReady = true
 }
 
+/**
+ * Re-run one device block after its authoring attributes change (pose, pack,
+ * screenshot, fit, fallback). Used by the strip editor; `render.mjs` only ever
+ * needs the one-shot `initDevices`.
+ *
+ * Discards the previously injected stage and the derived inline styles
+ * (`aspect-ratio` comes from the new pose's viewBox and must not be inherited
+ * from the old one), then rebuilds from the element's current attributes.
+ * Rejects on failure so the caller can report it rather than leaving a silently
+ * empty frame.
+ */
+export async function rebuildDevice(el) {
+  el.replaceChildren()
+  el.style.removeProperty('aspect-ratio')
+  el.style.removeProperty('outline')
+  await buildDevice(el)
+}
+
 if (typeof window !== 'undefined') {
   window.__composerReady = false
+  // Expose the runtime to same-origin tooling (the strip editor). Module
+  // exports are not reachable across realms, and re-importing the module from
+  // another realm would bind it to the wrong `document`.
+  window.__composerDevices = { initDevices, rebuildDevice }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { initDevices() })
   } else {

@@ -7,3 +7,5 @@ datasource/temp/**
 datasource/memories/**
 !datasource/memories/.gitkeep
 output/**
+strip_editor/node_modules/
+strip_editor/package-lock.json
