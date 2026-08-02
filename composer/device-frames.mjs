@@ -26,8 +26,16 @@ import {
 } from './homography.mjs'
 
 const CONFIG = typeof window !== 'undefined' && window.COMPOSER_CONFIG ? window.COMPOSER_CONFIG : {}
-/** Root under which /device-frames/** is served (repo-root static server → web_ui/public). */
-const FRAMES_ROOT = CONFIG.framesRoot ?? '/web_ui/public'
+/**
+ * Root under which `/device-frames/**` is served by the repo-root static server.
+ *
+ * The packs sit in `composer/device-frames/`, beside this file — a strip depends
+ * on `composer/` already (its `<head>` loads this module), so the frames add no
+ * dependency the strip did not have. Strips need not set `framesRoot` at all;
+ * the older ones that point at `/web_ui/public` still resolve because both the
+ * export server and the editor alias that prefix to the new location.
+ */
+const FRAMES_ROOT = CONFIG.framesRoot ?? '/composer'
 
 const packCache = new Map()
 const svgTextCache = new Map()

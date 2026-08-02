@@ -104,9 +104,28 @@ export function listScreenshots(preset: string): Promise<{ preset: string; files
 }
 
 /** Upload as a raw body — the filename and bucket ride in the query string. */
-export async function uploadScreenshot(preset: string, file: File): Promise<ScreenshotFile> {
-  const qs = new URLSearchParams({ preset, filename: file.name })
-  const res = await fetch(`${API_PREFIX}/screenshots?${qs.toString()}`, {
+export function uploadScreenshot(preset: string, file: File): Promise<ScreenshotFile> {
+  return postImage(`${API_PREFIX}/screenshots?${new URLSearchParams({ preset, filename: file.name })}`, file)
+}
+
+/**
+ * Artwork library for image layers (`datasource/images/`).
+ *
+ * Deliberately separate from the screenshot library: a screenshot goes on a
+ * phone screen and is bucketed by export preset to keep its aspect ratio
+ * honest, whereas an image layer is a logo or texture with no such contract.
+ * Flat list, no presets.
+ */
+export function listImages(): Promise<{ files: ScreenshotFile[] }> {
+  return getJson(`${API_PREFIX}/images`)
+}
+
+export function uploadImage(file: File): Promise<ScreenshotFile> {
+  return postImage(`${API_PREFIX}/images?${new URLSearchParams({ filename: file.name })}`, file)
+}
+
+async function postImage(url: string, file: File): Promise<ScreenshotFile> {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file,
@@ -116,18 +135,25 @@ export async function uploadScreenshot(preset: string, file: File): Promise<Scre
   return { name: body.name, url: body.url, size: body.size, mtime: new Date().toISOString() }
 }
 
+/**
+ * Root under which the device-frame packs are served, matching the default in
+ * `composer/device-frames.mjs`. Frame paths inside `index.json` are relative to
+ * it, so this is the one place the location is written down.
+ */
+export const FRAMES_ROOT = '/composer'
+
 /** Pose catalogue for a device pack, straight from the statically served frame.json. */
 export type DevicePose = { name: string; description?: string; framePath: string }
 
 export async function listDevicePoses(pack: string): Promise<DevicePose[]> {
-  const res = await fetch(`/web_ui/public/device-frames/${encodeURIComponent(pack)}/frame.json`)
+  const res = await fetch(`${FRAMES_ROOT}/device-frames/${encodeURIComponent(pack)}/frame.json`)
   if (!res.ok) throw new Error(`unknown device pack "${pack}"`)
   const json = (await res.json()) as { frames: DevicePose[] }
   return json.frames
 }
 
 export async function listDevicePacks(): Promise<string[]> {
-  const res = await fetch('/web_ui/public/device-frames/index.json')
+  const res = await fetch(`${FRAMES_ROOT}/device-frames/index.json`)
   if (!res.ok) return []
   const json = (await res.json()) as { devices: Array<{ path: string }> }
   // `path` looks like /device-frames/<pack>/frame.json — the pack id is the folder.

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { solveProjection, matrix3dForQuad, quadFromFrameCorners, quadSize, coverCropRect } from '../homography.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const FRAMES_DIR = path.join(REPO_ROOT, 'web_ui/public/device-frames')
+const FRAMES_DIR = path.join(REPO_ROOT, 'composer/device-frames')
 
 function applyH(H, [x, y]) {
   const [a, b, c, d, e, f, g, h] = H

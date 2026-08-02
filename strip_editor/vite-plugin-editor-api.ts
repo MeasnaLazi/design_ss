@@ -4,12 +4,13 @@
  * Two jobs:
  *
  * 1. **Repo-root static aliasing.** Strip HTML references assets root-relatively
- *    (`/datasource/…`, `/web_ui/public/device-frames/…`, `/composer/…`) because
- *    `composer/render.mjs` serves the repo root. Vite's root is `strip_editor/`,
- *    so this middleware serves those prefixes straight off disk — the same URL
- *    space the export renderer uses. Also aliases `/__api/datasource/*` →
- *    `datasource/*` for strips authored against the web_ui dev server (same
- *    alias `render.mjs` implements).
+ *    (`/datasource/…`, `/composer/…`) because `composer/render.mjs` serves the
+ *    repo root. Vite's root is `strip_editor/`, so this middleware serves those
+ *    prefixes straight off disk — the same URL space the export renderer uses.
+ *    It also implements the same two legacy aliases `render.mjs` does, so a
+ *    strip renders identically in the iframe and in the export:
+ *    `/__api/datasource/*` → `datasource/*`, and the pre-move device-frame
+ *    prefix `/web_ui/public/device-frames/*` → `composer/device-frames/*`.
  *
  * 2. **Strip file IO** under `/__api/strip-editor/*` — list, read, raw-serve
  *    for the editing iframe.
@@ -41,23 +42,25 @@ const STRIP_DIRS = ['output/strips', 'composer/test'] as const
 /**
  * URL prefixes served straight off the repo root (the render.mjs URL space).
  *
- * `/strip_editor/assets/` is here for the image placeholder. `render.mjs` serves
- * the whole repo root so it resolves there for free; this middleware has to be
- * told, because Vite's root is `strip_editor/` and the URL would otherwise fall
- * through to the SPA handler.
+ * Checked *after* {@link aliasLegacy}, so a retired prefix needs an entry here
+ * only if it still names a real directory.
  */
-const STATIC_PREFIXES = [
-  '/datasource/',
-  '/web_ui/public/',
-  '/composer/',
-  '/output/',
-  '/strip_editor/assets/',
-] as const
+const STATIC_PREFIXES = ['/datasource/', '/composer/', '/output/'] as const
 
 const API_PREFIX = '/__api/strip-editor/'
 
 /** Screenshot library, repo-relative. Buckets are export presets. */
 const SCREENSHOTS_DIR = 'datasource/screenshots'
+/**
+ * Artwork for image layers: logos, textures, illustrations.
+ *
+ * Separate from {@link SCREENSHOTS_DIR} because the two are different kinds of
+ * thing. A screenshot is destined for a phone screen and must match its export
+ * preset's aspect ratio, which is what the preset buckets encode. An image layer
+ * has no such constraint, so this directory is flat — and it is committed, so a
+ * clone can render a strip that references it.
+ */
+const IMAGES_DIR = 'datasource/images'
 /** One path segment, no traversal, no surprises in a URL. */
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -160,12 +163,121 @@ async function listStrips(): Promise<Array<{ path: string; name: string; dir: st
   return out
 }
 
+type LibraryFile = { name: string; url: string; size: number; mtime: string }
+
+/**
+ * List the images in one directory, newest first.
+ *
+ * `urlPrefix` is the repo-root URL that `dir` is served under, so the returned
+ * `url` is exactly what goes into the strip's `src` — the picker never has to
+ * build a path itself. A missing directory lists as empty rather than failing:
+ * the library is optional.
+ */
+async function readImageDir(dir: string, urlPrefix: string): Promise<LibraryFile[]> {
+  let entries: Dirent[] = []
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const files = await Promise.all(
+    entries
+      .filter((e) => e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase()))
+      .map(async (e) => {
+        const stat = await fs.stat(path.join(dir, e.name))
+        return { name: e.name, url: `${urlPrefix}/${e.name}`, size: stat.size, mtime: stat.mtime.toISOString() }
+      }),
+  )
+  files.sort((a, b) => b.mtime.localeCompare(a.mtime))
+  return files
+}
+
+/**
+ * Read an upload body, enforcing {@link MAX_UPLOAD_BYTES}.
+ * Responds itself and returns `null` if the body is oversized or empty.
+ */
+async function receiveUpload(req: IncomingMessage, res: ServerResponse): Promise<Buffer | null> {
+  const chunks: Buffer[] = []
+  let bytes = 0
+  for await (const chunk of req) {
+    bytes += (chunk as Buffer).length
+    if (bytes > MAX_UPLOAD_BYTES) {
+      sendJson(res, 413, { ok: false, error: 'too_large', limit: MAX_UPLOAD_BYTES })
+      return null
+    }
+    chunks.push(Buffer.from(chunk as Buffer))
+  }
+  if (bytes === 0) {
+    sendJson(res, 400, { ok: false, error: 'empty_body' })
+    return null
+  }
+  return Buffer.concat(chunks)
+}
+
+/**
+ * Write `data` into `dir` under a name that is not already taken.
+ *
+ * Never overwrites: an existing image may be referenced by other strips, and a
+ * silent replacement would change designs the author is not looking at.
+ */
+async function writeUnique(dir: string, rawName: string, data: Buffer): Promise<string> {
+  await fs.mkdir(dir, { recursive: true })
+  const ext = path.extname(rawName).toLowerCase()
+  const base = path.basename(rawName, path.extname(rawName))
+  let name = `${base}${ext}`
+  for (let n = 2; ; n++) {
+    try {
+      await fs.access(path.join(dir, name))
+      name = `${base}-${n}${ext}`
+    } catch {
+      break
+    }
+  }
+  await fs.writeFile(path.join(dir, name), data)
+  return name
+}
+
+/**
+ * Is this a filename the library will accept?
+ *
+ * Rejects anything carrying a directory component outright rather than reducing
+ * it to its basename. Both land in the right directory, but silently accepting
+ * `../../logo.png` and storing it as `logo.png` means the client is told the
+ * upload succeeded under a name it never asked for.
+ */
+function validUploadName(rawName: string): boolean {
+  if (!rawName || rawName !== path.basename(rawName) || rawName.includes('/') || rawName.includes('\\')) {
+    return false
+  }
+  const ext = path.extname(rawName).toLowerCase()
+  return SAFE_SEGMENT.test(path.basename(rawName, path.extname(rawName))) && IMAGE_EXT.has(ext)
+}
+
+/**
+ * Rewrite legacy URL prefixes onto their current location.
+ *
+ * Must stay in lockstep with the same aliases in `composer/render.mjs`: if the
+ * two disagree, a strip renders one way in the editor and another way in the
+ * export, which is precisely the class of bug this editor exists to remove.
+ */
+function aliasLegacy(urlPath: string): string {
+  // Strips authored against the web_ui dev server use /__api/datasource/*.
+  if (urlPath.startsWith('/__api/datasource/')) {
+    return urlPath.replace('/__api/datasource/', '/datasource/')
+  }
+  // Device frames lived in web_ui/public/ before they moved next to the runtime
+  // that reads them. Strips predating the move hardcode the old prefix, and the
+  // ones in output/ are gitignored — aliasing is cheaper than rewriting files
+  // that have no version history to fall back on.
+  if (urlPath.startsWith('/web_ui/public/device-frames/')) {
+    return urlPath.replace('/web_ui/public/device-frames/', '/composer/device-frames/')
+  }
+  return urlPath
+}
+
 /** Serve a repo-root file for one of {@link STATIC_PREFIXES}. Returns false if not handled. */
 async function serveStatic(urlPath: string, res: ServerResponse): Promise<boolean> {
-  // Strips authored against the web_ui dev server use /__api/datasource/*.
-  const normalized = urlPath.startsWith('/__api/datasource/')
-    ? urlPath.replace('/__api/datasource/', '/datasource/')
-    : urlPath
+  const normalized = aliasLegacy(urlPath)
   if (!STATIC_PREFIXES.some((p) => normalized.startsWith(p))) return false
 
   const abs = resolveInRepo(normalized.replace(/^\/+/, ''))
@@ -463,29 +575,11 @@ export function editorApiPlugin(): Plugin {
           sendJson(res, 200, { ok: true, presets: entries.filter((e) => e.isDirectory()).map((e) => e.name) })
           return
         }
-        let entries: Dirent[] = []
-        try {
-          entries = await fs.readdir(dir, { withFileTypes: true })
-        } catch {
-          sendJson(res, 200, { ok: true, preset, files: [] })
-          return
-        }
-        const files = await Promise.all(
-          entries
-            .filter((e) => e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase()))
-            .map(async (e) => {
-              const stat = await fs.stat(path.join(dir, e.name))
-              return {
-                name: e.name,
-                // The URL form strips use, so the picker can write it straight in.
-                url: `/${SCREENSHOTS_DIR}/${preset}/${e.name}`,
-                size: stat.size,
-                mtime: stat.mtime.toISOString(),
-              }
-            }),
-        )
-        files.sort((a, b) => b.mtime.localeCompare(a.mtime))
-        sendJson(res, 200, { ok: true, preset, files })
+        sendJson(res, 200, {
+          ok: true,
+          preset,
+          files: await readImageDir(dir, `/${SCREENSHOTS_DIR}/${preset}`),
+        })
         return
       }
 
@@ -493,52 +587,59 @@ export function editorApiPlugin(): Plugin {
       if (route === 'screenshots' && req.method === 'POST') {
         const preset = url.searchParams.get('preset') ?? ''
         const rawName = url.searchParams.get('filename') ?? ''
-        const ext = path.extname(rawName).toLowerCase()
         if (!SAFE_SEGMENT.test(preset)) {
           sendJson(res, 400, { ok: false, error: 'bad_preset' })
           return
         }
-        if (!SAFE_SEGMENT.test(path.basename(rawName, ext)) || !IMAGE_EXT.has(ext)) {
+        if (!validUploadName(rawName)) {
           sendJson(res, 400, { ok: false, error: 'bad_filename', allowed: [...IMAGE_EXT] })
           return
         }
-
-        const chunks: Buffer[] = []
-        let bytes = 0
-        for await (const chunk of req) {
-          bytes += (chunk as Buffer).length
-          if (bytes > MAX_UPLOAD_BYTES) {
-            sendJson(res, 413, { ok: false, error: 'too_large', limit: MAX_UPLOAD_BYTES })
-            return
-          }
-          chunks.push(Buffer.from(chunk as Buffer))
-        }
-        if (bytes === 0) {
-          sendJson(res, 400, { ok: false, error: 'empty_body' })
-          return
-        }
-
         const dir = resolveInRepo(path.posix.join(SCREENSHOTS_DIR, preset))
         if (!dir) {
           sendJson(res, 400, { ok: false, error: 'bad_preset' })
           return
         }
-        await fs.mkdir(dir, { recursive: true })
-        // Never overwrite: an existing screenshot may be referenced by other
-        // strips, and a silent replacement would change designs elsewhere.
-        const base = path.basename(rawName, ext)
-        let name = `${base}${ext}`
-        for (let n = 2; ; n++) {
-          try {
-            await fs.access(path.join(dir, name))
-            name = `${base}-${n}${ext}`
-          } catch {
-            break
-          }
+        const data = await receiveUpload(req, res)
+        if (!data) return
+
+        const name = await writeUnique(dir, rawName, data)
+        console.info(`[strip-editor] uploaded ${SCREENSHOTS_DIR}/${preset}/${name} (${data.length} bytes)`)
+        sendJson(res, 200, { ok: true, name, url: `/${SCREENSHOTS_DIR}/${preset}/${name}`, size: data.length })
+        return
+      }
+
+      // --- GET /__api/strip-editor/images ----------------------------------
+      // Flat artwork library for image layers. No presets: an image layer has no
+      // aspect-ratio contract to honour, unlike a device screenshot.
+      if (route === 'images' && req.method === 'GET') {
+        const dir = resolveInRepo(IMAGES_DIR)
+        if (!dir) {
+          sendJson(res, 500, { ok: false, error: 'bad_images_dir' })
+          return
         }
-        await fs.writeFile(path.join(dir, name), Buffer.concat(chunks))
-        console.info(`[strip-editor] uploaded ${SCREENSHOTS_DIR}/${preset}/${name} (${bytes} bytes)`)
-        sendJson(res, 200, { ok: true, name, url: `/${SCREENSHOTS_DIR}/${preset}/${name}`, size: bytes })
+        sendJson(res, 200, { ok: true, files: await readImageDir(dir, `/${IMAGES_DIR}`) })
+        return
+      }
+
+      // --- POST /__api/strip-editor/images?filename= ------------------------
+      if (route === 'images' && req.method === 'POST') {
+        const rawName = url.searchParams.get('filename') ?? ''
+        if (!validUploadName(rawName)) {
+          sendJson(res, 400, { ok: false, error: 'bad_filename', allowed: [...IMAGE_EXT] })
+          return
+        }
+        const dir = resolveInRepo(IMAGES_DIR)
+        if (!dir) {
+          sendJson(res, 500, { ok: false, error: 'bad_images_dir' })
+          return
+        }
+        const data = await receiveUpload(req, res)
+        if (!data) return
+
+        const name = await writeUnique(dir, rawName, data)
+        console.info(`[strip-editor] uploaded ${IMAGES_DIR}/${name} (${data.length} bytes)`)
+        sendJson(res, 200, { ok: true, name, url: `/${IMAGES_DIR}/${name}`, size: data.length })
         return
       }
 

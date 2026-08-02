@@ -13,7 +13,8 @@
  *   --timeout <ms>            ready-wait timeout (default 30000)
  *
  * The page is served over a local static file server rooted at the repo root,
- * so strip HTML can reference /web_ui/public/**, /datasource/**, /composer/**.
+ * so strip HTML can reference /composer/** (device frames, the runtime) and
+ * /datasource/** (screenshots).
  * Waits for window.__composerReady (set by device-frames.mjs) when the page
  * uses composer runtime; otherwise waits for load + fonts.
  */
@@ -67,6 +68,13 @@ function startStaticServer(root) {
       // Alias the dev-server datasource API route to the repo folder so strip
       // HTML works with either /datasource/... or /__api/datasource/... URLs.
       if (urlPath.startsWith('/__api/datasource/')) urlPath = urlPath.replace('/__api/datasource/', '/datasource/')
+      // Device frames moved from web_ui/public/ to composer/. Strips authored
+      // before the move hardcode `framesRoot: '/web_ui/public'`, and many of
+      // them live in gitignored output/ where a bad rewrite is unrecoverable —
+      // so the old prefix is aliased rather than the files being rewritten.
+      if (urlPath.startsWith('/web_ui/public/device-frames/')) {
+        urlPath = urlPath.replace('/web_ui/public/device-frames/', '/composer/device-frames/')
+      }
       const filePath = path.normalize(path.join(root, urlPath))
       if (!filePath.startsWith(root)) { res.writeHead(403).end(); return }
       const data = await fs.readFile(filePath)

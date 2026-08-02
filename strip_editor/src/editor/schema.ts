@@ -61,12 +61,13 @@ export type InsertSpec = { kind: LayerKind; role?: TextRole; left: number; top: 
  * Served from the repo by both the editor and `render.mjs`, so it is not a
  * network asset and the schema's ban on those still holds.
  *
- * Note that this path ends up written into strip files, which means a saved
- * design references the editor's folder until the image is replaced. Strips
- * outlive tooling, so a placeholder left in place would break if `strip_editor/`
- * ever moved — one more reason the inspector nags while it is still there.
+ * It lives in `composer/` rather than here because this path gets written into
+ * strip files. A strip already depends on `composer/` — its `<head>` loads
+ * `device-frames.mjs` — so pointing at the render engine adds no new coupling,
+ * whereas pointing at the editor would make a saved design depend on the tool
+ * that happened to author it.
  */
-export const IMAGE_PLACEHOLDER_SRC = '/strip_editor/assets/placeholder.svg'
+export const IMAGE_PLACEHOLDER_SRC = '/composer/placeholder.svg'
 
 /** Is this image still showing the placeholder rather than real artwork? */
 export function isPlaceholderImage(src: string | null | undefined): boolean {
@@ -143,7 +144,6 @@ export function blankStripTemplate(title: string, panels: number, width: number,
     font-size: 38px; line-height: 1.4; color: #6b655b;
   }
 </style>
-<script>window.COMPOSER_CONFIG = { framesRoot: '/web_ui/public' }</script>
 <script type="module" src="/composer/device-frames.mjs"></script>
 </head>
 <body>

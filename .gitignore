@@ -9,3 +9,10 @@ datasource/memories/**
 output/**
 strip_editor/node_modules/
 strip_editor/package-lock.json
+
+# Artwork for image layers IS tracked (unlike datasource/screenshots/**): a strip
+# that references one must render from a fresh clone.
+
+# macOS Finder droppings. Was only ignored inside web_ui/; device-frames moved
+# out of there, so it needs to be repo-wide.
+.DS_Store

@@ -18,9 +18,9 @@ npm run dev      # http://localhost:4714
 
 **Open** any strip under `output/strips/` or `composer/test/`, or create a blank
 one (name, export preset, panel count). The document loads in a same-origin
-iframe served at its repo path, so `/datasource/…`,
-`/web_ui/public/device-frames/…` and `/composer/…` resolve exactly as they do
-under `render.mjs`.
+iframe served at its repo path, so `/datasource/…` and `/composer/…` resolve
+exactly as they do under `render.mjs` — including the device frames, which live
+in `composer/device-frames/`.
 
 **Select** by clicking the canvas or the layer tree; empty panel space selects
 the panel. The inspector shows measured geometry beside the *authored* inline
@@ -33,7 +33,7 @@ style, which is how you tell "the file says this" from "the browser did that".
 | Geometry | Drag to move, handles to resize, arrows to nudge, or type exact numbers. Snaps to panel edges and centres; ⌥ suppresses it |
 | Text | Double-click to edit in place, or use the inspector's copy box. Family, size, weight, line-height, letter-spacing, colour, align |
 | Device | Pose picker, screenshot picker with upload, fit, screen fill colour, shadow presets |
-| Image | `src` picker with upload, `object-fit` |
+| Image | Artwork picker with upload, `object-fit` |
 | Decor | Background, border, radius, opacity, filter, transform |
 | Panel | Background presets and raw CSS |
 | Structure | Add title/subtitle/caption/device/image/decor, ⌘D duplicate, ⌫ delete, z-order |
@@ -58,12 +58,18 @@ Press **?** for the keyboard map.
 - **Devices and text are width-only.** Device height follows the pose aspect
   ratio; text height follows its content. Neither is ever written to the file.
 - **A new image block arrives with a placeholder**
-  (`strip_editor/assets/placeholder.svg`). An `<img>` with no `src` has an
-  intrinsic height of zero, so an empty one would insert at 600×0 — in the layer
-  tree, invisible on the canvas. The placeholder is deliberately loud, and the
-  inspector warns while it is still in place. Note that a strip left holding the
-  placeholder now points at this folder, so replace it before the file outlives
-  the editor.
+  (`composer/placeholder.svg`). An `<img>` with no `src` has an intrinsic height
+  of zero, so an empty one would insert at 600×0 — in the layer tree, invisible
+  on the canvas. The placeholder is deliberately loud, and the inspector warns
+  while it is still in place. It lives with the render engine rather than here
+  because its path is written into the strip, and a strip should never depend on
+  the editor that authored it.
+- **Two image libraries, on purpose.** Device screens come from
+  `datasource/screenshots/<preset>/` — bucketed because a phone screen has to
+  match its export preset's aspect ratio. Image layers come from
+  `datasource/images/`, which is flat and committed, because a logo or texture
+  has no such contract and a strip that references one should render from a
+  fresh clone.
 - **Blank style fields mean inherit.** Clearing one hands the property back to
   the strip's stylesheet rather than freezing today's computed value.
 - **Saves are surgical.** Moving one headline changes one line; the rest of the
@@ -283,8 +289,10 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `POST /__api/strip-editor/export?path=` | ✅ spawns `render.mjs`, returns a JSON summary |
 | `POST /__api/strip-editor/validate?path=` | dropped — see P6 above |
 | `GET\|POST /__api/strip-editor/screenshots` | P4 |
-| Static `/datasource/*`, `/web_ui/public/*`, `/composer/*`, `/output/*` | ✅ |
+| `GET\|POST /__api/strip-editor/images` | ✅ |
+| Static `/datasource/*`, `/composer/*`, `/output/*` | ✅ |
 | Alias `/__api/datasource/*` → `/datasource/*` | ✅ |
+| Alias `/web_ui/public/device-frames/*` → `/composer/device-frames/*` | ✅ |
 
 Every path is jailed to the repo root; strip reads are further restricted to
 `.html` files under `output/strips/` and `composer/test/`.

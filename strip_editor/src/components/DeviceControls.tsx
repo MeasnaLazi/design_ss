@@ -3,7 +3,14 @@ import { AlertTriangle, Loader2, Upload, X } from 'lucide-react'
 
 import { Chip, ColorField, CssField, Hint, Row, Section } from './controls'
 import { applyAttribute, applyDeclarations } from '../editor/mutate'
-import { listDevicePacks, listDevicePoses, listScreenshotPresets, listScreenshots, uploadScreenshot } from '../lib/api'
+import {
+  FRAMES_ROOT,
+  listDevicePacks,
+  listDevicePoses,
+  listScreenshotPresets,
+  listScreenshots,
+  uploadScreenshot,
+} from '../lib/api'
 import { getElement } from '../editor/blockRegistry'
 import type { BlockReadout } from '../editor/blockRegistry'
 import type { DevicePose, ScreenshotFile } from '../lib/api'
@@ -76,7 +83,7 @@ function PoseGrid({
           }`}
         >
           {/* The pose SVG is its own thumbnail — no separate asset to keep in sync. */}
-          <img src={`/web_ui/public${p.framePath}`} alt="" className="h-10 w-full object-contain" />
+          <img src={`${FRAMES_ROOT}${p.framePath}`} alt="" className="h-10 w-full object-contain" />
           <span className="w-full truncate text-center text-[9px] text-zinc-400">{p.name}</span>
         </button>
       ))}

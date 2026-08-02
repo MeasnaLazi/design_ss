@@ -4,7 +4,7 @@ import { Loader2, Upload } from 'lucide-react'
 import { Chip, ColorField, CssField, Hint, Row, Section } from './controls'
 import { applyAttribute, applyDeclarations } from '../editor/mutate'
 import { isPlaceholderImage } from '../editor/schema'
-import { listScreenshotPresets, listScreenshots, uploadScreenshot } from '../lib/api'
+import { listImages, uploadImage } from '../lib/api'
 import { getElement } from '../editor/blockRegistry'
 import type { BlockReadout } from '../editor/blockRegistry'
 import type { ScreenshotFile } from '../lib/api'
@@ -100,28 +100,16 @@ export function DecorControls({ r }: { r: BlockReadout }): React.ReactElement | 
 }
 
 export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | null {
-  const [presets, setPresets] = useState<string[]>([])
-  const [preset, setPreset] = useState('')
   const [files, setFiles] = useState<ScreenshotFile[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    listScreenshotPresets()
-      .then((res) => {
-        setPresets(res.presets)
-        setPreset((p) => p || res.presets[0] || '')
-      })
-      .catch(() => setPresets([]))
-  }, [])
-
-  useEffect(() => {
-    if (!preset) return
-    listScreenshots(preset)
+    listImages()
       .then((res) => setFiles(res.files))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }, [preset])
+  }, [])
 
   if (!r.image) return null
 
@@ -157,20 +145,11 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
           ))}
         </Row>
 
-        <Row label="preset">
-          <select
-            value={preset}
-            onChange={(e) => setPreset(e.target.value)}
-            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-100"
-          >
-            {presets.length === 0 && <option value="">none found</option>}
-            {presets.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </Row>
+        {files.length === 0 && !error && (
+          <p className="mt-1.5 rounded bg-zinc-800/60 px-2 py-1.5 text-[11px] leading-snug text-zinc-400">
+            No artwork yet. Drop files into <code className="text-zinc-300">datasource/images/</code>, or upload below.
+          </p>
+        )}
         <div className="mt-1.5 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto">
           {files.map((f) => (
             <button
@@ -193,9 +172,10 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (!f || !preset) return
+            if (!f) return
             setBusy(true)
-            uploadScreenshot(preset, f)
+            setError(null)
+            uploadImage(f)
               .then((added) => {
                 setFiles((prev) => [added, ...prev])
                 setSrc(added.url)
@@ -207,7 +187,7 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
         />
         <button
           type="button"
-          disabled={!preset || busy}
+          disabled={busy}
           onClick={() => fileInput.current?.click()}
           className="mt-1.5 flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40"
         >
