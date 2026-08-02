@@ -63,14 +63,27 @@ export type AttributeCommand = {
  */
 export type StructureCommand = {
   type: 'structure'
+  /**
+   * The panel the block ends up in. For a `move` this is the destination, and
+   * {@link StructureCommand.fromPanelId} holds the origin.
+   */
   panelId: string
   /** What happened, for the undo label. */
-  op: 'insert' | 'remove' | 'duplicate' | 'reorder'
+  op: 'insert' | 'remove' | 'duplicate' | 'reorder' | 'move'
   nodeId: string
   /** Live element reference — deliberately not serializable. */
   element: HTMLElement
   beforeIndex: number | null
   afterIndex: number | null
+  /**
+   * Origin panel of a cross-panel `move`; absent for every other op.
+   *
+   * A move is the one structural change that touches *two* panels, so both have
+   * to be re-emitted at save — leaving the origin out would write the block into
+   * its new panel while the old panel's markup still contained it, duplicating
+   * it in the file.
+   */
+  fromPanelId?: string
   gesture?: string
 }
 
@@ -225,7 +238,11 @@ export function foldEdits(log: EditCommand[]): FoldedEdits {
   for (const cmd of log) {
     if (cmd.type === 'content') contents.set(cmd.nodeId, cmd.after)
     else if (cmd.type === 'attribute') into(attributes, cmd.nodeId, cmd.name, cmd.after)
-    else if (cmd.type === 'structure') structuralPanels.add(cmd.panelId)
+    else if (cmd.type === 'structure') {
+      structuralPanels.add(cmd.panelId)
+      // A move leaves the origin panel changed too.
+      if (cmd.fromPanelId) structuralPanels.add(cmd.fromPanelId)
+    }
     else into(styles, cmd.nodeId, cmd.prop, cmd.after)
   }
   return { styles, attributes, contents, structuralPanels }

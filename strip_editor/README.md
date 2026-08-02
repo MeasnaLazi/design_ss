@@ -36,9 +36,11 @@ style, which is how you tell "the file says this" from "the browser did that".
 | Image | Artwork picker with upload, `object-fit` |
 | Decor | Background, border, radius, opacity, filter, transform |
 | Panel | Background presets and raw CSS |
-| Structure | Add title/subtitle/caption/device/image/decor, ⌘D duplicate, ⌫ delete, z-order |
+| Structure | Add title/subtitle/caption/device/image/decor, ⌘D duplicate, ⌫ delete, z-order, drag between panels |
 
-**Undo/redo** (⌘Z / ⇧⌘Z) covers every edit type, one gesture at a time.
+**Undo/redo** (⌘Z / ⇧⌘Z) covers every edit type, one *gesture* at a time — a
+diagonal drag writes `left` and `top` separately and a cross-panel drag adds a
+structural command, but all of it reverts in a single press.
 
 **Save** (⌘S) writes atomically with an mtime precondition. **Export** renders
 panel PNGs through `render.mjs` into `output/strips/rendered/<strip>/`.
@@ -55,6 +57,11 @@ Press **?** for the keyboard map.
 - **Blocks may overhang their panel** — `overflow: hidden` crops them, and that
   is how the cropped-device look is built. The editor never clamps a position,
   and snapping cannot reach a block that far out.
+- **Drag a block into another panel to move it there.** It changes panel when
+  its *centre* crosses, never on mere overlap — overlap is how a cropped device
+  is built, so an overlap rule would reparent every deliberate overhang. The
+  block keeps its on-screen position: its `left`/`top` are rewritten against the
+  panel it landed in, and it is appended last, so it arrives on top.
 - **Devices and text are width-only.** Device height follows the pose aspect
   ratio; text height follows its content. Neither is ever written to the file.
 - **A new image block arrives with a placeholder**

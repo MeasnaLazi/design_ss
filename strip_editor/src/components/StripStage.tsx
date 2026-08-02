@@ -2,10 +2,19 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 import { HoverOutline, SelectionOverlay } from './SelectionOverlay'
-import { SNAP_THRESHOLD_SCREEN_PX, boxToDeclarations, moveBox, resizeBox, resolveAnchors, snapToPanel } from '../editor/geometry'
-import { docRectOf, getElement, hitTest, indexStrip, isPanelNodeId, readBlock } from '../editor/blockRegistry'
+import {
+  SNAP_THRESHOLD_SCREEN_PX,
+  boxToDeclarations,
+  moveBox,
+  placementDeclarations,
+  resizeBox,
+  resolveAnchors,
+  snapToPanel,
+} from '../editor/geometry'
+import { docRectOf, getElement, hitTest, indexStrip, isPanelNodeId, panelAtDocPoint, readBlock } from '../editor/blockRegistry'
 import { applyGeometry } from '../editor/mutate'
 import { beginTextEditing, endTextEditing } from '../editor/textEditing'
+import { moveBlockToPanel } from '../editor/structure'
 import { loadStrip } from '../editor/iframeBridge'
 import { readStrip, stripDocumentUrl } from '../lib/api'
 import { setStageIframe, setStageScroller } from '../editor/stageRef'
@@ -30,6 +39,12 @@ type Gesture = {
   moved: boolean
   /** Panel origin in strip-document coordinates, for drawing snap guides. */
   panelOrigin: { x: number; y: number }
+  /**
+   * Registry id of the panel the block currently belongs to. Mutable: a drag
+   * that carries the block's centre into a neighbour reparents it mid-gesture,
+   * and everything downstream measures against the new panel from then on.
+   */
+  panelId: string
 }
 
 /**
@@ -188,6 +203,7 @@ export function StripStage(): React.ReactElement {
         // docRect and rect measure the same box in two frames; their difference
         // is where the panel starts.
         panelOrigin: { x: r.docRect.left - r.rect.left, y: r.docRect.top - r.rect.top },
+        panelId: `panel:${node.panelIndex}`,
       }
       return true
     },
@@ -299,6 +315,47 @@ export function StripStage(): React.ReactElement {
         setGuides(snapped.guides.map((guide) => ({ ...guide, origin: g.panelOrigin, panel: g.ctx.panel })))
       } else {
         setGuides([])
+      }
+
+      // Cross-panel move: the block changes panel when its *centre* crosses,
+      // not when it merely overlaps. Overlap is normal and intentional here —
+      // blocks are meant to overhang so `overflow: hidden` can crop them — so an
+      // overlap rule would reparent every deliberately cropped device. The
+      // centre only leaves once the block genuinely belongs next door.
+      if (!g.handle) {
+        const centre = {
+          x: g.panelOrigin.x + box.left + box.width / 2,
+          y: g.panelOrigin.y + box.top + box.height / 2,
+        }
+        const over = panelAtDocPoint(iframe, centre.x, centre.y)
+        if (over && over.id !== g.panelId) {
+          const to = over.el.getBoundingClientRect()
+          // Re-express the box against the panel it is landing in, so the block
+          // does not jump on drop.
+          const moved: GestureContext = {
+            ...g.ctx,
+            panel: { width: to.width, height: to.height },
+          }
+          const local = {
+            ...box,
+            left: g.panelOrigin.x + box.left - to.left,
+            top: g.panelOrigin.y + box.top - to.top,
+          }
+          const result = moveBlockToPanel(g.nodeId, over.id, placementDeclarations(moved, local), g.label)
+          if (!result.error) {
+            // The gesture now measures against the new panel: rebase its frame
+            // and its origin, and re-anchor the pointer so the next move event
+            // computes a delta from where the block actually is.
+            g.ctx = moved
+            g.ctx.rect = local
+            g.panelOrigin = { x: to.left, y: to.top }
+            g.panelId = over.id
+            g.originX = p.x
+            g.originY = p.y
+            setGuides([])
+            return
+          }
+        }
       }
 
       applyGeometry(g.nodeId, boxToDeclarations(g.ctx, box), g.label)

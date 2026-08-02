@@ -321,6 +321,31 @@ export function hitTest(iframe: HTMLIFrameElement, docX: number, docY: number): 
   return reverse.get(panel) ?? null
 }
 
+/**
+ * The panel containing a document point, ignoring whatever is drawn on top.
+ *
+ * Distinct from {@link hitTest}, which answers "what did the user click" and so
+ * returns the topmost block. Here the question is "which panel does this
+ * coordinate belong to", which must not be affected by a block happening to
+ * cover the point — a dragged block covers its own drop target.
+ */
+export function panelAtDocPoint(
+  iframe: HTMLIFrameElement,
+  docX: number,
+  docY: number,
+): { id: string; el: HTMLElement } | null {
+  const doc = iframe.contentDocument
+  if (!doc) return null
+  for (const panel of doc.querySelectorAll<HTMLElement>('[data-panel]')) {
+    const r = panel.getBoundingClientRect()
+    if (docX >= r.left && docX < r.right && docY >= r.top && docY < r.bottom) {
+      const id = reverse.get(panel)
+      if (id !== undefined) return { id, el: panel }
+    }
+  }
+  return null
+}
+
 /** Inline geometry declarations, read from the style attribute (not computed). */
 function inlineGeometry(el: HTMLElement): Array<{ prop: string; value: string }> {
   const out: Array<{ prop: string; value: string }> = []

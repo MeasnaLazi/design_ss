@@ -1,18 +1,22 @@
 /**
- * Structural edits: adding, deleting, duplicating and reordering blocks.
+ * Structural edits: adding, deleting, duplicating, reordering and moving blocks
+ * between panels.
  *
  * These are the only operations that change a panel's child list, and each one
  * records a `structure` command naming the panel. That flag is what tells the
  * serializer to re-emit that panel's markup from the live DOM instead of
- * splicing individual properties — see `serializeStrip.ts`.
+ * splicing individual properties — see `serializeStrip.ts`. A cross-panel move
+ * names two panels, since both of their child lists changed.
  *
  * Every operation that introduces or reveals a device block must let the
  * composer runtime build it, so these are async and resolve once the canvas is
  * correct and safe to measure.
  */
 import { adoptElement, freshNodeId, getElement } from './blockRegistry'
+import { applyDeclarations } from './mutate'
 import { blockTemplate } from './schema'
 import { cleanClone } from './emitMarkup'
+import { reindexLive } from './reindex'
 import { useHistoryStore } from '../store/useHistoryStore'
 import type { InsertSpec } from './schema'
 
@@ -58,11 +62,12 @@ function panelOf(el: HTMLElement): { panel: HTMLElement; panelId: string } | nul
  */
 function recordStructure(
   panelId: string,
-  op: 'insert' | 'remove' | 'duplicate' | 'reorder',
+  op: 'insert' | 'remove' | 'duplicate' | 'reorder' | 'move',
   nodeId: string,
   element: HTMLElement,
   beforeIndex: number | null,
   afterIndex: number | null,
+  extra: { fromPanelId?: string; gesture?: string } = {},
 ): void {
   useHistoryStore.getState().record({
     type: 'structure',
@@ -72,7 +77,8 @@ function recordStructure(
     element,
     beforeIndex,
     afterIndex,
-    gesture: `${op}:${nodeId}:${Date.now()}`,
+    fromPanelId: extra.fromPanelId,
+    gesture: extra.gesture ?? `${op}:${nodeId}:${Date.now()}`,
   })
 }
 
@@ -210,5 +216,56 @@ export function reorderBlock(nodeId: string, move: ZMove): StructureResult {
   if (explicitZ && explicitZ !== 'auto') {
     return { nodeId, error: `This block has an explicit z-index (${explicitZ}), which overrides DOM order.` }
   }
+  return { nodeId }
+}
+
+/**
+ * Move a block into another panel, keeping it exactly where it appears on screen.
+ *
+ * A block's `left`/`top` are relative to its own panel, so reparenting alone
+ * would teleport it by one panel width. The caller therefore hands over the
+ * geometry to write in the *destination's* frame, and both changes share one
+ * `gesture` so undo returns the block and its coordinates together — a half-undo
+ * that put the element back but kept the new coordinates would leave it visibly
+ * misplaced.
+ *
+ * Appended last, so a block dragged into a panel lands on top of what is already
+ * there. That matches the drag: you dropped it over the others.
+ */
+export function moveBlockToPanel(
+  nodeId: string,
+  toPanelId: string,
+  declarations: Array<{ prop: string; value: string | null }>,
+  gesture: string,
+): StructureResult {
+  const el = getElement(nodeId)
+  if (!el) return { nodeId: null, error: 'block not found' }
+  const from = panelOf(el)
+  if (!from) return { nodeId: null, error: 'block is not inside a panel' }
+  if (from.panelId === toPanelId) return { nodeId }
+
+  const toPanel = getElement(toPanelId)
+  if (!toPanel) return { nodeId: null, error: 'destination panel not found' }
+  if (toPanel.contains(el)) return { nodeId }
+
+  const at = indexIn(from.panel, el)
+  toPanel.appendChild(el)
+  recordStructure(toPanelId, 'move', nodeId, el, at, indexIn(toPanel, el), {
+    fromPanelId: from.panelId,
+    gesture,
+  })
+
+  // Written after the move so the command order matches the DOM order: undo
+  // replays the span in reverse, restoring coordinates before the element goes
+  // home.
+  applyDeclarations(nodeId, declarations, gesture)
+
+  // Re-index here rather than leaving it to the caller. Every other structural
+  // op is followed by `reindexLive()` in `structureActions`, but this one is
+  // driven straight from the drag — and a block whose `panelIndex` is stale
+  // stays filed under its old panel in the layer tree while the canvas shows it
+  // in the new one. Identity survives re-indexing, so the selection and the
+  // in-flight gesture both hold.
+  reindexLive()
   return { nodeId }
 }

@@ -199,6 +199,31 @@ export function boxToDeclarations(ctx: GestureContext, box: Rect): Declaration[]
  * cannot reach a deliberately cropped block bleeding off the panel, because that
  * sits far outside any sane threshold.
  */
+/**
+ * Position declarations for a block that has just changed panel.
+ *
+ * Deliberately *not* diffed, unlike {@link boxToDeclarations}. That function
+ * skips a property whose value has not moved since the gesture began, which is
+ * right for a drag inside one panel — but after a reparent the inline style
+ * still describes the block's place in the panel it left, so "unchanged" says
+ * nothing about whether the file is correct. Every value has to be restated in
+ * the destination's frame or the block keeps a coordinate that means something
+ * else now.
+ *
+ * Size is untouched: changing panel moves a block, it does not resize it.
+ */
+export function placementDeclarations(ctx: GestureContext, box: Rect): Declaration[] {
+  const { panel, anchors } = ctx
+  return [
+    anchors.x === 'left'
+      ? { prop: 'left', value: px(box.left) }
+      : { prop: 'right', value: px(panel.width - (box.left + box.width)) },
+    anchors.y === 'top'
+      ? { prop: 'top', value: px(box.top) }
+      : { prop: 'bottom', value: px(panel.height - (box.top + box.height)) },
+  ]
+}
+
 export const SNAP_THRESHOLD_SCREEN_PX = 6
 
 export type Guide = {

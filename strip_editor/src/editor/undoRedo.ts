@@ -50,7 +50,10 @@ function placeAt(panel: HTMLElement, el: HTMLElement, index: number | null): voi
 }
 
 async function applyStructure(cmd: StructureCommand, direction: 'undo' | 'redo'): Promise<void> {
-  const panel = getElement(cmd.panelId)
+  // A move is the one op whose two sides live in different panels; undoing it
+  // must put the element back in the panel it came from, not the one it is in.
+  const panelId = direction === 'undo' ? (cmd.fromPanelId ?? cmd.panelId) : cmd.panelId
+  const panel = getElement(panelId)
   if (!panel) return
   placeAt(panel, cmd.element, direction === 'undo' ? cmd.beforeIndex : cmd.afterIndex)
 
@@ -99,35 +102,79 @@ function settleSelection(): void {
   if (selectedId && !nodes.some((n) => n.id === selectedId)) select(null)
 }
 
+/**
+ * One undo step is one *gesture*, not one command.
+ *
+ * A single drag emits a command per property — `left` and `top` are separate,
+ * and a cross-panel drag adds a structure command on top. Stepping one command
+ * at a time would make a diagonal drag take two presses, and would expose a
+ * half-undone cross-panel move: the element back in its old panel while still
+ * carrying coordinates measured against the new one, which puts it somewhere it
+ * never was. Commands recorded without a gesture stand alone.
+ */
+function spanBefore(log: EditCommand[], end: number): number {
+  const gesture = log[end - 1]?.gesture
+  if (!gesture) return end - 1
+  let start = end - 1
+  while (start > 0 && log[start - 1].gesture === gesture) start--
+  return start
+}
+
+function spanAfter(log: EditCommand[], start: number): number {
+  const gesture = log[start]?.gesture
+  if (!gesture) return start + 1
+  let end = start + 1
+  while (end < log.length && log[end].gesture === gesture) end++
+  return end
+}
+
 export async function undo(): Promise<void> {
   const history = useHistoryStore.getState()
   if (!canUndo(history)) return
-  const index = history.cursor - 1
-  await applyCommand(history.log[index], 'undo')
-  useHistoryStore.getState().setCursor(index)
+  const end = history.cursor
+  const start = spanBefore(history.log, end)
+  // Reverse order: the log records what happened forwards, so unwinding it runs
+  // backwards. For a move that restores the coordinates before the element.
+  for (let i = end - 1; i >= start; i--) await applyCommand(history.log[i], 'undo')
+  useHistoryStore.getState().setCursor(start)
   settleSelection()
 }
 
 export async function redo(): Promise<void> {
   const history = useHistoryStore.getState()
   if (!canRedo(history)) return
-  const index = history.cursor
-  await applyCommand(history.log[index], 'redo')
-  useHistoryStore.getState().setCursor(index + 1)
+  const start = history.cursor
+  const end = spanAfter(history.log, start)
+  for (let i = start; i < end; i++) await applyCommand(history.log[i], 'redo')
+  useHistoryStore.getState().setCursor(end)
   settleSelection()
+}
+
+/**
+ * Label a whole gesture, not just one of its commands.
+ *
+ * A cross-panel drag ends with a `top` command, so describing the last one alone
+ * would call it "change top" when what the user did was move a block to another
+ * panel. A structural command in the span always names the gesture better than a
+ * property write does.
+ */
+function describeSpan(log: EditCommand[], start: number, end: number): string | null {
+  if (start >= end) return null
+  const structural = log.slice(start, end).find((c) => c.type === 'structure')
+  return describe(structural ?? log[end - 1])
 }
 
 /** Human-readable label for the next undo step, for the button tooltip. */
 export function undoLabel(): string | null {
   const { log, cursor } = useHistoryStore.getState()
   if (cursor === 0) return null
-  return describe(log[cursor - 1])
+  return describeSpan(log, spanBefore(log, cursor), cursor)
 }
 
 export function redoLabel(): string | null {
   const { log, cursor } = useHistoryStore.getState()
   if (cursor >= log.length) return null
-  return describe(log[cursor])
+  return describeSpan(log, cursor, spanAfter(log, cursor))
 }
 
 function describe(cmd: EditCommand): string {
@@ -139,7 +186,7 @@ function describe(cmd: EditCommand): string {
     case 'content':
       return 'edit text'
     case 'structure':
-      return cmd.op
+      return cmd.op === 'move' ? 'move to another panel' : cmd.op
   }
 }
 
