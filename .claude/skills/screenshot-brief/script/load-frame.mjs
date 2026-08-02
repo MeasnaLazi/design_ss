@@ -10,7 +10,7 @@ function publisherRoot(override) {
   if (override && override !== true) return path.resolve(String(override))
   let dir = process.cwd()
   while (true) {
-    if (fs.existsSync(path.join(dir, 'web_ui', 'public', 'device-frames'))) return dir
+    if (fs.existsSync(path.join(dir, 'composer', 'device-frames'))) return dir
     const parent = path.dirname(dir)
     if (parent === dir) break
     dir = parent
@@ -44,7 +44,7 @@ const args = parseArgs(process.argv.slice(2))
 if (typeof args.pack !== 'string') fail('--pack <pack_id> is required')
 
 const root = publisherRoot(args['repo-root'])
-const framePath = path.join(root, 'web_ui', 'public', 'device-frames', args.pack, 'frame.json')
+const framePath = path.join(root, 'composer', 'device-frames', args.pack, 'frame.json')
 
 let data
 try {

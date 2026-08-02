@@ -64,7 +64,7 @@ Do this **after** §0 (app project located), **before** §2b scan or §2a manual
 
 1. Confirm the exact **`device_frame_type`** with the user — only the pair allowed by **`--platform`** (`ios` → `iphone`/`ipad`; `android` → `phone`/`tablet`).
 2. From the publisher repo root, run **`node .claude/skills/screenshot-brief/script/device-packs.mjs --type <choice>`**. Present the rows to the user and have them choose **one** pack.
-3. Record **`device_frame_type`** = that choice (lowercase). Record **`device_pack_path`** = **`web_ui/public/device-frames/<id>/frame.json`** using the **`id`** from the CLI output for the chosen row.
+3. Record **`device_frame_type`** = that choice (lowercase). Record **`device_pack_path`** = **`composer/device-frames/<id>/frame.json`** using the **`id`** from the CLI output for the chosen row.
 4. When writing **`output/appstore.json`** and/or **`output/playstore.json`**, include both keys on **each** file written (same values if both files are produced).
 
 #### 1. Path summary (optional short line)
@@ -221,11 +221,11 @@ Include **`theme.primary_color`** and **`theme.secondary_color`** in the report 
 
 ### Device frame pack (required)
 
-For **each** processed store JSON file, load frame paths with the layout CLI—**do not** read `web_ui/public/device-frames/` by hand or guess **`framePath`** values.
+For **each** processed store JSON file, load frame paths with the layout CLI—**do not** read `composer/device-frames/` by hand or guess **`framePath`** values.
 
 1. Read **`device_pack_path`** (and **`device_frame_type`** for the report **Source** line) from **that** file.
 2. **Extract `pack_id`** from **`device_pack_path`**: the directory name immediately after the `device-frames` segment.
-   - Example: `web_ui/public/device-frames/iphone_12_pro/frame.json` → **`pack_id`** = `iphone_12_pro`
+   - Example: `composer/device-frames/iphone_12_pro/frame.json` → **`pack_id`** = `iphone_12_pro`
    - Example: `/device-frames/iphone_12_pro/frame.json` → **`pack_id`** = `iphone_12_pro`
    - If the path has no `device-frames` segment or **`pack_id`** would be empty, skip **`load-frame`** and use `—` in the table; note the gap.
 3. From the publisher repo root **`R`**, run:

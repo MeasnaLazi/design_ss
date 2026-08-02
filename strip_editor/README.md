@@ -45,6 +45,10 @@ structural command, but all of it reverts in a single press.
 **Save** (⌘S) writes atomically with an mtime precondition. **Export** renders
 panel PNGs through `render.mjs` into `output/strips/rendered/<strip>/`.
 
+**The open strip lives in the URL** (`?strip=output/strips/x.html`), so a reload
+returns you to the document rather than the picker, and Back / Forward move
+between them. Unsaved edits are confirmed before either can discard them.
+
 **While you work**, the file is watched on disk: if something else changes it the
 editor reloads, or asks first when you have unsaved work. A green **live** chip
 confirms the watcher is connected. An agent can claim the document via the mode

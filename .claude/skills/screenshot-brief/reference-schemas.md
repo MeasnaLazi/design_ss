@@ -5,7 +5,7 @@ Use these structures for `output/appstore.json` and `output/playstore.json`. Fie
 ### Layout / device frame fields
 
 - **`device_frame_type`:** Exactly one of **`iphone`**, **`ipad`**, **`phone`**, **`tablet`** (matches `.claude/skills/screenshot-brief/script/device-packs.mjs --type`).
-- **`device_pack_path`:** Repo-relative path from the publisher repo root to the chosen pack’s `frame.json`, e.g. `web_ui/public/device-frames/iphone_12_pro/frame.json` (use the pack **`id`** from `.claude/skills/screenshot-brief/script/device-packs.mjs`).
+- **`device_pack_path`:** Repo-relative path from the publisher repo root to the chosen pack’s `frame.json`, e.g. `composer/device-frames/iphone_12_pro/frame.json` (use the pack **`id`** from `.claude/skills/screenshot-brief/script/device-packs.mjs`).
 
 Include both keys on **each** store JSON file produced in a run (they may mirror the same values when both files are written).
 

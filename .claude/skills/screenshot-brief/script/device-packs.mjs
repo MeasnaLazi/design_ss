@@ -1,4 +1,4 @@
-// List device packs from web_ui/public/device-frames/index.json.
+// List device packs from composer/device-frames/index.json.
 // Usage (from publisher repo root):
 //   node .claude/skills/screenshot-brief/script/device-packs.mjs [--type iphone] [--repo-root DIR] [--compact]
 // Self-contained Node ESM (no dependencies).
@@ -9,7 +9,7 @@ function publisherRoot(override) {
   if (override && override !== true) return path.resolve(String(override))
   let dir = process.cwd()
   while (true) {
-    if (fs.existsSync(path.join(dir, 'web_ui', 'public', 'device-frames'))) return dir
+    if (fs.existsSync(path.join(dir, 'composer', 'device-frames'))) return dir
     const parent = path.dirname(dir)
     if (parent === dir) break
     dir = parent
@@ -49,7 +49,7 @@ function packIdFromPath(framePath) {
 
 const args = parseArgs(process.argv.slice(2))
 const root = publisherRoot(args['repo-root'])
-const indexPath = path.join(root, 'web_ui', 'public', 'device-frames', 'index.json')
+const indexPath = path.join(root, 'composer', 'device-frames', 'index.json')
 
 let raw
 try {
