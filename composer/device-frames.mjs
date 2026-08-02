@@ -189,6 +189,33 @@ export async function initDevices() {
 }
 
 /**
+ * Re-fit an already-built device block to its container's current width.
+ *
+ * The stage is laid out in the pose's viewBox units and scaled to the container
+ * — but that scale is computed once, when the block is built. Anything that
+ * changes the block's width afterwards (an editor resize, a new `width` in the
+ * file) leaves the artwork at its old size inside a container that has moved on.
+ * `render.mjs` never hits this because it renders once; interactive tooling does
+ * constantly.
+ *
+ * Cheap on purpose — no refetch, no re-warp. The homography maps the screenshot
+ * into viewBox space, so uniformly rescaling the stage is exactly right and safe
+ * to call on every pointer move.
+ *
+ * @returns true if a stage was found and rescaled.
+ */
+export function rescaleDevice(el) {
+  const stage = el.querySelector(':scope > .composer-device-stage')
+  if (!stage) return false
+  // The stage's own width is the pose's viewBox width, in px.
+  const viewW = Number.parseFloat(stage.style.width)
+  const width = el.getBoundingClientRect().width
+  if (!Number.isFinite(viewW) || viewW <= 0 || !width) return false
+  stage.style.transform = `scale(${width / viewW})`
+  return true
+}
+
+/**
  * Re-run one device block after its authoring attributes change (pose, pack,
  * screenshot, fit, fallback). Used by the strip editor; `render.mjs` only ever
  * needs the one-shot `initDevices`.
@@ -211,7 +238,7 @@ if (typeof window !== 'undefined') {
   // Expose the runtime to same-origin tooling (the strip editor). Module
   // exports are not reachable across realms, and re-importing the module from
   // another realm would bind it to the wrong `document`.
-  window.__composerDevices = { initDevices, rebuildDevice }
+  window.__composerDevices = { initDevices, rebuildDevice, rescaleDevice }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { initDevices() })
   } else {

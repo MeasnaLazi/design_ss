@@ -11,6 +11,7 @@
  * so the DOM is written directly here, and only the cursor moves in the store.
  */
 import { getElement } from './blockRegistry'
+import { refitDevice } from './mutate'
 import { reindexLive } from './reindex'
 import { useEditorStore } from '../store/useEditorStore'
 import { appliedCommands, canRedo, canUndo, useHistoryStore } from '../store/useHistoryStore'
@@ -75,6 +76,8 @@ async function applyCommand(cmd: EditCommand, direction: 'undo' | 'redo'): Promi
     if (target === null || target === '') el.style.removeProperty(cmd.prop)
     else el.style.setProperty(cmd.prop, target)
     if (el.getAttribute('style')?.trim() === '') el.removeAttribute('style')
+    // Undoing a device resize has the same stale-scale problem as making one.
+    refitDevice(el)
     return
   }
 

@@ -126,6 +126,26 @@ exactly once in the file, `style` first because on a strip it is effectively a
 fingerprint. Short shared values like `class="rule"` are skipped automatically
 because they match in several places, and if nothing is unique the save refuses.
 
+**A device's artwork scale is derived, and goes stale.** `buildDevice` computes
+`scale = containerWidth / viewBoxWidth` once and bakes it into the stage's
+transform. `render.mjs` renders a document once so it never notices, but an
+editor changes widths constantly — and the container would grow (`aspect-ratio`
+keeps the height proportional) while the phone inside stayed its original size.
+`rescaleDevice(el)` re-fits it from the stage's own viewBox width. It is
+deliberately cheap — no refetch, no re-warp, because the homography maps into
+viewBox space and uniform rescaling is exactly right — so it can run on every
+pointer move. Every style write on a device block goes through it, including
+undo and redo.
+
+**Asynchronous edits need a second signal when they settle.** Views re-measure
+when `revision` changes, and `revision` bumps when the command is *recorded* —
+which for a device rebuild is before the work starts. `rebuildDevice` tears the
+stage down first and then fetches, so that measurement lands on a half-dismantled
+block and reports a perfectly good device as "did not build" — and nothing ever
+re-measured, so the warning stuck forever. `touch()` announces the settled state
+without recording a command, so the last reading is the true one. Anything that
+mutates the DOM asynchronously has to end this way.
+
 **Device edits are asynchronous by nature.** `device-frames.mjs` reads pose and
 screenshot once at load and derives a homography from them; the DOM will not
 update when those attributes change. `composer/device-frames.mjs` gained a

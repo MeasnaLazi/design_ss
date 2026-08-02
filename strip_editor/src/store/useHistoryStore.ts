@@ -98,6 +98,16 @@ type HistoryState = {
   revision: number
 
   record: (cmd: EditCommand) => void
+  /**
+   * Announce that the DOM settled, without recording anything.
+   *
+   * Some edits finish asynchronously — a device rebuild fetches a pose SVG and
+   * decodes a screenshot. The command is recorded when the edit *starts*, so
+   * views re-measure while the block is mid-rebuild and see a half-torn-down
+   * element. Without a second signal when the work completes, that transient
+   * reading is the last one anybody takes.
+   */
+  touch: () => void
   /** Move the cursor after the DOM has been changed by `editor/undoRedo.ts`. */
   setCursor: (cursor: number) => void
   markSaved: () => void
@@ -163,6 +173,7 @@ export const useHistoryStore = create<HistoryState>((set) => ({
       return { log: next, cursor: next.length, savedAt, revision: s.revision + 1 }
     }),
   setCursor: (cursor) => set((s) => ({ cursor, revision: s.revision + 1 })),
+  touch: () => set((s) => ({ revision: s.revision + 1 })),
   markSaved: () => set((s) => ({ savedAt: s.cursor })),
   reset: () => set({ log: [], cursor: 0, savedAt: 0, revision: 0 }),
 }))

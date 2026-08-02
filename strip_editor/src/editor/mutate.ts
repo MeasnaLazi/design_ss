@@ -33,6 +33,7 @@ export function applyDeclarations(
     else el.style.setProperty(prop, value)
     record({ type: 'style', nodeId, prop, before, after: value, gesture })
   }
+  refitDevice(el)
   return true
 }
 
@@ -81,11 +82,36 @@ export async function applyAttribute(
     return { changed: true }
   } catch (e: unknown) {
     return { changed: true, error: e instanceof Error ? e.message : String(e) }
+  } finally {
+    // The command was recorded before the rebuild began, so everything that
+    // re-measures on `revision` did so while the block was torn down and saw a
+    // device with no stage — reporting a perfectly good block as "did not
+    // build". Announce the settled state so the last reading is the true one.
+    useHistoryStore.getState().touch()
   }
 }
 
 type ComposerWindow = Window & {
-  __composerDevices?: { rebuildDevice: (el: HTMLElement) => Promise<void> }
+  __composerDevices?: {
+    rebuildDevice: (el: HTMLElement) => Promise<void>
+    rescaleDevice: (el: HTMLElement) => boolean
+  }
+}
+
+/**
+ * A device's artwork is scaled to its container at build time, so a later width
+ * change resizes the box but not what is inside it. Re-fit after any style write
+ * on a device block.
+ *
+ * Called for every declaration rather than only for `width`, because several
+ * properties can change the used width — `width` itself, but also `left` and
+ * `right` together, or a `transform`. Rescaling is a couple of DOM operations
+ * with no fetching, so paying it unconditionally is cheaper than being clever
+ * about when it is needed.
+ */
+export function refitDevice(el: HTMLElement): void {
+  if (!el.hasAttribute('data-device')) return
+  ;(el.ownerDocument.defaultView as ComposerWindow | null)?.__composerDevices?.rescaleDevice(el)
 }
 
 /**
