@@ -3,12 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Visual editor for composer strip HTML. The strip file is the single source of truth; the editor renders and mutates it in Chromium — what you edit is what render.mjs ships.",
+  "description": "Visual editor for composer strip HTML. The strip file is the single source of truth; the editor renders and mutates it in Chromium \u2014 what you edit is what render.mjs ships.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "node test/schema-contract.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

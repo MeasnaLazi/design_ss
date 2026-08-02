@@ -102,13 +102,14 @@ to leak into a committed file. Selection chrome is drawn in the *parent*
 document above the scaled iframe, which also keeps handles and labels a constant
 screen size at 15% zoom.
 
-**Coordinates match the exporter — with one documented exception.** For text,
-image and decor blocks the inspector's panel-relative `left`/`top` is computed
-exactly as `render.mjs` computes it (`rect.left - panelRect.left`). Device
-blocks differ: `strip-data.json` stores device `x`/`y` as the block *centre*
-(a convention for the canvas importer), while the inspector shows the top-left,
-because that is what the CSS `left`/`top` P2 writes actually means. Do not read
-a bug into that difference.
+**Coordinates match the exporter, with no exception.** The inspector's
+panel-relative `left`/`top` is computed exactly as `render.mjs` computes it
+(`rect.left - panelRect.left`), for every kind of block. Device blocks used to
+differ — `strip-data.json` v1 stored device `x`/`y` as the block *centre*, a
+convention inherited from the canvas importer — which meant the one number an
+author was most likely to compare across the two tools was the one that
+disagreed. v2 dropped it when the importer went; top-left is what the CSS
+`left`/`top` actually means, so that is what both report.
 
 **Saves splice text; they never re-serialize a document.** Two things are wrong
 with serializing a DOM back to the file. The live DOM has been mutated by
@@ -358,7 +359,7 @@ easier to re-derive from the check than from the fix.
   eight `iphone_12_pro` pose SVGs and `frame.json` — resolves 200 through the
   editor's static aliasing.
 - Geometry model agrees with the exporter: 5 panels × 1290 px, gap 0 →
-  6450×2796, matching `workspace_width`/`workspace_height` in
+  6450×2796, matching `strip.width`/`strip.height` in
   `output/strips/rendered/strip-data.json`.
 
 ## Verified for P1

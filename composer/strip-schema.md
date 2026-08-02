@@ -1,42 +1,113 @@
 # Strip HTML layer contract
 
-Strip documents are plain HTML/CSS rendered by `render.mjs`. Free CSS is allowed
-*inside* blocks; the **structure** below is mandatory so tooling (render CLI,
-validators, future HTML→display-JSON importer) can parse the design.
+A strip is one plain HTML/CSS document holding every panel of a store
+screenshot set. Free CSS is allowed *inside* blocks; the **structure** below is
+mandatory, because two programs parse it:
+
+- **`composer/render.mjs`** — exports the panel PNGs you ship.
+- **`strip_editor`** — edits the file visually, in the same browser engine.
+
+Both read this structure to find blocks. Break it and a block becomes
+unselectable in the editor or invisible to the exporter.
+
+---
 
 ## Document rules
 
-1. One `<div class="strip">` root laid out as a horizontal row of panels.
-2. Each panel: `<section data-panel="N" ...>` (N = 0-based index), sized to the
-   **exact export dimensions** of the target preset (e.g. 1290×2796 for
-   `appstore_iphone_portrait`), `position: relative; overflow: hidden`.
-3. Panels are screenshotted individually by `data-panel`; anything visually
-   shared across panels (continuous background, spanning device) must be drawn
-   so each panel still exports correctly on its own.
-4. Reference assets root-relatively (server root = repo root):
-   `/web_ui/public/device-frames/...`, `/datasource/screenshots/...`.
-5. No external network resources (fonts, images). Bundle everything in-repo.
-
-## Layer blocks (inside a panel)
-
-Every direct visual element carries `data-layer` with a kind:
-
-| Kind | Markup | Notes |
-| --- | --- | --- |
-| text | `<div data-layer="text" data-role="title\|subtitle\|caption">…</div>` | One title + one subtitle per panel; caption optional (same copy policy as before). |
-| device | `<div data-layer="device" data-device data-pack="…" data-pose="…" data-screenshot="…" style="width:…">` | Built by `device-frames.mjs` (homography warp + `#screen` clip + frame SVG). `data-fit="cover"` (default) or `"stretch"`. Width sets scale; height follows pose aspect. |
-| image | `<img data-layer="image" src="/datasource/…">` | Plain image layers. |
-| decor | `<div data-layer="decor">…</div>` | Shapes, blobs, cards, badges, glows — free HTML/CSS. Imports to canvas as rasterized image layers. |
+1. One `<div class="strip">` root, laid out as a horizontal row of panels. The
+   class matters: the exporter reads its `column-gap`.
+2. Each panel is `<section data-panel="N">` (N is 0-based), sized to the
+   **exact export dimensions** of the target preset — e.g. 1290×2796 for
+   `appstore_iphone_portrait` — with `position: relative; overflow: hidden`.
+3. Panels are screenshotted **individually**. Anything that appears to span
+   panels must still export correctly panel by panel.
+4. Reference assets **root-relatively**; the server root is the repo root:
+   `/composer/device-frames/…`, `/datasource/screenshots/…`,
+   `/datasource/images/…`.
+5. **No external network resources** — no web fonts, no remote images. Anything
+   not in the repo renders differently in the editor and the export, or fails
+   outright in one of them.
 
 ## Required boilerplate
 
 ```html
-<script>window.COMPOSER_CONFIG = { framesRoot: '/web_ui/public' }</script>
 <script type="module" src="/composer/device-frames.mjs"></script>
 ```
 
-`device-frames.mjs` sets `window.__composerReady = true` when all devices are
-built; `render.mjs` blocks on it. Pages without devices may omit the scripts.
+That single line is all a strip needs. The runtime sets
+`window.__composerReady = true` once every device block has been built, and
+`render.mjs` waits for it before capturing. A strip with no device blocks may
+omit the script entirely.
+
+Do **not** set `window.COMPOSER_CONFIG.framesRoot`. It defaults to `/composer`,
+which is where the frame packs live. Older strips set it to `/web_ui/public`;
+that path is aliased for compatibility, but new documents must not repeat it.
+
+---
+
+## Layer blocks
+
+Every visual element directly inside a panel carries `data-layer`:
+
+| Kind | Markup |
+| --- | --- |
+| text | `<div data-layer="text" data-role="title\|subtitle\|caption">…</div>` |
+| device | `<div data-layer="device" data-device data-pack="…" data-pose="…" style="width:…">` |
+| image | `<img data-layer="image" src="/datasource/…">` |
+| decor | `<div data-layer="decor">…</div>` — shapes, blobs, cards, badges, glows; free HTML/CSS |
+
+**Position blocks absolutely.** A statically positioned block cannot be moved by
+writing `left`/`top`, so it arrives in the editor unusable. Overhanging a panel
+edge is expected and encouraged — `overflow: hidden` crops it, and that cropping
+is how the standard cropped-device look is built.
+
+### Text blocks
+
+`data-role` is one of `title`, `subtitle`, `caption`. One title and one subtitle
+per panel; a caption only when it earns its place.
+
+**A text block may contain text nodes and `<br>` — nothing else.** No `<span>`,
+no nested `<div>`, no inline markup. Style the block itself instead. The editor
+enforces this: the first time a human edits the text, the content is rebuilt as
+text and `<br>`, and any inner markup is discarded silently.
+
+### Device blocks
+
+| Attribute | Required | Meaning |
+| --- | --- | --- |
+| `data-device` | yes | Marks the block for the runtime. Present with no value. |
+| `data-pack` | yes | Frame pack id, e.g. `iphone_12_pro`. |
+| `data-pose` | yes | Pose name from the pack's `frame.json`. |
+| `data-screenshot` | no | Repo-root path to the screen image. Omit for a blank screen. |
+| `data-fit` | no | `cover` (default) crops the image to the screen quad; any other value stretches it. |
+| `data-screen-fallback` | no | Fill colour when there is no screenshot. Defaults to `#0c0c0a`. |
+
+**The CSS `width` sets the scale. Never set a height.** Height follows the
+pose's SVG viewBox aspect; writing one distorts the frame. This is the single
+most common way to break a device block.
+
+Pose viewBoxes differ enough that the same width gives very different phone
+sizes — see **`composer/device-frames/README.md`** for each pose's box and a
+starting width. Read it before sizing a device rather than guessing and
+re-rendering.
+
+Omitting `data-screenshot` is a legitimate design choice, not a failure: the
+frame renders with a blank screen filled by `data-screen-fallback`. Prefer a
+real capture when one exists.
+
+### Image blocks
+
+Plain `<img>`. Sources come from `/datasource/images/` (logos, textures,
+illustrations) or `/datasource/screenshots/` (app captures). An `<img>` with no
+`src` has zero intrinsic height and lays out invisibly, so always give it one.
+
+### z-order
+
+Paint order is DOM order unless a block sets `z-index`. When text deliberately
+overlaps a device, give the text an explicit higher `z-index` — relying on DOM
+order alone makes the intent invisible to anyone editing the file later.
+
+---
 
 ## Skeleton
 
@@ -49,37 +120,56 @@ built; `render.mjs` blocks on it. Pages without devices may omit the scripts.
   .strip { display: flex; gap: 0; width: max-content; }
   .panel { position: relative; overflow: hidden; width: 1290px; height: 2796px; }
 </style>
-<script>window.COMPOSER_CONFIG = { framesRoot: '/web_ui/public' }</script>
 <script type="module" src="/composer/device-frames.mjs"></script>
 </head><body>
 <div class="strip">
   <section class="panel" data-panel="0">
-    <div data-layer="text" data-role="title">Your Life as a Book</div>
-    <div data-layer="text" data-role="subtitle">Flip through your memories</div>
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:230px; width:1100px;">Your Life as a Book</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:530px; width:1000px;">Flip through your memories</div>
     <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
          data-screenshot="/datasource/screenshots/appstore_iphone_portrait/<id>.png"
-         style="width: 1100px; position: absolute; left: 220px; bottom: -320px;"></div>
+         data-screen-fallback="#0c0c0a"
+         style="position:absolute; left:220px; bottom:-320px; width:1400px;"></div>
   </section>
   <!-- panels 1..4 -->
 </div>
 </body></html>
 ```
 
-## z-order note
+---
 
-When a text block deliberately overlaps a device (e.g. headline over a
-shadowed frame), give the text an explicit higher `z-index` than the device —
-the exported snapshot uses CSS `z-index` (fallback: DOM order) and the
-`layer_z_order_sane` safety check requires overlapping text above devices.
-
-## Render + validate
+## Render
 
 ```bash
 node composer/render.mjs --strip output/strips/appstore_strip.html \
   --out output/strips/rendered --full
 ```
 
-Exit 0 + JSON summary; the out dir receives `panel<N>.png` per panel, optional
-`strip.png`, and **`strip-data.json`** — an AgentPanelPreviewData v1 snapshot
-extracted from the DOM (text + device blocks). `strip-data.json` is what
-`composer/import-to-canvas.mjs` replays into the canvas editor.
+Exit 0 and a JSON summary. The output directory receives `panel<N>.png` per
+panel, `strip.png` when `--full` is passed, and **`strip-data.json`** — every
+block's measured geometry plus a `problems` list, extracted from the rendered
+DOM. The problems also appear in the summary on stdout.
+
+A **non-zero exit** means a device failed to build: a missing pack, an unknown
+pose, or a screenshot that did not load. Those never produce a partial render.
+
+Before rendering, a structural check costs nothing:
+
+```bash
+node composer/check-schema.mjs output/strips/appstore_strip.html
+```
+
+It reads the source text only — no browser — and catches the mistakes this
+document describes.
+
+To edit the result visually, open the same file in the editor:
+
+```
+cd strip_editor && npm run dev
+http://localhost:4714/?strip=output/strips/appstore_strip.html
+```
+
+There is no import step and no conversion. The editor opens the file the
+renderer just read, and saves it back in place.

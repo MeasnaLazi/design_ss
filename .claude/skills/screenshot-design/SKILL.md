@@ -20,6 +20,11 @@ screenshots inside device frames.
 One document is the whole strip. Design it as a single composition with
 continuity and rhythm across panels — not as five independent posters.
 
+**Already have a strip and need one specific change?** That is
+**`strip-edit`**, not this skill. This workflow authors a strip from a brief;
+running it against an existing file rewrites work someone may have tuned by
+hand or in the editor.
+
 ## Preflight
 
 From the repo root, before the first render:
@@ -57,9 +62,10 @@ Nothing else needs to be running. Rendering and review are entirely offline.
 2. **Author** `output/strips/<store>_strip.html` per `composer/strip-schema.md`.
 3. **Render:**
    `node composer/render.mjs --strip output/strips/<store>_strip.html --out output/strips/rendered --full`
-4. **Look at every panel PNG** and review it (§ Review). Edit the HTML and
-   re-render. Renders are cheap — iterate freely, and stop when a round produces
-   no visible improvement, or after about four rounds.
+4. **Review** — read the render's `problems` first, then look at the PNGs
+   (§ Review). Edit the HTML and re-render. Renders are cheap — iterate freely,
+   and stop when a round produces no visible improvement, or after about four
+   rounds.
 5. **Present** the panels to the user, and tell them they can open the strip in
    the editor at
    `http://localhost:4714/?strip=output/strips/<store>_strip.html`
@@ -68,9 +74,24 @@ Nothing else needs to be running. Rendering and review are entirely offline.
 
 ## Review (per render)
 
-Put each panel PNG next to one or two strips from `composer/references/` —
-closest category available; if the gallery is empty, judge against the best App
-Store pages you know.
+**Facts first.** The render prints a `problems` array — clipped text, an image
+that did not load, a block that fell off its panel, a placeholder still in
+place. Every entry is measured, not guessed. Fix those before forming any
+opinion about the design; there is no point judging the composition of a panel
+whose headline is cut in half.
+
+`strip-data.json` in the output directory holds the same problems plus the
+measured geometry of every block, if you need to know exactly where something
+landed. Note that a device hanging off a panel edge is *not* a problem — that
+is the standard crop, and the inspector deliberately stays quiet about it.
+
+Anything that stops the render outright — a missing pack, an unknown pose, a
+dead device screenshot — never reaches this step: `render.mjs` exits non-zero
+and tells you. Read that message rather than re-rendering.
+
+**Then judgement.** Put each panel PNG next to one or two strips from
+`composer/references/` — closest category available; if the gallery is empty,
+judge against the best App Store pages you know.
 
 Then name what is **concretely** wrong and fix it in CSS. Useful things to look
 at: does one element clearly lead the panel, or do the type block and device

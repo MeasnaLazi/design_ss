@@ -145,79 +145,160 @@ async function main() {
       await page.screenshot({ path: stripFile, fullPage: true })
     }
 
-    // Emit an AgentPanelPreviewData v1 snapshot (same shape as the canvas's
-    // capture_panel_preview_data) so import-to-canvas can replay the strip.
+    // Emit strip-data.json: measured layout for every block, plus the problems
+    // that only a laid-out page can reveal.
+    //
+    // Scope is deliberately narrow. Anything the *static* checker can see —
+    // dead asset paths, a device given a height, a text block full of markup —
+    // belongs in composer/check-schema.mjs, which needs no browser. Anything
+    // that makes a device fail to build is already fatal above, at
+    // __composerErrors. What is left, and what this is for, is geometry: where
+    // blocks actually landed once the browser had its say, and whether any of
+    // them fell off the panel.
+    //
+    // Coordinates are panel-relative and **top-left**, matching the CSS the
+    // editor writes and the schema documents. (v1 stored device x/y as the
+    // block centre, a canvas convention whose only consumer was the importer.)
     const snapshot = await page.evaluate((panelSelector) => {
       const toHex = (rgb) => {
         const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
         if (!m) return '#000000'
         return '#' + [m[1], m[2], m[3]].map((v) => Number(v).toString(16).padStart(2, '0')).join('')
       }
+      const round = (n) => Math.round(n * 10) / 10
+      const problems = []
+      const flag = (severity, panel, layer, message) => problems.push({ severity, panel, layer, message })
+
       const panels = []
       const panelEls = [...document.querySelectorAll(panelSelector)]
       panelEls.forEach((panelEl, pi) => {
         const pr = panelEl.getBoundingClientRect()
         const layers = []
         let n = 0
-        for (const el of panelEl.querySelectorAll('[data-layer]')) {
-          const kind = el.getAttribute('data-layer')
+
+        for (const el of panelEl.querySelectorAll('[data-layer], [data-device]')) {
+          const kind = el.getAttribute('data-layer') ?? (el.hasAttribute('data-device') ? 'device' : 'unknown')
           const r = el.getBoundingClientRect()
           const cs = getComputedStyle(el)
           const zRaw = Number.parseInt(cs.zIndex, 10)
           const z = Number.isFinite(zRaw) ? zRaw : n
           n += 1
+          const id = el.dataset.layerId ?? `${kind}_${pi}_${n}`
+
+          // How far the block sits beyond each panel edge. Zero means inside.
+          // Overhang is legitimate — cropping a device at a panel edge is the
+          // standard pattern — so this is reported as measurement, and only
+          // becomes a problem below for the kinds where it means damage.
+          const outside = {
+            left: round(Math.max(0, pr.left - r.left)),
+            top: round(Math.max(0, pr.top - r.top)),
+            right: round(Math.max(0, r.right - pr.right)),
+            bottom: round(Math.max(0, r.bottom - pr.bottom)),
+          }
+
+          const layer = {
+            id,
+            kind,
+            z,
+            x: round(r.left - pr.left),
+            y: round(r.top - pr.top),
+            width: round(r.width),
+            height: round(r.height),
+            outside,
+          }
+
+          // Entirely past an edge: it contributes nothing to the export, and
+          // that is almost never deliberate.
+          if (r.right <= pr.left || r.left >= pr.right || r.bottom <= pr.top || r.top >= pr.bottom) {
+            flag('warning', pi, id, 'lies entirely outside its panel and will not appear in the export')
+          }
+
           if (kind === 'text') {
-            const align = cs.textAlign === 'start' ? 'left' : cs.textAlign === 'end' ? 'right' : cs.textAlign
             const clone = el.cloneNode(true)
             for (const br of clone.querySelectorAll('br')) br.replaceWith('\n')
             const content = (clone.textContent ?? '')
               .split('\n').map((s) => s.replace(/\s+/g, ' ').trim()).join('\n').trim()
-            layers.push({
-              layer_id: el.dataset.layerId ?? `text_${pi}_${n}`,
-              kind: 'text', z_index: z,
-              content,
-              size: Number.parseFloat(cs.fontSize) || 0,
-              color: toHex(cs.color),
-              align, weight: String(cs.fontWeight),
-              x: r.left - pr.left, y: r.top - pr.top,
-              width: r.width, height: r.height,
-            })
-          } else if (kind === 'device' || el.hasAttribute('data-device')) {
-            layers.push({
-              layer_id: el.dataset.layerId ?? `device_${pi}_${n}`,
-              kind: 'device', z_index: z,
-              x: r.left - pr.left + r.width / 2,   // snapshot convention: center
-              y: r.top - pr.top + r.height / 2,
-              width: r.width, height: r.height,
-              angle: 0,
-              frame: el.dataset.pose ?? '',
-              pack_id: el.dataset.pack ?? '',
-            })
+            layer.text = content
+            layer.role = el.dataset.role ?? null
+            layer.font_size = Number.parseFloat(cs.fontSize) || 0
+            layer.font_family = cs.fontFamily
+            layer.color = toHex(cs.color)
+            layer.align = cs.textAlign === 'start' ? 'left' : cs.textAlign === 'end' ? 'right' : cs.textAlign
+            layer.weight = String(cs.fontWeight)
+
+            if (!content) flag('warning', pi, id, 'text block is empty')
+            // Clipped copy is the one overhang that is nearly always a mistake:
+            // a device cropped at the edge reads as design, half a word does not.
+            const cut = Object.entries(outside).filter(([, v]) => v > 1)
+            if (cut.length) {
+              const where = cut.map(([edge, v]) => `${v}px past the ${edge}`).join(', ')
+              flag('warning', pi, id, `text is clipped by the panel edge (${where})`)
+            }
+          } else if (kind === 'device') {
+            layer.pack = el.dataset.pack ?? null
+            layer.pose = el.dataset.pose ?? null
+            layer.screenshot = el.dataset.screenshot ?? null
+            layer.fit = el.dataset.fit ?? 'cover'
+            layer.screen_fallback = el.dataset.screenFallback ?? null
+            // A device that reached here built successfully — a failure would
+            // have stopped the render at __composerErrors.
+            layer.blank_screen = !el.dataset.screenshot
+          } else if (kind === 'image') {
+            layer.src = el.getAttribute('src')
+            layer.natural_width = el.naturalWidth ?? 0
+            layer.natural_height = el.naturalHeight ?? 0
+            // Unlike a device screenshot, a plain <img> that 404s fails
+            // silently: no runtime is involved, so nothing throws and the
+            // export simply has a hole in it.
+            if (!layer.natural_width) {
+              flag('error', pi, id, `image did not load: ${layer.src ?? '(no src)'}`)
+            }
+            if ((layer.src ?? '').includes('placeholder.svg')) {
+              flag('warning', pi, id, 'image is still the editor placeholder')
+            }
+          } else if (kind === 'decor') {
+            layer.children = el.childElementCount
           }
-          // image / decor blocks are invisible to the rules validator.
+
+          layers.push(layer)
         }
-        layers.sort((a, b) => a.z_index - b.z_index)
+
+        layers.sort((a, b) => a.z - b.z)
         panels.push({
-          panel_index: pi,
-          panel_width: Math.round(pr.width), panel_height: Math.round(pr.height),
-          panel_x: Math.round(pr.left), panel_y: Math.round(pr.top),
+          index: pi,
+          width: Math.round(pr.width),
+          height: Math.round(pr.height),
           layers,
         })
       })
-      let gap = 0
+
       const strip = document.querySelector('.strip')
-      if (strip) gap = Number.parseFloat(getComputedStyle(strip).columnGap) || 0
       return {
-        version: 1, gap,
-        workspace_width: Math.ceil(document.documentElement.scrollWidth),
-        workspace_height: Math.ceil(document.documentElement.scrollHeight),
+        version: 2,
+        strip: {
+          width: Math.ceil(document.documentElement.scrollWidth),
+          height: Math.ceil(document.documentElement.scrollHeight),
+          gap: strip ? Number.parseFloat(getComputedStyle(strip).columnGap) || 0 : 0,
+          panels: panelEls.length,
+        },
         panels,
+        problems,
       }
     }, args.panelSelector)
     const dataFile = path.join(outDir, 'strip-data.json')
     await fs.writeFile(dataFile, JSON.stringify(snapshot, null, 2))
 
-    console.log(JSON.stringify({ ok: true, panels: results, strip: stripFile, panelData: dataFile, document: size }, null, 2))
+    // Problems ride in the summary as well as the file. An agent reads stdout;
+    // making it open strip-data.json to discover that a panel is broken is one
+    // indirection too many, and the one most likely to be skipped.
+    console.log(JSON.stringify({
+      ok: true,
+      panels: results,
+      strip: stripFile,
+      panelData: dataFile,
+      document: size,
+      problems: snapshot.problems,
+    }, null, 2))
   } finally {
     await browser.close()
     server.close()

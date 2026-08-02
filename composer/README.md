@@ -7,7 +7,8 @@ rendered to export-size PNGs by headless Chromium.
 
 | File | Role |
 | --- | --- |
-| `render.mjs` | CLI: strip HTML → per-panel PNGs + `strip-data.json` (`--strip`, `--out`, `--full`). Serves the repo root locally so pages can use `/web_ui/public/**`, `/datasource/**`, `/composer/**`. |
+| `render.mjs` | CLI: strip HTML → per-panel PNGs + `strip-data.json` (measured geometry + `problems`) (`--strip`, `--out`, `--full`). Serves the repo root locally so pages can use `/composer/**` and `/datasource/**`. |
+| `check-schema.mjs` | Structural conformance against `strip-schema.md`, from the source text alone — no browser. `--all`, `--skeleton`, or a file. |
 | `import-to-canvas.mjs` | CLI: replay a strip into the live Fabric canvas as native, editable layers via agent ops (text/device native + real screenshots; backgrounds/decor rasterized to image layers). Requires dev server + open designer tab. `--strip`, `--preset`, `--api`, `--end-mode`. Sets mode `agent` during import, `human` after. |
 | `device-frames.mjs` | Browser runtime: builds `[data-device]` blocks — matrix3d homography warp from `frame.json` `corners`, clip via the pose SVG's `#screen` path, frame artwork on top. |
 | `homography.mjs` | Shared math (Node + browser). Port-parity with `web_ui/src/canvas/applyScreenshotToDevice.ts`. |
