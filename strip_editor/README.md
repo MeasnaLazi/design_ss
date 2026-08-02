@@ -57,6 +57,13 @@ Press **?** for the keyboard map.
   and snapping cannot reach a block that far out.
 - **Devices and text are width-only.** Device height follows the pose aspect
   ratio; text height follows its content. Neither is ever written to the file.
+- **A new image block arrives with a placeholder**
+  (`strip_editor/assets/placeholder.svg`). An `<img>` with no `src` has an
+  intrinsic height of zero, so an empty one would insert at 600×0 — in the layer
+  tree, invisible on the canvas. The placeholder is deliberately loud, and the
+  inspector warns while it is still in place. Note that a strip left holding the
+  placeholder now points at this folder, so replace it before the file outlives
+  the editor.
 - **Blank style fields mean inherit.** Clearing one hands the property back to
   the strip's stylesheet rather than freezing today's computed value.
 - **Saves are surgical.** Moving one headline changes one line; the rest of the

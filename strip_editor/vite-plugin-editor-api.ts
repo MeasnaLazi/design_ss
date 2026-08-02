@@ -38,8 +38,21 @@ export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
 /** Directories the editor may list / open strips from (repo-relative, POSIX). */
 const STRIP_DIRS = ['output/strips', 'composer/test'] as const
 
-/** URL prefixes served straight off the repo root (the render.mjs URL space). */
-const STATIC_PREFIXES = ['/datasource/', '/web_ui/public/', '/composer/', '/output/'] as const
+/**
+ * URL prefixes served straight off the repo root (the render.mjs URL space).
+ *
+ * `/strip_editor/assets/` is here for the image placeholder. `render.mjs` serves
+ * the whole repo root so it resolves there for free; this middleware has to be
+ * told, because Vite's root is `strip_editor/` and the URL would otherwise fall
+ * through to the SPA handler.
+ */
+const STATIC_PREFIXES = [
+  '/datasource/',
+  '/web_ui/public/',
+  '/composer/',
+  '/output/',
+  '/strip_editor/assets/',
+] as const
 
 const API_PREFIX = '/__api/strip-editor/'
 

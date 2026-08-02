@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Placeholder for image blocks the editor inserts.
+
+  An <img> with no src has an intrinsic height of zero, so a freshly added image
+  block is laid out at 600x0 — present in the layer tree, invisible on the
+  canvas, impossible to grab. This gives the element real dimensions (3:2) so it
+  behaves like every other block from the moment it appears.
+
+  Deliberately unmistakable rather than tasteful: if it survives to an export,
+  that is a mistake, and it should be obvious in the PNG rather than blend in.
+  It is also inline SVG served from the repo, so it honours the schema's rule
+  against network assets and renders identically under render.mjs.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" role="img"
+     aria-label="Placeholder image — replace this">
+  <rect width="900" height="600" fill="#e7e5e4"/>
+  <rect x="10" y="10" width="880" height="580" fill="none" stroke="#a8a29e" stroke-width="6"
+        stroke-dasharray="28 20" rx="16"/>
+
+  <!-- Picture glyph -->
+  <g transform="translate(450 250)" fill="none" stroke="#78716c" stroke-width="10"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect x="-95" y="-72" width="190" height="144" rx="14"/>
+    <circle cx="-42" cy="-24" r="18" fill="#78716c" stroke="none"/>
+    <path d="M-95 44 L-30 -14 L14 26 L48 -4 L95 40"/>
+  </g>
+
+  <text x="450" y="404" text-anchor="middle" fill="#57534e"
+        font-family="-apple-system, 'Helvetica Neue', system-ui, sans-serif"
+        font-size="44" font-weight="600" letter-spacing="0.5">Replace this image</text>
+  <text x="450" y="452" text-anchor="middle" fill="#8a827b"
+        font-family="-apple-system, 'Helvetica Neue', system-ui, sans-serif"
+        font-size="28">Pick one in the inspector, or upload</text>
+</svg>

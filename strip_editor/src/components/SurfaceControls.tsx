@@ -3,6 +3,7 @@ import { Loader2, Upload } from 'lucide-react'
 
 import { Chip, ColorField, CssField, Hint, Row, Section } from './controls'
 import { applyAttribute, applyDeclarations } from '../editor/mutate'
+import { isPlaceholderImage } from '../editor/schema'
 import { listScreenshotPresets, listScreenshots, uploadScreenshot } from '../lib/api'
 import { getElement } from '../editor/blockRegistry'
 import type { BlockReadout } from '../editor/blockRegistry'
@@ -131,6 +132,11 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
   return (
     <>
       <Section title="Image">
+        {isPlaceholderImage(r.image.src) && (
+          <p className="mb-1.5 rounded bg-amber-950/60 px-2 py-1.5 text-[11px] leading-snug text-amber-300">
+            Still the placeholder. Pick an image below or upload one — it will render into the export as-is otherwise.
+          </p>
+        )}
         <Row label="src">
           <CssField value={r.image.src} onCommit={setSrc} />
         </Row>

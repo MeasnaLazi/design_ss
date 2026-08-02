@@ -55,6 +55,24 @@ export const KIND_COLOR: Record<NodeKind, string> = {
  */
 export type InsertSpec = { kind: LayerKind; role?: TextRole; left: number; top: number; screenshot?: string }
 
+/**
+ * Stand-in source for a newly inserted image block.
+ *
+ * Served from the repo by both the editor and `render.mjs`, so it is not a
+ * network asset and the schema's ban on those still holds.
+ *
+ * Note that this path ends up written into strip files, which means a saved
+ * design references the editor's folder until the image is replaced. Strips
+ * outlive tooling, so a placeholder left in place would break if `strip_editor/`
+ * ever moved — one more reason the inspector nags while it is still there.
+ */
+export const IMAGE_PLACEHOLDER_SRC = '/strip_editor/assets/placeholder.svg'
+
+/** Is this image still showing the placeholder rather than real artwork? */
+export function isPlaceholderImage(src: string | null | undefined): boolean {
+  return src === IMAGE_PLACEHOLDER_SRC
+}
+
 export function blockTemplate(spec: InsertSpec): string {
   const at = `position:absolute; left:${Math.round(spec.left)}px; top:${Math.round(spec.top)}px;`
 
@@ -74,7 +92,12 @@ export function blockTemplate(spec: InsertSpec): string {
       )
     }
     case 'image':
-      return `<img data-layer="image" src="${spec.screenshot ?? ''}" style="${at} width:600px;">`
+      // An <img> with no src has an intrinsic height of zero, so an empty
+      // template would insert a 600x0 block: in the layer tree, invisible on the
+      // canvas, impossible to grab. The placeholder gives it real dimensions
+      // until a real image is chosen — and is loud enough that reaching an
+      // export unnoticed is unlikely.
+      return `<img data-layer="image" src="${spec.screenshot ?? IMAGE_PLACEHOLDER_SRC}" style="${at} width:600px;">`
     case 'decor':
     default:
       return (
