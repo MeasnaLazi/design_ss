@@ -59,19 +59,31 @@ Nothing else needs to be running. Rendering and review are entirely offline.
    screenshots. Write a 3–5 line strip concept: mood, background system, pose
    rhythm across panels, which panel (if any) is the dark or accent inversion.
 2. **Author** `output/strips/<store>_strip.html` per `composer/strip-schema.md`.
-3. **Render:**
+3. **Check the structure** — no browser, so it costs nothing and catches the
+   mistakes that would otherwise waste a render:
+   `node composer/check-schema.mjs output/strips/<store>_strip.html`
+4. **Render:**
    `node composer/render.mjs --strip output/strips/<store>_strip.html --out output/strips/rendered --full`
-4. **Review** — read the render's `problems` first, then look at the PNGs
+5. **Review** — read the render's `problems` first, then look at the PNGs
    (§ Review). Edit the HTML and re-render. Renders are cheap — iterate freely,
    and stop when a round produces no visible improvement, or after about four
    rounds.
-5. **Present** the panels to the user, and tell them they can open the strip in
+6. **Present** the panels to the user, and tell them they can open the strip in
    the editor at
    `http://localhost:4714/?strip=output/strips/<store>_strip.html`
    (`cd strip_editor && npm run dev`). The editor opens the same file you wrote —
    there is no import step and nothing is converted.
 
 ## Review (per render)
+
+Three things answer three different questions, and between them they cover
+everything you need:
+
+| Question | What answers it |
+| --- | --- |
+| Is this file well-formed? | `check-schema.mjs` — source text, no browser |
+| Where did everything land, and what broke in layout? | the render's `problems`, and `strip-data.json` |
+| Is it any good? | the panel PNGs, against `composer/references/` |
 
 **Facts first.** The render prints a `problems` array — clipped text, an image
 that did not load, a block that fell off its panel, a placeholder still in
@@ -138,6 +150,13 @@ List the gaps in your final message. Never pause the run to ask for uploads.
   is allowed.
 - Use external network assets (fonts, images) in strip HTML. Everything must
   resolve from the repo, or the export renders differently from the editor.
+- **Write your own validation code.** No scratch scripts, no throwaway parsers,
+  no ad-hoc Playwright. `check-schema.mjs` and `render.mjs` *are* the
+  validation, and they are the same tools the export and the editor use — a
+  checker you write measures something slightly different from what actually
+  ships, which is precisely the disagreement this pipeline exists to remove. If
+  you find yourself wanting a fact neither tool reports, say so in your final
+  message; that is a gap to fix in the tools, not to paper over with a script.
 - Edit `composer/*.mjs`, `strip_editor/src/**`, or the frame packs during a
   design run.
 - Overwrite `output/screenshot_report.md`.

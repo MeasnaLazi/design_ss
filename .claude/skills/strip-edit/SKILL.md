@@ -84,6 +84,10 @@ stretch mid-turn (a slow render, a long think), POST the claim again to hold it.
 
 ## Do not
 
+- **Write your own validation code.** `check-schema.mjs` and `render.mjs` are
+  the validation, and they are what the export and the editor actually use. A
+  scratch script measures something subtly different from what ships. If you
+  need a fact neither reports, say so instead of scripting around it.
 - Reformat, reindent or reflow the document.
 - Rewrite panels you were not asked to touch.
 - Add external network assets — everything must resolve from the repo.

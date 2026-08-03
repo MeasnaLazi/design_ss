@@ -20,8 +20,10 @@ copy or theme with Play.
 
 ## Method
 
-Load and follow **`screenshot-design`**
-(`.claude/skills/screenshot-design/SKILL.md`). It holds the whole procedure —
+**Read** `.claude/skills/screenshot-design/SKILL.md` and follow it. Read the
+file directly rather than reaching for the Skill tool: the skill has carried
+`disable-model-invocation` in the past, and a subagent that tries to invoke it
+fails outright instead of falling back. It holds the whole procedure —
 preflight, required reading, the render loop, the review step and the craft
 notes. Follow it rather than improvising, and do not restate it back; the skill
 is the single description of how this works.
@@ -33,6 +35,9 @@ is the single description of how this works.
 - Do not edit `composer/*.mjs`, `strip_editor/src/**`, or the device frame packs.
 - Never pause the run to request screenshot uploads — design around the gap and
   report it.
+- Never write your own validation scripts. `composer/check-schema.mjs` and
+  `composer/render.mjs` are the only checks; a bespoke one measures something
+  other than what ships.
 
 ## Done when
 
