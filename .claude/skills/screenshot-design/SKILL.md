@@ -1,6 +1,5 @@
 ---
 name: screenshot-design
-disable-model-invocation: true
 description: >-
   HTML-first store screenshot design for apps_publisher: read
   output/screenshot_report.md, author the whole strip as one HTML/CSS document

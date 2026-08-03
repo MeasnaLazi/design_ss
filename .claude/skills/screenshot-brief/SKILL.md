@@ -1,6 +1,5 @@
 ---
 name: screenshot-brief
-disable-model-invocation: true
 description: >-
   Input-prep phase for apps_publisher store screenshots. Given a platform
   (ios | android), gathers App Store / Play Store listing metadata + theme,
