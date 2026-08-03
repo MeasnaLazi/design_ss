@@ -1,0 +1,117 @@
+/**
+ * check-schema.mjs, against markup designed to break it.
+ *
+ * The rule under most scrutiny here is the unlabelled-child check. It has to
+ * fire on a bare `<div>` sitting in a panel — an element that renders perfectly
+ * and is invisible to the editor — while staying silent about the shapes nested
+ * *inside* a decor block, which are that block's own business. A checker that
+ * cried wolf about nested markup would be turned off within a day, so the
+ * negative cases below matter more than the positive one.
+ *
+ * Run: node composer/test/check-schema.test.mjs
+ */
+import assert from 'node:assert/strict'
+import { checkStrip } from '../check-schema.mjs'
+
+const wrap = (panelBody, extra = '') => `<!doctype html><html><head>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head><body>
+<div class="strip">
+  <section class="panel" data-panel="0">
+${panelBody}
+  </section>
+${extra}
+</div>
+</body></html>`
+
+const TEXT = '<div data-layer="text" data-role="title" style="position:absolute; left:10px; top:10px;">Hi</div>'
+
+let failures = 0
+async function check(label, html, { errors = [], noErrors = [] }) {
+  const res = await checkStrip(html, label)
+  const joined = res.errors.join(' | ')
+  const missing = errors.filter((e) => !joined.includes(e))
+  const spurious = noErrors.filter((e) => joined.includes(e))
+  if (missing.length || spurious.length) {
+    failures += 1
+    console.log(`FAIL  ${label}`)
+    for (const m of missing) console.log(`        expected an error containing: ${m}`)
+    for (const s of spurious) console.log(`        should NOT have errored on: ${s}`)
+    console.log(`        actual: ${joined || '(none)'}`)
+  } else {
+    console.log(`PASS  ${label}`)
+  }
+}
+
+// --- the bug this rule exists for ------------------------------------------
+await check('bare div in a panel is caught', wrap(`${TEXT}\n<div class="badge"></div>`), {
+  errors: ['class="badge"', 'no data-layer'],
+})
+
+await check('inline <svg> in a panel is caught', wrap(`${TEXT}\n<svg viewBox="0 0 10 10"><circle r="5"/></svg>`), {
+  errors: ['<svg>', 'no data-layer'],
+})
+
+await check('bare <img> in a panel is caught', wrap(`${TEXT}\n<img src="/datasource/images/x.png">`), {
+  errors: ['<img>', 'no data-layer'],
+})
+
+// --- the negatives that decide whether anyone keeps it on -------------------
+await check(
+  'shapes NESTED inside a decor block are left alone',
+  wrap(`${TEXT}
+<div data-layer="decor" class="card" style="position:absolute; left:0; top:0;">
+  <div class="ring"></div>
+  <div class="ring2"><span class="dot"></span></div>
+  <svg viewBox="0 0 10 10"><circle r="5"/></svg>
+</div>`),
+  { noErrors: ['class="ring"', 'class="ring2"', 'class="dot"', '<svg>'] },
+)
+
+await check(
+  'a void element inside decor does not break depth tracking',
+  wrap(`${TEXT}
+<div data-layer="decor" style="position:absolute; left:0; top:0;">
+  <img src="/composer/placeholder.svg"><br><hr>
+</div>
+<div class="after"></div>`),
+  { errors: ['class="after"'], noErrors: ['<img>', '<br>', '<hr>'] },
+)
+
+await check(
+  'a self-closed element inside decor does not break depth tracking',
+  wrap(`${TEXT}
+<div data-layer="decor" style="position:absolute; left:0; top:0;">
+  <svg viewBox="0 0 4 4"><rect width="4" height="4"/></svg>
+</div>
+<div class="after"></div>`),
+  { errors: ['class="after"'], noErrors: ['<rect>'] },
+)
+
+await check('a device block is not reported as unlabelled', wrap(`${TEXT}
+<div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
+     style="position:absolute; left:0; top:0; width:900px;"></div>`), {
+  noErrors: ['no data-layer'],
+})
+
+await check('a <style> block inside a panel is not a layer', wrap(`${TEXT}\n<style>.x{color:red}</style>`), {
+  noErrors: ['no data-layer'],
+})
+
+// --- multiple panels are attributed correctly -------------------------------
+const twoPanels = `<!doctype html><html><head>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head><body><div class="strip">
+  <section class="panel" data-panel="0">${TEXT}</section>
+  <section class="panel" data-panel="1">${TEXT}<div class="stray"></div></section>
+</div></body></html>`
+const res = await checkStrip(twoPanels, 'two panels')
+assert.ok(
+  res.errors.some((e) => e.includes('panel 1') && e.includes('class="stray"')),
+  `expected the stray to be attributed to panel 1, got: ${res.errors.join(' | ')}`,
+)
+assert.ok(!res.errors.some((e) => e.includes('panel 0:')), 'panel 0 is clean and must not be blamed')
+console.log('PASS  the offending panel is named correctly')
+
+console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)
+process.exit(failures ? 1 : 0)

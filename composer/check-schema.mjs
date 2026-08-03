@@ -68,6 +68,45 @@ function innerHtml(html, tagName, from) {
   return ''
 }
 
+const VOID_ELEMENTS = new Set([
+  'img', 'br', 'hr', 'input', 'meta', 'link', 'source', 'area',
+  'base', 'col', 'embed', 'param', 'track', 'wbr',
+])
+/** Elements inside a panel that draw nothing and so need no layer kind. */
+const NON_VISUAL = new Set(['style', 'script', 'template'])
+
+/**
+ * Direct element children of every panel, with the panel index.
+ *
+ * Depth matters: a shape nested *inside* a decor block is that block's business
+ * — decor is free HTML/CSS — but an element sitting directly in the panel is a
+ * layer, and if it is not labelled as one the editor cannot see it at all.
+ */
+function* panelChildren(html) {
+  const tagRe = /<(\/?)([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g
+  const panelRe = /<section((?:[^>"']|"[^"]*"|'[^']*')*?)>/g
+  let open
+  while ((open = panelRe.exec(html))) {
+    const index = attr(open[1], 'data-panel')
+    if (index === null) continue
+
+    let depth = 0
+    tagRe.lastIndex = open.index + open[0].length
+    let t
+    while ((t = tagRe.exec(html))) {
+      const [, closing, rawName, attrs, selfClose] = t
+      const name = rawName.toLowerCase()
+      if (closing) {
+        if (name === 'section' && depth === 0) break // end of this panel
+        depth -= 1
+        continue
+      }
+      if (depth === 0 && !NON_VISUAL.has(name)) yield { panel: index, name, attrs }
+      if (!selfClose && !VOID_ELEMENTS.has(name)) depth += 1
+    }
+  }
+}
+
 async function exists(repoRelUrl) {
   const clean = repoRelUrl.split('?')[0].split('#')[0].replace(/^\/+/, '')
   try {
@@ -169,6 +208,22 @@ export async function checkStrip(html, label) {
     }
   }
   if (blocks === 0) W('no layer blocks found')
+
+  // --- unlabelled elements -------------------------------------------------
+  // The failure this catches is quiet and nasty: the element renders correctly
+  // in the export, so nothing looks wrong, but the editor's registry only knows
+  // `[data-layer], [data-device]` — so the block cannot be clicked, dragged,
+  // deleted or found in the layer tree. The design ships fine and is
+  // uneditable, which is the worst combination to discover late.
+  for (const child of panelChildren(html)) {
+    if (attr(child.attrs, 'data-layer') !== null || attr(child.attrs, 'data-device') !== null) continue
+    const hint = attr(child.attrs, 'class')
+    const what = `<${child.name}${hint ? ` class="${hint}"` : ''}>`
+    E(
+      `panel ${child.panel}: ${what} has no data-layer — it renders but the editor cannot select it. ` +
+        `Decorative shapes need data-layer="decor"`,
+    )
+  }
 
   // --- assets -------------------------------------------------------------
   for (const m of html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)) {
