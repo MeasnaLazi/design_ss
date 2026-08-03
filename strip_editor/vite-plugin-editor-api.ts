@@ -90,8 +90,45 @@ const MIME: Record<string, string> = {
  * same discipline. Dev-server lifetime state; restart resets to `human`.
  * (Endpoint lands in P0 so the shape is fixed; the banner + take-over UI is P6.)
  */
-type EditorMode = { mode: 'human' | 'agent'; since: string; holder: string | null }
-let editorMode: EditorMode = { mode: 'human', since: new Date().toISOString(), holder: null }
+type EditorMode = { mode: 'human' | 'agent'; since: string; holder: string | null; expiresAt: string | null }
+let editorMode: EditorMode = { mode: 'human', since: new Date().toISOString(), holder: null, expiresAt: null }
+
+/**
+ * How long an agent holds the document without further activity.
+ *
+ * The lock is a *lease*, not a latch, because the editor disables "Take over"
+ * while it is held. A latch would mean an agent that crashed, was interrupted,
+ * or simply forgot to release left the human locked out of their own editor
+ * with no recourse short of restarting this server. Every agent write refreshes
+ * the lease, so a working agent never loses it and a dead one costs 90 seconds.
+ */
+const LEASE_MS = Number(process.env.STRIP_EDITOR_LEASE_MS) || 90_000
+
+/** Mtimes this server wrote itself, so its own saves are not read as an agent. */
+const ownWrites = new Set<string>()
+
+/** The lock as it stands now — an expired lease is simply the human's turn. */
+function currentMode(): EditorMode {
+  if (editorMode.mode === 'agent' && editorMode.expiresAt && Date.parse(editorMode.expiresAt) <= Date.now()) {
+    editorMode = { mode: 'human', since: new Date().toISOString(), holder: null, expiresAt: null }
+  }
+  return editorMode
+}
+
+/** Claim or refresh the agent lease. */
+function claimAgent(holder: string | null): EditorMode {
+  const now = Date.now()
+  const held = currentMode().mode === 'agent'
+  editorMode = {
+    mode: 'agent',
+    // Keep the original start time across refreshes: the banner reads "since
+    // 14:32", which should mean when the turn began, not when it last renewed.
+    since: held ? editorMode.since : new Date(now).toISOString(),
+    holder: holder ?? (held ? editorMode.holder : null),
+    expiresAt: new Date(now + LEASE_MS).toISOString(),
+  }
+  return editorMode
+}
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.statusCode = status
@@ -338,7 +375,19 @@ function watchStrip(abs: string, req: IncomingMessage, res: ServerResponse): voi
     timer = setTimeout(() => {
       void fs
         .stat(abs)
-        .then((stat) => send('change', { mtime: stat.mtime.toISOString(), size: stat.size }))
+        .then((stat) => {
+          const mtime = stat.mtime.toISOString()
+          // A write this server did not make is somebody else's turn. Claiming
+          // the lease here rather than waiting to be told means an agent that
+          // never calls the mode endpoint still puts the canvas out of the way
+          // — the editor stops depending on the other party's good manners.
+          //
+          // It cannot tell an agent from a `git checkout` or an IDE save, and
+          // does not try: the honest claim is "changed outside this editor",
+          // which is what the banner says unless a holder identified itself.
+          if (!ownWrites.delete(mtime)) claimAgent(null)
+          send('change', { mtime, size: stat.size })
+        })
         .catch(() => send('removed', { path: toRepoRel(abs) }))
     }, 120)
   }
@@ -504,6 +553,9 @@ export function editorApiPlugin(): Plugin {
           throw e
         }
         const after = await fs.stat(abs)
+        // Remember the mtime so the watcher recognises this as our own save and
+        // does not report the human's click as an agent taking the document.
+        ownWrites.add(after.mtime.toISOString())
         console.info(`[strip-editor] saved ${toRepoRel(abs)} (${html.length} bytes)`)
         sendJson(res, 200, { ok: true, path: toRepoRel(abs), mtime: after.mtime.toISOString(), bytes: html.length })
         return
@@ -668,7 +720,7 @@ export function editorApiPlugin(): Plugin {
       // --- GET|POST /__api/strip-editor/mode -------------------------------
       if (route === 'mode') {
         if (req.method === 'GET') {
-          sendJson(res, 200, { ok: true, ...editorMode })
+          sendJson(res, 200, { ok: true, ...currentMode(), leaseMs: LEASE_MS })
           return
         }
         if (req.method === 'POST') {
@@ -679,9 +731,18 @@ export function editorApiPlugin(): Plugin {
             return
           }
           const holder = typeof parsed.holder === 'string' && parsed.holder.trim() ? parsed.holder.trim() : null
-          editorMode = { mode, since: new Date().toISOString(), holder }
+          if (mode === 'agent') {
+            // Claiming and renewing are the same call: an agent that POSTs
+            // periodically through a long turn keeps the lease alive without
+            // needing a separate heartbeat endpoint to remember.
+            claimAgent(holder)
+          } else {
+            // Releasing is immediate and unconditional. Anyone may hand the
+            // document back — refusing a release could only ever strand it.
+            editorMode = { mode: 'human', since: new Date().toISOString(), holder: null, expiresAt: null }
+          }
           console.info('[strip-editor] mode set', editorMode)
-          sendJson(res, 200, { ok: true, ...editorMode })
+          sendJson(res, 200, { ok: true, ...editorMode, leaseMs: LEASE_MS })
           return
         }
         sendJson(res, 405, { ok: false, error: 'method_not_allowed' })

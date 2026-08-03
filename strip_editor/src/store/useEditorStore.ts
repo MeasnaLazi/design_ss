@@ -51,6 +51,8 @@ type EditorState = {
   mode: 'human' | 'agent'
   modeSince: string | null
   modeHolder: string | null
+  /** When the agent lease lapses; the editor unlocks itself at that point. */
+  modeExpiresAt: string | null
   /** The file changed on disk and the editor has unsaved work to reconcile. */
   externalChange: { mtime: string } | null
   /** Last export result, for the toolbar panel. */
@@ -93,7 +95,7 @@ type EditorState = {
   setSaving: (saving: boolean) => void
   setSaveError: (message: string | null) => void
   setConflict: (conflict: { expected: string; actual: string } | null) => void
-  setMode: (mode: 'human' | 'agent', since: string | null, holder: string | null) => void
+  setMode: (mode: 'human' | 'agent', since: string | null, holder: string | null, expiresAt?: string | null) => void
   setExternalChange: (change: { mtime: string } | null) => void
   setExporting: (exporting: boolean) => void
   setWatchState: (state: 'connecting' | 'live' | 'offline') => void
@@ -125,6 +127,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   mode: 'human',
   modeSince: null,
   modeHolder: null,
+  modeExpiresAt: null,
   externalChange: null,
   exporting: false,
   watchState: 'connecting',
@@ -209,7 +212,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSaving: (saving) => set({ saving }),
   setSaveError: (saveError) => set({ saveError }),
   setConflict: (conflict) => set({ conflict }),
-  setMode: (mode, modeSince, modeHolder) => set({ mode, modeSince, modeHolder }),
+  setMode: (mode, modeSince, modeHolder, modeExpiresAt = null) =>
+    set({ mode, modeSince, modeHolder, modeExpiresAt }),
   setExternalChange: (externalChange) => set({ externalChange }),
   setExporting: (exporting) => set({ exporting }),
   setWatchState: (watchState) => set({ watchState }),

@@ -8,10 +8,15 @@
  * an agent, a `git checkout`, a hand edit in an IDE all look the same and are
  * all handled the same.
  *
- * **The mode lock** answers "whose turn is it?" It is a convention, and only
- * works if the other party opts in. It exists so an agent turn and a human turn
- * are not interleaved on the same document, which no amount of file watching
- * can prevent.
+ * **The mode lock** answers "whose turn is it?" The server claims it on any
+ * write the editor did not make, so it no longer depends on the other party
+ * opting in — an agent that never calls the mode endpoint still takes the
+ * document visibly. It exists so an agent turn and a human turn are not
+ * interleaved, which no amount of file watching can prevent.
+ *
+ * The lock is a lease. It lapses on its own, because the editor disables "Take
+ * over" while it is held and a lock that could not lapse would strand the human
+ * whenever an agent died mid-turn.
  */
 import { getMode, watchStrip } from '../lib/api'
 import { isDirty, useHistoryStore } from '../store/useHistoryStore'
@@ -74,13 +79,13 @@ export function subscribeToMode(): () => void {
       const m = await getMode()
       if (stopped) return
       const store = useEditorStore.getState()
-      if (m.mode !== store.mode || m.since !== store.modeSince) {
-        store.setMode(m.mode, m.since, m.holder)
+      if (m.mode !== store.mode || m.since !== store.modeSince || m.expiresAt !== store.modeExpiresAt) {
+        store.setMode(m.mode, m.since, m.holder, m.expiresAt)
       }
     } catch {
       // Dev server restarting; assume the human keeps control rather than
       // locking the UI on a network blip.
-      if (!stopped) useEditorStore.getState().setMode('human', null, null)
+      if (!stopped) useEditorStore.getState().setMode('human', null, null, null)
     }
   }
 

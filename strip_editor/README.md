@@ -51,8 +51,14 @@ between them. Unsaved edits are confirmed before either can discard them.
 
 **While you work**, the file is watched on disk: if something else changes it the
 editor reloads, or asks first when you have unsaved work. A green **live** chip
-confirms the watcher is connected. An agent can claim the document via the mode
-endpoint, which makes the canvas read-only until you take over.
+confirms the watcher is connected.
+
+**When something else writes the file**, the editor hands the document over on
+its own — the canvas goes read-only and a banner says who has it. That needs no
+cooperation from the writer; an agent that claims the document via the mode
+endpoint just gets named in the banner instead of being described generically.
+The lock is a **lease** that lapses ~90s after the last write, so a crashed
+agent cannot strand you, and the banner shows the countdown.
 
 Press **?** for the keyboard map.
 

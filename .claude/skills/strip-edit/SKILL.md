@@ -52,8 +52,15 @@ one you are doing before you start.
 ## If the editor is open on this file
 
 `strip_editor` watches the file and reloads when it changes on disk; a human
-with unsaved edits is prompted rather than overwritten. Claim the document first
-so the canvas goes read-only while you work:
+with unsaved edits is prompted rather than overwritten.
+
+The editor takes itself out of the way **automatically** — any write it did not
+make puts it in agent mode and makes the canvas read-only, so you do not have to
+announce yourself for the human to be protected.
+
+Claiming is still worth doing when the editor is running, for two reasons: the
+banner names *you* instead of saying "changed outside the editor", and it starts
+before your first write rather than after it.
 
 ```bash
 curl -s -X POST http://localhost:4714/__api/strip-editor/mode \
@@ -69,6 +76,11 @@ curl -s -X POST http://localhost:4714/__api/strip-editor/mode \
 
 This is a dev-server endpoint. If the editor is not running the request fails,
 which is expected and not worth reporting.
+
+The lock is a **lease**: it lapses about 90 seconds after your last write, so a
+run that dies partway through cannot leave the human locked out. Each write
+renews it, so a working turn never lapses — but if you go quiet for a long
+stretch mid-turn (a slow render, a long think), POST the claim again to hold it.
 
 ## Do not
 

@@ -20,6 +20,11 @@ export type EditorMode = {
   mode: 'human' | 'agent'
   since: string
   holder: string | null
+  /**
+   * When the agent's lease lapses, after which the document is the human's
+   * again without anyone asking. `null` in human mode.
+   */
+  expiresAt: string | null
 }
 
 async function getJson<T>(url: string): Promise<T> {
