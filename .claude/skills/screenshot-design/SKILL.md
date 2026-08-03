@@ -93,7 +93,8 @@ whose headline is cut in half.
 
 `strip-data.json` in the output directory holds the same problems plus the
 measured geometry of every block, if you need to know exactly where something
-landed. Note that a device hanging off a panel edge is *not* a problem — that
+landed. **Its shape is documented in `composer/strip-schema.md` § strip-data.json**
+— read that rather than writing a script to discover the field names. Note that a device hanging off a panel edge is *not* a problem — that
 is the standard crop, and the inspector deliberately stays quiet about it.
 
 Anything that stops the render outright — a missing pack, an unknown pose, a

@@ -152,6 +152,45 @@ panel, `strip.png` when `--full` is passed, and **`strip-data.json`** — every
 block's measured geometry plus a `problems` list, extracted from the rendered
 DOM. The problems also appear in the summary on stdout.
 
+### `strip-data.json`
+
+Read it rather than exploring it — the shape is fixed:
+
+```jsonc
+{
+  "version": 2,
+  "strip":  { "width": 6450, "height": 2796, "gap": 0, "panels": 5 },
+  "panels": [
+    {
+      "index": 0, "width": 1290, "height": 2796,
+      "layers": [                      // NOT "blocks"
+        {
+          "id": "text_0_1", "kind": "text", "z": 1,
+          // panel-relative, top-left, in layout px — flat, not nested in a "rect"
+          "x": 110, "y": 220, "width": 1080, "height": 277,
+          // px beyond each panel edge; 0 when inside. Overhang is legal.
+          "outside": { "left": 0, "top": 0, "right": 0, "bottom": 0 },
+          "text": "Private By\nDesign", "role": "title",
+          "font_size": 132, "font_family": "…", "color": "#0c0c0a",
+          "align": "left", "weight": "700"
+        }
+        // device: pack, pose, screenshot, fit, screen_fallback, blank_screen
+        // image:  src, natural_width, natural_height
+        // decor:  children
+      ]
+    }
+  ],
+  "problems": [
+    { "severity": "warning", "panel": 0, "layer": "text_0_1",
+      "message": "text is clipped by the panel edge (60px past the right)" }
+  ]
+}
+```
+
+`severity` is `error` or `warning`. Every layer kind carries the same `id`,
+`kind`, `z`, `x`, `y`, `width`, `height` and `outside`; the extra fields listed
+above are per kind.
+
 A **non-zero exit** means a device failed to build: a missing pack, an unknown
 pose, or a screenshot that did not load. Those never produce a partial render.
 

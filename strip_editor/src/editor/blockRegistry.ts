@@ -175,8 +175,26 @@ function labelFor(el: HTMLElement, kind: LayerKind): string {
     const src = el.getAttribute('src') ?? ''
     return firstLine(src.split('/').pop() ?? 'image')
   }
-  const cls = el.className.trim().split(/\s+/)[0]
+  const cls = classListOf(el)[0]
   return cls ? `decor · ${cls}` : 'decor'
+}
+
+/**
+ * An element's classes, safely.
+ *
+ * `el.className` is a string on HTML elements but an `SVGAnimatedString` on SVG
+ * ones, which has no `.trim`, no `.split`, and stringifies to
+ * `[object SVGAnimatedString]`. A decor block drawn as an inline `<svg>` is
+ * perfectly legal markup, so reading `className` directly crashes the layer
+ * tree on a strip that did nothing wrong. `getAttribute` returns a string for
+ * both.
+ */
+export function classNameOf(el: Element): string {
+  return el.getAttribute('class') ?? ''
+}
+
+function classListOf(el: Element): string[] {
+  return classNameOf(el).trim().split(/\s+/).filter(Boolean)
 }
 
 /**
@@ -214,7 +232,7 @@ export function indexDocument(doc: Document): { nodes: BlockNode[]; byId: Map<st
       order: -1,
       label: panelLabel,
       tagName: panel.tagName.toLowerCase(),
-      className: panel.className,
+      className: classNameOf(panel),
       zIndex: null,
       })
 
@@ -235,7 +253,7 @@ export function indexDocument(doc: Document): { nodes: BlockNode[]; byId: Map<st
         role: isTextRole(el.dataset.role) ? el.dataset.role : undefined,
         label: labelFor(el, kind),
         tagName: el.tagName.toLowerCase(),
-        className: el.className,
+        className: classNameOf(el),
         zIndex: zRaw === 'auto' ? null : Number(zRaw),
       })
     })
