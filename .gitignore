@@ -1,18 +1,15 @@
+# Your app's screen captures — yours, not the project's.
 datasource/screenshots/**
-datasource/display*
-datasource/.screenshot-designer-state.json
-# Session scratch: previews, API JSON, design_brief.json (add !datasource/temp/design_brief.json to track the brief)
-datasource/temp/**
-!datasource/temp/.gitkeep
-datasource/memories/**
-!datasource/memories/.gitkeep
+
+# Strips and their renders. No version history: do not overwrite one casually.
 output/**
+
 strip_editor/node_modules/
 strip_editor/package-lock.json
 
-# Artwork for image layers IS tracked (unlike datasource/screenshots/**): a strip
-# that references one must render from a fresh clone.
+# datasource/input/ (panel copy) and datasource/images/ (artwork for image
+# layers) ARE tracked: a strip that references one must render from a fresh
+# clone.
 
-# macOS Finder droppings. Was only ignored inside web_ui/; device-frames moved
-# out of there, so it needs to be repo-wide.
+# macOS Finder droppings.
 .DS_Store

@@ -1,7 +1,7 @@
 # Reference gallery
 
-Anchor images for the designer agent's self-review (screenshot-design skill
-§ Self-review). The agent compares its rendered panels against these before
+Anchor images for the review step of the `strip-design` skill
+(§ Reading a render). Rendered panels are compared against these before
 iterating — this is what replaces "design to pass the rules" with "design to
 look like the best work in the category".
 

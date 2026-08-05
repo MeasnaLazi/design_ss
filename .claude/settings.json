@@ -12,10 +12,7 @@
       "Bash(rm -rf *)",
       "Bash(python -c*)",
       "Bash(python3 -c*)",
-      "Bash(python3.11 -c*)",
-      "Read(web_ui/src/**)",
-      "Edit(web_ui/src/**)",
-      "Write(web_ui/src/**)"
+      "Bash(python3.11 -c*)"
     ]
   }
 }

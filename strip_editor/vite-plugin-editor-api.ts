@@ -85,7 +85,7 @@ const MIME: Record<string, string> = {
 }
 
 /**
- * One-way exclusive edit mode, mirroring web_ui's
+ * One-way exclusive edit mode, matching the
  * `/__api/screenshot-designer/mode` contract so the agent skill can reuse the
  * same discipline. Dev-server lifetime state; restart resets to `human`.
  * (Endpoint lands in P0 so the shape is fixed; the banner + take-over UI is P6.)

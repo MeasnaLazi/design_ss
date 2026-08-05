@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 import { editorApiPlugin } from './vite-plugin-editor-api'
 
-// Port 4714 — web_ui keeps 4713 so both editors can run side by side.
+// Port 4714.
 const PORT = 4714
 
 export default defineConfig({

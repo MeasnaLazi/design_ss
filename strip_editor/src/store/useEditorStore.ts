@@ -45,7 +45,7 @@ type EditorState = {
 
   /**
    * Who currently owns the document. While `agent`, the editing surface is
-   * read-only — the same one-way lock web_ui uses, so an agent turn is never
+   * read-only — a one-way lock, so an agent turn is never
    * interleaved with human edits on the same file.
    */
   mode: 'human' | 'agent'

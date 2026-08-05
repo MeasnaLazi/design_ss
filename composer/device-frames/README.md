@@ -27,10 +27,11 @@ points to tune by eye, not constraints.
 
 ## iphone\_12\_pro
 
-Figures are read from `frame.json` — regenerate rather than hand-edit:
+Figures are read from `composer/device-frames/iphone_12_pro/frame.json` — that
+file is the source of truth, so check it rather than hand-editing this table:
 
 ```bash
-node .claude/skills/screenshot-brief/script/load-frame.mjs --pack iphone_12_pro
+cat composer/device-frames/iphone_12_pro/frame.json
 ```
 
 | Pose | viewBox | Reads as | Starting width |

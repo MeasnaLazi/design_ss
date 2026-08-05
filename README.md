@@ -2,7 +2,7 @@
 
 **Main purpose:** This project is built **for developers** — app engineers and publisher workflows who need repeatable, scriptable control over store screenshots, not a consumer-facing design product.
 
-**apps_publisher** is an open-source toolkit for designing and automating **App Store** and **Play Store** screenshot layouts. It pairs a browser-based visual editor with an HTML-first composer and agent-friendly HTTP APIs so you can edit in the browser, drive the canvas from scripts or agents, and keep everything in your repo.
+**apps_publisher** is an open-source toolkit for designing and automating **App Store** and **Play Store** screenshot layouts. A screenshot set is one HTML document — a **strip** — that a visual editor and a headless renderer both read. Edit it in the browser, hand it to an agent, or both at once; it stays a file in your repo either way.
 
 ## Demo
 Design by Human! 🧑🏽‍💻 ~ 5 minutes (continue from AI) <br><br>
@@ -11,98 +11,92 @@ Design by Human! 🧑🏽‍💻 ~ 5 minutes (continue from AI) <br><br>
 Design by Claude! 🤖 ~ 17 minutes <br><br>
 [![Watch demo on YouTube](https://img.youtube.com/vi/NJOYo_1MTBE/hqdefault.jpg)](https://www.youtube.com/watch?v=NJOYo_1MTBE)
 
-## Workspace features
+## The editor
 
-The **[`web_ui/`](web_ui/)** screenshot designer is the visual workspace. Highlights:
+The **[`strip_editor/`](strip_editor/)** (port 4714) opens a strip HTML file directly — no import step, no conversion, no second representation. It reads the file, edits it visually, and saves it back in place.
 
-- **App Store and Play Store artboards** — Preset panel sizes for iPhone, iPad, Play phone, and Play tablet (portrait and landscape); switch presets without leaving the editor.
-- **Multi-panel carousels** — One horizontal strip with 1–N screenshot panels, adjustable gap, per-panel alignment guides, and export-sized slots.
-- **Device mockups** — Catalog of SVG device-frame packs (iPhone, iPad, Android phone/tablet) with multiple angles (front, isometric, perspective); drop a frame onto any panel column.
-- **Screenshots inside frames** — Upload an image into the device screen opening; rectangular and isometric frames warp the shot to the screen mask.
-- **Text layers** — Add plain text or store-scaled style presets (title, headline, body, captions); per-layer font, size, weight, color, and alignment from the contextual toolbar.
-- **Custom fonts** — Install `.ttf` / `.otf` / `.woff` fonts from your computer (stored in the browser for this workspace until you remove them).
-- **Images** — Upload image layers and optional full-artboard background images (saved under `datasource/screenshots/` when the dev server is running).
-- **Backgrounds** — Solid fills, multi-stop gradients, or image fills for the artboard.
-- **Layers and templates** — Reorder, rename, and select layers; save and reload layout templates from the sidebar.
-- **Editing workflow** — Undo/redo, copy/paste, keyboard nudges, zoom, auto-save and manual save to `datasource/display_*.json`.
-
-Agents can drive the same canvas over loopback (via `composer/import-to-canvas.mjs`) while `npm run dev` is running — see [Agents](#agents) and [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md).
+- **Store-sized panels** — Panels are authored at the exact export size of the target preset (e.g. 1290×2796 for iPhone portrait). **New strip** scaffolds a blank, schema-conformant document.
+- **Four layer kinds** — text, device, image, decor. Select, move, resize and restyle any of them; the layer tree is built from the `data-layer` attributes in the file.
+- **Device mockups** — SVG frame packs with multiple poses (front, angled, tilted, isometric); real app screenshots are warped into the screen opening by homography and clipped to the pose's screen mask.
+- **Agent-aware** — When something else writes the file, the editor reloads and puts itself in read-only agent mode, with a lease that lapses shortly after the last write. So an agent running the `strip-design` skill can design while you watch. See [The design skill](#the-design-skill).
 
 ## What it does
 
-- **Multi-panel artboards** — Compose store-sized layouts with text, device mockups, images, and backgrounds (solid, gradient, or image).
-- **Preset-driven workflows** — Switch between iPhone, iPad, phone, and tablet sizes; each preset maps to a display document under `datasource/`.
-- **Live + offline tooling** — Edit in the browser while per-skill `script/` helpers resolve device packs and frame paths without guessing file formats.
-- **Agent integration** — Author strips as HTML, render to PNGs with Playwright, then replay them into the canvas over Server-Sent Events for human touch-up.
+- **One document per strip** — Every panel of a screenshot set lives in a single HTML file. It is the source of truth: the renderer exports it and the editor edits it, in the same browser engine.
+- **Real export sizes** — Panels are authored at store dimensions, so what you see is what ships; `render.mjs` also reports measured geometry and a list of layout `problems`.
+- **Agent integration** — One skill, `strip-design`. An agent authors or edits the strip HTML, renders it to PNGs with Playwright, looks at the result, and iterates.
 
-The repo is intended for **local development**: run the Vite dev server, keep a designer tab open, and drive changes from the UI or from `composer/import-to-canvas.mjs` on loopback.
+The repo is intended for **local development**: run the Vite dev server, open a strip in the editor, and edit it by hand or let an agent edit the same file.
 
 ## Repository layout
 
 | Path | Role |
 |------|------|
-| [`web_ui/`](web_ui/) | **Screenshot / display designer** — Vite + React + Fabric.js editor; persists designs via the dev server into `datasource/`. |
-| [`composer/`](composer/) | **HTML-first strip composer** — agents author whole strips as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)), `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot via Playwright, `import-to-canvas.mjs` replays a strip into the live canvas as editable layers. |
-| [`.claude/skills/`](.claude/skills/) | **Agents & skills** — the `screenshot-brief` skill bundles its `script/` helpers (`device-packs.mjs`, `load-frame.mjs`). Plain Node, no deps. |
-| [`datasource/`](datasource/) | Local design data and agent/browser scratch ([`temp/`](datasource/temp/), `memories/`). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
-| [`output/`](output/) | **Agent outputs** at repo root: store JSON, `screenshot_report.md`, and **`output/temp/`** (agent working files). Gitignored — clear manually ([`web_ui/README.md`](web_ui/README.md#manual-cleanup-you-must-do-this)). |
+| [`strip_editor/`](strip_editor/) | **Strip editor** — Vite + React editor (port 4714). Opens a strip HTML file at `?strip=<repo-relative path>`, watches it on disk, and reloads when anything else writes it. |
+| [`composer/`](composer/) | **HTML-first strip composer** — strips are authored as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)); `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot (measured geometry + `problems`) via Playwright; `check-schema.mjs` checks structure from source text, no browser. |
+| [`.claude/skills/`](.claude/skills/) | **The skill** — [`strip-design`](.claude/skills/strip-design/SKILL.md), the one agent-facing entry point. No agents, no helper scripts. |
+| [`datasource/`](datasource/) | Design inputs: [`input/`](datasource/input/) (panel copy, one `.md` per strip — tracked), `images/` (artwork for image layers — tracked), `screenshots/` (app captures — gitignored). |
+| [`output/`](output/) | **Outputs**: **`output/strips/*.html`** (the strips themselves) and `output/strips/rendered/` (panel PNGs + `strip-data.json`). Gitignored — **no version history**, so do not overwrite a strip casually. |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
-| [`config.json`](config.json) | **Optional override** — explicit `ios_project_path` / `android_project_path`. By default the app project is the **parent folder** of apps_publisher (place this repo in your app project's root). |
 
 ## Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                        apps_publisher (repo)                     │
+│                       apps_publisher (repo)                      │
 ├──────────────────────────────┬──────────────────────────────────┤
-│  web_ui (Vite dev :4713)     │  composer (Node + Playwright)    │
-│  • Fabric canvas editor      │  • render.mjs — HTML strip → PNGs│
-│  • datasource read/write     │  • import-to-canvas.mjs — replay │
-│  • /__api/screenshot-designer│  skill-local script/ helpers     │
-│    (import-to-canvas replay) │  (Node, no deps)                 │
+│  strip_editor (Vite :4714)   │  composer (Node + Playwright)    │
+│  • opens a strip HTML file   │  • render.mjs   — strip → PNGs   │
+│  • watches it on disk        │    + strip-data.json (geometry,  │
+│  • reloads on outside writes │      problems)                   │
+│  • saves back in place       │  • check-schema.mjs — structure, │
+│                              │      source text, no browser     │
 └──────────────┬───────────────┴──────────────┬───────────────────┘
-               │ loopback HTTP + SSE           │
+               │      the same HTML file       │
                └──────────────┬────────────────┘
                               ▼
-         datasource/  (displays, screenshots, temp/)  ·  output/  (store JSON, reports, temp/)
+      output/strips/*.html  ·  datasource/ (screenshots, images)  ·  output/strips/rendered/
 ```
 
-**Agent design loop (HTML-first, default):**
+There is no canvas, no importer and no second representation — one HTML
+document per strip, read by both programs.
 
-1. Agent writes the whole strip as one HTML document per [`composer/strip-schema.md`](composer/strip-schema.md) (real screenshots warped into device frames via `frame.json` homography).
-2. `node composer/render.mjs --strip … --out … --full` — export-size PNGs + `strip-data.json`.
-3. Agent reviews the PNGs against [`composer/references/`](composer/references/), edits the HTML, re-renders until it looks right.
-4. Handoff to the editor: `node composer/import-to-canvas.mjs --strip …` — rebuilds the strip in the live canvas as editable layers for human touch-up (requires the dev server and an open designer tab).
+**The design loop:**
 
-After import, the human finishes the design in the **`web_ui`** editor. The agent does not drive the canvas directly.
+1. Read the strip and [`composer/strip-schema.md`](composer/strip-schema.md).
+2. Edit the HTML (real screenshots warped into device frames via `frame.json` homography).
+3. `node composer/check-schema.mjs <file>` — structural check, no browser, costs nothing.
+4. `node composer/render.mjs --strip <file> --out output/strips/rendered --full` — export-size PNGs + `strip-data.json`.
+5. Read the `problems` array first, then look at the PNGs against [`composer/references/`](composer/references/). Iterate.
 
-## Agents
+## The design skill
 
-Claude Code agents live under [`.claude/agents/`](.claude/agents/). One command runs the whole pipeline: **`screenshot-agent --platform ios|android`** does the prep phases, then spawns a focused **`screenshot-design-agent`** subagent for the design.
+One skill: **[`strip-design`](.claude/skills/strip-design/SKILL.md)** in
+[`.claude/skills/`](.claude/skills/). There are no agents and no helper scripts
+— the agent surface is that single file.
 
-| Agent | Skill | Summary |
-|-------|-------|---------|
-| [`screenshot-agent`](.claude/agents/screenshot-agent.md) | [`screenshot-brief`](.claude/skills/screenshot-brief/SKILL.md) | **Entry point.** Takes `--platform`; **Phase 1** gathers listing metadata + theme, picks the device pack, writes `output/appstore.json` / `output/playstore.json` (five slots) and posts the in-chat checklist; **Phase 2** turns it into the creative brief `output/screenshot_report.md`. Pauses for review, then launches the design subagent. |
-| [`screenshot-design-agent`](.claude/agents/screenshot-design-agent.md) | [`screenshot-design`](.claude/skills/screenshot-design/SKILL.md) | **Design subagent.** Ensures the composer/web_ui dev stack, authors the whole strip as one HTML/CSS document ([`composer/`](composer/)), renders with Playwright, self-reviews against [`composer/references/`](composer/references/), iterates, then hands off via `import-to-canvas.mjs` for human touch-up in the editor. |
+It covers both cases, because they are the same job: a blank strip created with
+the editor's **New strip** button, and an existing strip that needs a specific
+change. It holds the layer contract's easiest mistakes, the render loop above,
+the review step, and the design craft notes.
+
+Ask for it by name, or just point at a strip and say what you want changed. If
+the editor is open on the file, each write reloads the canvas, so the design
+appears as it is made.
 
 ## Quick start
 
-### 1. Web UI (required for visual design and the import handoff)
+### 1. Strip editor (visual editing)
 
 ```bash
-cd web_ui
-nvm use          # Node 22.x — see web_ui/.nvmrc
+cd strip_editor
 npm install
 npm run dev
 ```
 
-Open **http://localhost:4713** (default port). The dev server reads and writes **`datasource/`** at the repo root.
-
-Details: [`web_ui/README.md`](web_ui/README.md) · API contract: [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md)
+Open a strip at **http://localhost:4714/?strip=output/strips/&lt;file&gt;.html**, or use **New strip** to create a blank one. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
 
 ### 2. Composer (HTML renderer)
-
-The per-skill layout helpers under `.claude/skills/*/script/` need no install (plain Node ESM). For the HTML renderer:
 
 ```bash
 cd composer
@@ -128,20 +122,19 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 
 | Component | Requirement |
 |-----------|-------------|
-| **web_ui** | Node.js **22.x**, npm |
 | **composer** | Node.js **22.x**, npm, Playwright Chromium |
-| **skill scripts** | Node.js **22.x** (no dependencies) |
-| **Designer API** | `web_ui` dev server on port **4713** (only for the `import-to-canvas` handoff) |
+| **strip_editor** | Node.js **22.x**, npm; dev server on port **4714** |
 | **mask_analysis** | Any static HTTP server; network for OpenCV.js CDN on first load |
 
 ## Documentation map
 
 | Topic | Location |
 |-------|----------|
-| Web UI setup & usage | [`web_ui/README.md`](web_ui/README.md) |
-| Manual cleanup (`datasource/`, `output/`, `temp/`) | [`web_ui/README.md` — Manual cleanup](web_ui/README.md#manual-cleanup-you-must-do-this) |
-| Designer HTTP / SSE API | [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md) |
-| Layout helpers (`device-packs`, `load-frame`) | `.claude/skills/screenshot-brief/script/` |
+| Editor setup, keys & HTTP API | [`strip_editor/README.md`](strip_editor/README.md) |
+| Strip layer contract | [`composer/strip-schema.md`](composer/strip-schema.md) |
+| The design skill | [`.claude/skills/strip-design/SKILL.md`](.claude/skills/strip-design/SKILL.md) |
+| Panel copy (one `.md` per strip) | [`datasource/input/README.md`](datasource/input/README.md) |
+| Device frame packs & pose sizing | [`composer/device-frames/README.md`](composer/device-frames/README.md) |
 | HTML strip composer | [`composer/README.md`](composer/README.md) · [`composer/strip-schema.md`](composer/strip-schema.md) |
 | SVG screen mask tool | [`mask_analysis/README.MD`](mask_analysis/README.MD) |
 
@@ -149,24 +142,25 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 
 ### Local folders (not committed)
 
-Generated paths are in [`.gitignore`](.gitignore). **You must clear `datasource/`, `output/`, and their `temp/` folders manually** — see [`web_ui/README.md` — Manual cleanup](web_ui/README.md#manual-cleanup-you-must-do-this).
+Generated paths are in [`.gitignore`](.gitignore), and nothing clears them for you.
 
-- **`output/`** — `appstore.json`, `playstore.json`, `screenshot_report.md`; agents also use **`output/temp/`** for preview PNGs and panel JSON during design.
-- **`datasource/`** — Canvas saves (`display_*.json`), screenshots, templates; **`datasource/temp/`** and **`datasource/memories/`** hold session/agent scratch from the dev server.
+- **`output/`** — `strips/*.html` (the strips — **no git history, so do not overwrite one casually**) and `strips/rendered/` (panel PNGs + `strip-data.json`, regenerable at any time).
+- **`datasource/screenshots/`** — Your app's screen captures. Ignored because they are yours, not the project's. `datasource/input/` and `datasource/images/` **are** tracked: a strip that references one must render from a fresh clone.
 
 ### Tooling
 
-- **Lint** — From `web_ui/`: `npm run lint`.
+- **Tests** — `cd composer && npm test` · `cd strip_editor && npm test`
+- **Structural check** — `node composer/check-schema.mjs --all`
 
-The screenshot designer is built for **`npm run dev`** workflows, not as a hosted production app.
+This is built for **`npm run dev`** workflows, not as a hosted production app.
 
 ## Contributing
 
 Issues and pull requests are welcome.
 
-**Code & automation** — When changing the `script/` helpers or the `/__api/screenshot-designer/` endpoints, update the relevant skill's `script/` and keep [`web_ui/TOOLKIT.md`](web_ui/TOOLKIT.md) aligned.
+**Code & automation** — When changing the strip contract or the composer CLIs, update [`composer/strip-schema.md`](composer/strip-schema.md) and keep [`.claude/skills/strip-design/SKILL.md`](.claude/skills/strip-design/SKILL.md) aligned. The schema is the contract; the skill only points at it.
 
-**Device frames (especially welcome)** — The catalog is small today (see [`web_ui/public/device-frames/`](web_ui/public/device-frames/)). Contributors who can supply **device mockup packs** are a big help. We are looking for:
+**Device frames (especially welcome)** — The catalog is small today (see [`composer/device-frames/`](composer/device-frames/)). Contributors who can supply **device mockup packs** are a big help. We are looking for:
 
 | Contribution | Examples |
 |--------------|----------|

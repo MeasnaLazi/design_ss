@@ -2,7 +2,7 @@
  * 4-point homography solver → CSS matrix3d.
  *
  * Shared module (Node + browser). Mirrors the math the Fabric canvas uses
- * (web_ui/src/canvas/bakeScreenshotToScreenSize.ts) so both renderers fit
+ * (the editor's screenshot bake step) so both renderers fit
  * screenshots into the same `frame.json` screen quads identically.
  *
  * Coordinate convention: quads are in the device pose's SVG viewBox space,
@@ -109,7 +109,7 @@ export function coverCropRect(w, h, targetAspect) {
 
 /**
  * Rounded-quad SVG path `d` in viewBox coordinates. Direct port of
- * `roundedQuadPathD` in web_ui/src/canvas/applyScreenshotToDevice.ts so HTML
+ * the editor's rounded-quad path builder so HTML
  * clipping matches canvas clipping exactly. Radii order: [tl, tr, br, bl].
  */
 export function roundedQuadPathD(quad, radiiPx) {

@@ -12,7 +12,8 @@ npm install
 npm run dev      # http://localhost:4714
 ```
 
-`web_ui` keeps port 4713, so both editors can run side by side.
+Port 4714. The editor opens a strip HTML file directly — there is no import
+step and nothing is converted.
 
 ## What it does
 
@@ -301,7 +302,7 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `GET /__api/strip-editor/files` | ✅ list strips (name, dir, mtime, size) |
 | `GET /__api/strip-editor/file?path=` | ✅ read strip HTML as JSON |
 | `GET /__api/strip-editor/raw?path=` | ✅ serve the strip document to the iframe |
-| `GET\|POST /__api/strip-editor/mode` | ✅ endpoint live (same shape as web_ui's designer mode); banner + take-over UI is P6 |
+| `GET\|POST /__api/strip-editor/mode` | ✅ endpoint live; banner + take-over UI is P6 |
 | `PUT /__api/strip-editor/file?path=&expectMtime=` | ✅ atomic write, 409 on stale mtime |
 | `GET /__api/strip-editor/watch?path=` (SSE) | ✅ directory watch, debounced, mtime-carrying |
 | `POST /__api/strip-editor/export?path=` | ✅ spawns `render.mjs`, returns a JSON summary |
@@ -310,7 +311,7 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `GET\|POST /__api/strip-editor/images` | ✅ |
 | Static `/datasource/*`, `/composer/*`, `/output/*` | ✅ |
 | Alias `/__api/datasource/*` → `/datasource/*` | ✅ |
-| Alias `/web_ui/public/device-frames/*` → `/composer/device-frames/*` | ✅ |
+| Alias `/web_ui/public/device-frames/*` → `/composer/device-frames/*` (legacy strips) | ✅ |
 
 Every path is jailed to the repo root; strip reads are further restricted to
 `.html` files under `output/strips/` and `composer/test/`.
