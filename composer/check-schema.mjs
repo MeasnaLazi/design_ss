@@ -206,6 +206,19 @@ export async function checkStrip(html, label) {
       if (!src) E(`${where} has no src; an <img> with no source lays out at zero height and is invisible`)
       else if (src.includes('placeholder.svg')) W(`${where} still shows the editor placeholder`)
     }
+
+    // An <img> labelled decor exports perfectly and is *almost* editable — the
+    // editor selects and moves it, then offers the decor inspector: background
+    // and border, no src field, no library picker, no object-fit. So the one
+    // thing you actually want to change about a picture is the one thing you
+    // cannot. A warning rather than an error, because decor is by definition
+    // free HTML and an <img> is legal inside one.
+    if (t.name === 'img' && kind === 'decor') {
+      W(
+        `${where} is an <img> labelled decor — the editor will offer background and border but no src, ` +
+          `library picker or object-fit. Use data-layer="image" unless this is deliberate`,
+      )
+    }
   }
   if (blocks === 0) W('no layer blocks found')
 
@@ -261,17 +274,37 @@ async function skeletonFromSchema() {
   return real ? skeleton.replaceAll(`/${dir}/<id>.png`, `/${dir}/${real}`) : skeleton
 }
 
+/**
+ * Every strip in the repo: `strips/<name>/strip.html` (one folder per strip,
+ * with its images and renders beside it) plus the flat fixtures in
+ * `composer/test/`. One level of nesting, deliberately — a strip folder holds a
+ * strip, not a tree of them.
+ */
 async function findStrips() {
   const out = []
-  for (const dir of ['output/strips', 'composer/test']) {
+  for (const dir of ['strips', 'composer/test']) {
     const abs = path.join(REPO_ROOT, dir)
-    let names = []
+    let entries = []
     try {
-      names = await fs.readdir(abs)
+      entries = await fs.readdir(abs, { withFileTypes: true })
     } catch {
       continue
     }
-    for (const n of names) if (n.toLowerCase().endsWith('.html')) out.push(path.join(abs, n))
+    for (const e of entries) {
+      if (e.isFile() && e.name.toLowerCase().endsWith('.html')) {
+        out.push(path.join(abs, e.name))
+      } else if (e.isDirectory()) {
+        let inner = []
+        try {
+          inner = await fs.readdir(path.join(abs, e.name))
+        } catch {
+          continue
+        }
+        for (const n of inner) {
+          if (n.toLowerCase().endsWith('.html')) out.push(path.join(abs, e.name, n))
+        }
+      }
+    }
   }
   return out
 }

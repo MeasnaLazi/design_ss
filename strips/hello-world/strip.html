@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>hello-world</title>
+<style>
+  html, body { margin: 0; }
+  .strip { display: flex; gap: 0; width: max-content; background: #2b2b2b; }
+  .panel {
+    position: relative; overflow: hidden;
+    width: 1290px; height: 2796px;
+    background: #f5f1ee;
+  }
+  .panel-dark { background: #171310; }
+  [data-role="title"] {
+    font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+    font-size: 128px; line-height: 1.08; letter-spacing: -1px; color: #0c0c0a;
+  }
+  [data-role="subtitle"] {
+    font-family: -apple-system, 'Helvetica Neue', system-ui, sans-serif;
+    font-size: 56px; line-height: 1.3; color: #57534e;
+  }
+  [data-role="caption"] {
+    font-family: -apple-system, 'Helvetica Neue', system-ui, sans-serif;
+    font-size: 38px; line-height: 1.4; color: #6b655b;
+  }
+  .panel-dark [data-role="title"] { color: #f5f1ee; }
+  .panel-dark [data-role="subtitle"] { color: #b9b0a2; }
+  .panel-dark [data-role="caption"] { color: #8f887c; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 18px;
+    background: rgba(12,12,10,0.06); border: 1px solid rgba(12,12,10,0.12);
+    border-radius: 100px; padding: 18px 32px;
+    font-family: -apple-system, 'Helvetica Neue', system-ui, sans-serif;
+    font-size: 34px; font-weight: 600; color: #57534e;
+  }
+  .panel-dark .chip {
+    background: rgba(245,241,238,0.08); border: 1px solid rgba(245,241,238,0.16);
+    color: #d8d2c6;
+  }
+</style>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head>
+<body>
+<div class="strip">
+
+  <!-- Panel 0: hero -->
+  <section class="panel" data-panel="0">
+    <img data-layer="image" src="/strips/hello-world/images/circle_gay_gold.png"
+         style="position:absolute; left:640px; top:-260px; width:980px; height:980px; opacity:0.9;
+                filter: sepia(0.5) saturate(3) brightness(0.8) contrast(1.1);">
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:230px; width:1060px;">Your Life,<br>Beautifully Kept</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:600px; width:950px;">Turn everyday moments into a story worth keeping.</div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
+         data-screen-fallback="#2b2521"
+         style="position:absolute; left:145px; bottom:-250px; width:1020px;
+                filter: drop-shadow(0 60px 90px rgba(12,12,10,0.28));"></div>
+  </section>
+
+  <!-- Panel 1: timeline -->
+  <section class="panel" data-panel="1">
+    <img data-layer="image" src="/strips/hello-world/images/progress_bar_gold_gray.png"
+         style="position:absolute; left:95px; top:170px; width:160px; height:110px; opacity:0.9;">
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:330px; width:1000px;">Every Day,<br>In Order</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:700px; width:900px;">Browse your memories on an interactive timeline.</div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
+         data-screen-fallback="#2b2521"
+         style="position:absolute; left:130px; top:1010px; width:1480px;
+                filter: drop-shadow(0 50px 80px rgba(12,12,10,0.25));"></div>
+  </section>
+
+  <!-- Panel 2: voice (dark, rhythm break) -->
+  <section class="panel panel-dark" data-panel="2">
+    <img data-layer="image" src="/strips/hello-world/images/circle_gay_gold.png"
+         style="position:absolute; left:-360px; bottom:-420px; width:820px; height:820px; opacity:0.5;
+                filter: sepia(0.5) saturate(3) brightness(1.4) contrast(1.1);">
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:230px; width:1000px;">Speak It,<br>Save It</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:600px; width:900px;">Record a thought — Bio transcribes it for you.</div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-right"
+         data-screen-fallback="#362f28"
+         style="position:absolute; left:180px; top:1010px; width:1480px;
+                filter: drop-shadow(0 50px 90px rgba(0,0,0,0.5));"></div>
+  </section>
+
+  <!-- Panel 3: AI polish -->
+  <section class="panel" data-panel="3">
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:200px; width:1000px;">Perfect<br>Every Page</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:570px; width:900px;">Let AI clean up grammar and tighten your notes.</div>
+    <div data-layer="decor" class="chip"
+         style="position:absolute; left:95px; top:790px;">
+      <img src="/strips/hello-world/images/progress_bar_gold_gray.png" style="width:44px; height:30px;">
+      AI-assisted rewrite
+    </div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="tilted-right"
+         data-screen-fallback="#2b2521"
+         style="position:absolute; right:-260px; top:990px; width:1260px;
+                filter: drop-shadow(0 50px 80px rgba(12,12,10,0.25));"></div>
+  </section>
+
+  <!-- Panel 4: closing / privacy -->
+  <section class="panel" data-panel="4">
+    <img data-layer="image" src="/strips/hello-world/images/circle_gay_gold.png"
+         style="position:absolute; left:520px; bottom:-520px; width:1040px; height:1040px; opacity:0.9;
+                filter: sepia(0.5) saturate(3) brightness(0.8) contrast(1.1);">
+    <div data-layer="text" data-role="title"
+         style="position:absolute; left:95px; top:230px; width:1060px;">Made For<br>You Alone</div>
+    <div data-layer="text" data-role="subtitle"
+         style="position:absolute; left:95px; top:600px; width:950px;">Private by default. Your story, your device.</div>
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
+         data-screen-fallback="#2b2521"
+         style="position:absolute; left:145px; bottom:-250px; width:1020px;
+                filter: drop-shadow(0 60px 90px rgba(12,12,10,0.28));"></div>
+  </section>
+
+</div>
+</body>
+</html>

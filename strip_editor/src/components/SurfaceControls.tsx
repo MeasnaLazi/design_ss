@@ -6,6 +6,7 @@ import { applyAttribute, applyDeclarations } from '../editor/mutate'
 import { isPlaceholderImage } from '../editor/schema'
 import { listImages, uploadImage } from '../lib/api'
 import { getElement } from '../editor/blockRegistry'
+import { useEditorStore } from '../store/useEditorStore'
 import type { BlockReadout } from '../editor/blockRegistry'
 import type { ScreenshotFile } from '../lib/api'
 
@@ -101,15 +102,22 @@ export function DecorControls({ r }: { r: BlockReadout }): React.ReactElement | 
 
 export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | null {
   const [files, setFiles] = useState<ScreenshotFile[]>([])
+  const [dir, setDir] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  // Artwork is per strip, so the library depends on which file is open.
+  const stripPath = useEditorStore((s) => s.filePath)
 
   useEffect(() => {
-    listImages()
-      .then((res) => setFiles(res.files))
+    if (!stripPath) return
+    listImages(stripPath)
+      .then((res) => {
+        setFiles(res.files)
+        setDir(res.dir)
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  }, [stripPath])
 
   if (!r.image) return null
 
@@ -147,7 +155,13 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
 
         {files.length === 0 && !error && (
           <p className="mt-1.5 rounded bg-zinc-800/60 px-2 py-1.5 text-[11px] leading-snug text-zinc-400">
-            No artwork yet. Drop files into <code className="text-zinc-300">datasource/images/</code>, or upload below.
+            No artwork yet. {dir ? (
+              <>
+                Drop files into <code className="text-zinc-300">{dir}/</code>, or upload below.
+              </>
+            ) : (
+              <>This strip has no folder of its own, so there is nowhere to upload to — type a src above.</>
+            )}
           </p>
         )}
         <div className="mt-1.5 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto">
@@ -173,9 +187,10 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (!f) return
+            if (!stripPath) return
             setBusy(true)
             setError(null)
-            uploadImage(f)
+            uploadImage(stripPath, f)
               .then((added) => {
                 setFiles((prev) => [added, ...prev])
                 setSrc(added.url)
@@ -187,7 +202,8 @@ export function ImageControls({ r }: { r: BlockReadout }): React.ReactElement | 
         />
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !dir}
+          title={dir ? `Upload into ${dir}/` : 'This strip has no folder of its own'}
           onClick={() => fileInput.current?.click()}
           className="mt-1.5 flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40"
         >

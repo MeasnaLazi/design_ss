@@ -11,7 +11,7 @@ function formatWhen(iso: string): string {
 }
 
 /**
- * Landing screen: strips found under `output/strips/` and `composer/test/`.
+ * Landing screen: strips found under `strips/` and `composer/test/`.
  * Once a strip is open the shell replaces this with the editor; the TopBar ×
  * comes back here.
  */
@@ -45,7 +45,9 @@ export function FilePicker(): React.ReactElement {
       setCreateError('Give the strip a name.')
       return
     }
-    const path = `output/strips/${slug}.html`
+    // A strip is a folder: strips/<name>/strip.html, with images/ and
+    // rendered/ landing beside it as they are created.
+    const path = `strips/${slug}/strip.html`
     try {
       await createStrip(path, blankStripTemplate(slug, panelCount, preset.width, preset.height))
       setCreating(false)

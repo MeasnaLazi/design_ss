@@ -1,15 +1,15 @@
 # Your app's screen captures — yours, not the project's.
 datasource/screenshots/**
 
-# Strips and their renders. No version history: do not overwrite one casually.
-output/**
+# Renders are regenerable and land beside the strip that produced them.
+strips/*/rendered/**
+strips/.rendered/**
 
 strip_editor/node_modules/
 strip_editor/package-lock.json
 
-# datasource/input/ (panel copy) and datasource/images/ (artwork for image
-# layers) ARE tracked: a strip that references one must render from a fresh
-# clone.
+# Everything else under strips/ IS tracked: strip.html and its images/ are the
+# design, and a strip that references artwork must render from a fresh clone.
 
 # macOS Finder droppings.
 .DS_Store

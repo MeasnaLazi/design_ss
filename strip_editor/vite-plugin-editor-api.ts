@@ -36,8 +36,14 @@ import path from 'node:path'
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
 
-/** Directories the editor may list / open strips from (repo-relative, POSIX). */
-const STRIP_DIRS = ['output/strips', 'composer/test'] as const
+/**
+ * Directories the editor may list / open strips from (repo-relative, POSIX).
+ *
+ * `strips/` holds one folder per strip — `strips/<name>/strip.html` with its
+ * `images/` and `rendered/` beside it — so a strip and everything it references
+ * travel together. `composer/test/` holds flat acceptance fixtures.
+ */
+const STRIP_DIRS = ['strips', 'composer/test'] as const
 
 /**
  * URL prefixes served straight off the repo root (the render.mjs URL space).
@@ -45,22 +51,37 @@ const STRIP_DIRS = ['output/strips', 'composer/test'] as const
  * Checked *after* {@link aliasLegacy}, so a retired prefix needs an entry here
  * only if it still names a real directory.
  */
-const STATIC_PREFIXES = ['/datasource/', '/composer/', '/output/'] as const
+const STATIC_PREFIXES = ['/strips/', '/datasource/', '/composer/'] as const
 
 const API_PREFIX = '/__api/strip-editor/'
 
 /** Screenshot library, repo-relative. Buckets are export presets. */
 const SCREENSHOTS_DIR = 'datasource/screenshots'
 /**
- * Artwork for image layers: logos, textures, illustrations.
+ * Artwork for image layers lives *inside the strip folder*, at
+ * `strips/<name>/images/`, not in a shared library.
  *
  * Separate from {@link SCREENSHOTS_DIR} because the two are different kinds of
  * thing. A screenshot is destined for a phone screen and must match its export
- * preset's aspect ratio, which is what the preset buckets encode. An image layer
- * has no such constraint, so this directory is flat — and it is committed, so a
- * clone can render a strip that references it.
+ * preset's aspect ratio, which is what the preset buckets encode; it is also
+ * app capture, reusable across strips. A logo or texture belongs to one design,
+ * so it sits with that design and is committed with it — move the folder and
+ * the strip still renders.
  */
-const IMAGES_DIR = 'datasource/images'
+const IMAGES_SUBDIR = 'images'
+
+/**
+ * The `images/` directory belonging to an open strip, repo-relative.
+ *
+ * Returns `null` for a strip that is not in its own folder (the flat fixtures
+ * under `composer/test/`), where there is no such thing as "this strip's
+ * folder" and writing one would litter the fixture directory.
+ */
+function stripImagesDir(stripAbs: string): string | null {
+  const rel = toRepoRel(stripAbs)
+  if (!rel.startsWith('strips/')) return null
+  return `${path.posix.dirname(rel)}/${IMAGES_SUBDIR}`
+}
 /** One path segment, no traversal, no surprises in a URL. */
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp'])
@@ -184,6 +205,30 @@ async function listStrips(): Promise<Array<{ path: string; name: string; dir: st
       continue // directory absent (e.g. output/ not generated yet) — not an error
     }
     for (const entry of entries) {
+      // A strip folder: strips/<name>/strip.html. The *folder* names the strip,
+      // so that is what the picker shows — every file would otherwise be called
+      // "strip.html" and the list would be unreadable.
+      if (entry.isDirectory()) {
+        let inner: Dirent[]
+        try {
+          inner = await fs.readdir(path.join(abs, entry.name), { withFileTypes: true })
+        } catch {
+          continue
+        }
+        for (const f of inner) {
+          if (!f.isFile() || !f.name.toLowerCase().endsWith('.html')) continue
+          const filePath = path.join(abs, entry.name, f.name)
+          const stat = await fs.stat(filePath)
+          out.push({
+            path: toRepoRel(filePath),
+            name: entry.name,
+            dir,
+            mtime: stat.mtime.toISOString(),
+            size: stat.size,
+          })
+        }
+        continue
+      }
       if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.html')) continue
       const filePath = path.join(abs, entry.name)
       const stat = await fs.stat(filePath)
@@ -431,8 +476,12 @@ function watchStrip(abs: string, req: IncomingMessage, res: ServerResponse): voi
  */
 async function runExport(abs: string): Promise<Record<string, unknown>> {
   const rel = toRepoRel(abs)
-  const slug = path.basename(abs, path.extname(abs))
-  const outDir = path.posix.join('output/strips/rendered', slug)
+  // Renders land beside the strip they came from — strips/<name>/rendered/ —
+  // so deleting a strip takes its output with it. Flat fixtures have no folder
+  // of their own, so they keep a shared bucket.
+  const outDir = rel.startsWith('strips/')
+    ? path.posix.join(path.posix.dirname(rel), 'rendered')
+    : path.posix.join('strips/.rendered', path.basename(abs, path.extname(abs)))
 
   return new Promise((resolve) => {
     const started = Date.now()
@@ -665,12 +714,20 @@ export function editorApiPlugin(): Plugin {
       // Flat artwork library for image layers. No presets: an image layer has no
       // aspect-ratio contract to honour, unlike a device screenshot.
       if (route === 'images' && req.method === 'GET') {
-        const dir = resolveInRepo(IMAGES_DIR)
+        const stripAbs = resolveStripPath(url.searchParams.get('strip'))
+        const relDir = stripAbs && stripImagesDir(stripAbs)
+        if (!relDir) {
+          // No strip folder (a flat fixture, or no strip named): an empty
+          // library, not an error. The inspector still lets you type a src.
+          sendJson(res, 200, { ok: true, dir: null, files: [] })
+          return
+        }
+        const dir = resolveInRepo(relDir)
         if (!dir) {
           sendJson(res, 500, { ok: false, error: 'bad_images_dir' })
           return
         }
-        sendJson(res, 200, { ok: true, files: await readImageDir(dir, `/${IMAGES_DIR}`) })
+        sendJson(res, 200, { ok: true, dir: relDir, files: await readImageDir(dir, `/${relDir}`) })
         return
       }
 
@@ -681,7 +738,13 @@ export function editorApiPlugin(): Plugin {
           sendJson(res, 400, { ok: false, error: 'bad_filename', allowed: [...IMAGE_EXT] })
           return
         }
-        const dir = resolveInRepo(IMAGES_DIR)
+        const stripAbs = resolveStripPath(url.searchParams.get('strip'))
+        const relDir = stripAbs && stripImagesDir(stripAbs)
+        if (!relDir) {
+          sendJson(res, 400, { ok: false, error: 'no_strip_folder' })
+          return
+        }
+        const dir = resolveInRepo(relDir)
         if (!dir) {
           sendJson(res, 500, { ok: false, error: 'bad_images_dir' })
           return
@@ -690,8 +753,8 @@ export function editorApiPlugin(): Plugin {
         if (!data) return
 
         const name = await writeUnique(dir, rawName, data)
-        console.info(`[strip-editor] uploaded ${IMAGES_DIR}/${name} (${data.length} bytes)`)
-        sendJson(res, 200, { ok: true, name, url: `/${IMAGES_DIR}/${name}`, size: data.length })
+        console.info(`[strip-editor] uploaded ${relDir}/${name} (${data.length} bytes)`)
+        sendJson(res, 200, { ok: true, name, url: `/${relDir}/${name}`, size: data.length })
         return
       }
 

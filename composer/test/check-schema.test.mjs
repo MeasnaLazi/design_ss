@@ -98,6 +98,54 @@ await check('a <style> block inside a panel is not a layer', wrap(`${TEXT}\n<sty
   noErrors: ['no data-layer'],
 })
 
+// --- img mislabelled as decor ----------------------------------------------
+// Warning, not error: it exports correctly and decor is free HTML, so the file
+// is legal. But the editor gives it the decor inspector — background and border,
+// no src field — so the picture is the one thing you cannot change about it.
+async function warns(label, html, { warnings = [], noWarnings = [], noErrors = [] }) {
+  const res = await checkStrip(html, label)
+  const w = res.warnings.join(' | ')
+  const e = res.errors.join(' | ')
+  const missing = warnings.filter((x) => !w.includes(x))
+  const spurious = [...noWarnings.filter((x) => w.includes(x)), ...noErrors.filter((x) => e.includes(x))]
+  if (missing.length || spurious.length) {
+    failures += 1
+    console.log(`FAIL  ${label}`)
+    for (const m of missing) console.log(`        expected a warning containing: ${m}`)
+    for (const s of spurious) console.log(`        should not have reported: ${s}`)
+    console.log(`        warnings: ${w || '(none)'}\n        errors: ${e || '(none)'}`)
+  } else {
+    console.log(`PASS  ${label}`)
+  }
+}
+
+const IMG_DECOR = '<img data-layer="decor" src="/composer/placeholder.svg" style="position:absolute; left:0; top:0;">'
+const IMG_IMAGE = '<img data-layer="image" src="/composer/placeholder.svg" style="position:absolute; left:0; top:0;">'
+
+await warns('an <img> labelled decor is warned about', wrap(`${TEXT}\n${IMG_DECOR}`), {
+  warnings: ['labelled decor'],
+  noErrors: ['no data-layer'],
+})
+
+await warns('an <img> labelled image is left alone', wrap(`${TEXT}\n${IMG_IMAGE}`), {
+  noWarnings: ['labelled decor'],
+})
+
+await warns(
+  'a <div> decor block is not confused with an image',
+  wrap(`${TEXT}\n<div data-layer="decor" style="position:absolute; left:0; top:0; width:40px; height:40px;"></div>`),
+  { noWarnings: ['labelled decor'] },
+)
+
+await warns(
+  'an <img> nested inside a decor block is that block’s business',
+  wrap(`${TEXT}
+<div data-layer="decor" style="position:absolute; left:0; top:0;">
+  <img src="/composer/placeholder.svg">
+</div>`),
+  { noWarnings: ['labelled decor'], noErrors: ['no data-layer'] },
+)
+
 // --- multiple panels are attributed correctly -------------------------------
 const twoPanels = `<!doctype html><html><head>
 <script type="module" src="/composer/device-frames.mjs"></script>

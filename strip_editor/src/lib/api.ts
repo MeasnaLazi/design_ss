@@ -121,12 +121,19 @@ export function uploadScreenshot(preset: string, file: File): Promise<Screenshot
  * honest, whereas an image layer is a logo or texture with no such contract.
  * Flat list, no presets.
  */
-export function listImages(): Promise<{ files: ScreenshotFile[] }> {
-  return getJson(`${API_PREFIX}/images`)
+/**
+ * Artwork belonging to the open strip, from `strips/<name>/images/`.
+ *
+ * `dir` is the repo-relative folder the files came from, or `null` when the
+ * strip has no folder of its own (a flat fixture) — the inspector shows it so
+ * the author knows where an upload would land.
+ */
+export function listImages(strip: string): Promise<{ dir: string | null; files: ScreenshotFile[] }> {
+  return getJson(`${API_PREFIX}/images?${new URLSearchParams({ strip })}`)
 }
 
-export function uploadImage(file: File): Promise<ScreenshotFile> {
-  return postImage(`${API_PREFIX}/images?${new URLSearchParams({ filename: file.name })}`, file)
+export function uploadImage(strip: string, file: File): Promise<ScreenshotFile> {
+  return postImage(`${API_PREFIX}/images?${new URLSearchParams({ strip, filename: file.name })}`, file)
 }
 
 async function postImage(url: string, file: File): Promise<ScreenshotFile> {
