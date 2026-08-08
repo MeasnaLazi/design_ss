@@ -7,7 +7,7 @@
  * describe the editor's state, so reload, bookmark, Back and Forward all behave
  * the way a browser is expected to.
  *
- * The path is the same repo-relative form the API takes (`output/strips/x.html`),
+ * The path is the same repo-relative form the API takes (`strips/x/strip.html`),
  * so what is in the URL is exactly what gets opened — no second encoding to keep
  * in step.
  */

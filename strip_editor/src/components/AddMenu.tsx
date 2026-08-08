@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronsDown, ChevronsUp, Copy, Image, Plus, Smartphone, Square, Trash2, Type } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, Copy, Image, Plus, Smartphone, Boxes, Square, Trash2, Type } from 'lucide-react'
 
 import { addBlock, deleteSelection, duplicateSelection, moveSelection } from '../editor/structureActions'
 import { useEditorStore } from '../store/useEditorStore'
@@ -19,6 +19,7 @@ const ADDABLE = [
   { label: 'Device', kind: 'device' as const, role: undefined, Icon: Smartphone },
   { label: 'Image', kind: 'image' as const, role: undefined, Icon: Image },
   { label: 'Decor', kind: 'decor' as const, role: undefined, Icon: Square },
+  { label: 'Group', kind: 'group' as const, role: undefined, Icon: Boxes },
 ]
 
 function ToolButton({

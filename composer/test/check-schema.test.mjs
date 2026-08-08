@@ -146,6 +146,47 @@ await warns(
   { noWarnings: ['labelled decor'], noErrors: ['no data-layer'] },
 )
 
+// --- groups -----------------------------------------------------------------
+// A group is the one container whose children are layers. Everything here is
+// about the boundary between it and decor: decor hides its innards, a group
+// exposes them, and the rules follow from that one difference.
+const GROUP = (children) =>
+  `<div data-layer="group" style="position:absolute; left:10px; top:10px;">${children}</div>`
+
+await check(
+  'an unlabelled child of a group is caught',
+  wrap(`${TEXT}\n${GROUP('<span>hi</span>')}`),
+  { errors: ['<span>', 'inside a group has no data-layer'] },
+)
+
+await check(
+  'a labelled child of a group is fine',
+  wrap(`${TEXT}\n${GROUP('<div data-layer="text" data-role="caption">hi</div>')}`),
+  { noErrors: ['no data-layer', 'not absolutely positioned'] },
+)
+
+await check(
+  'a group child need not be absolutely positioned — the group lays it out',
+  wrap(`${TEXT}\n${GROUP('<img data-layer="image" src="/composer/placeholder.svg" style="width:40px;">')}`),
+  { noErrors: ['not absolutely positioned'] },
+)
+
+await check(
+  'a block sitting directly in a panel still must be absolutely positioned',
+  wrap(`${TEXT}\n<div data-layer="decor" style="width:40px; height:40px;"></div>`),
+  { errors: ['not absolutely positioned'] },
+)
+
+await check(
+  'an unlabelled child of a DECOR block is still that block’s business',
+  wrap(`${TEXT}\n<div data-layer="decor" style="position:absolute; left:0; top:0;"><span>hi</span></div>`),
+  { noErrors: ['no data-layer', 'inside a group'] },
+)
+
+await check('group is a valid data-layer kind', wrap(`${TEXT}\n${GROUP('')}`), {
+  noErrors: ['unknown data-layer kind'],
+})
+
 // --- multiple panels are attributed correctly -------------------------------
 const twoPanels = `<!doctype html><html><head>
 <script type="module" src="/composer/device-frames.mjs"></script>

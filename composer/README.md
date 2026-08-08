@@ -29,7 +29,7 @@ npx playwright install chromium
 ```bash
 # from repo root
 node composer/render.mjs --strip composer/test/pose-test.html --out output/temp/pose-test
-node composer/render.mjs --strip composer/test/bio-strip.html --out output/strips/bio-test --full
+node composer/render.mjs --strip strips/hello-world/strip.html --full
 ```
 
 Output: `panel<N>.png` per `[data-panel]` element (+ `strip.png` with `--full`),

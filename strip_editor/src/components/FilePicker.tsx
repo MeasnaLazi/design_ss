@@ -152,7 +152,7 @@ export function FilePicker(): React.ReactElement {
               onClick={() => void create()}
               className="rounded bg-sky-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-sky-400"
             >
-              Create in output/strips/
+              Create in strips/
             </button>
           </div>
         )}
@@ -177,7 +177,7 @@ export function FilePicker(): React.ReactElement {
           ))}
           {filesLoaded && files.length === 0 && (
             <li className="px-2 py-6 text-center text-sm text-zinc-500">
-              No strips found in <code className="text-zinc-400">output/strips/</code> or{' '}
+              No strips found in <code className="text-zinc-400">strips/</code> or{' '}
               <code className="text-zinc-400">composer/test/</code>.
             </li>
           )}

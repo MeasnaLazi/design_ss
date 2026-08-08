@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Image, Layers, Smartphone, Square, Type } from 'lucide-react'
+import { ChevronDown, ChevronUp, Image, Layers, Smartphone, Boxes, Square, Type } from 'lucide-react'
 
 import { KIND_COLOR } from '../editor/schema'
 import { moveSelection } from '../editor/structureActions'
@@ -12,6 +12,7 @@ const KIND_ICON: Record<NodeKind, typeof Type> = {
   device: Smartphone,
   image: Image,
   decor: Square,
+  group: Boxes,
 }
 
 /**
@@ -110,11 +111,21 @@ export function LayerTree(): React.ReactElement {
         {status === 'ready' &&
           panels.map((panel) => {
             const layers = nodes.filter((n) => n.kind !== 'panel' && n.panelIndex === panel.panelIndex)
+            // Top-level rows are reversed so the topmost layer reads first. A
+            // group's children are reversed *within* the group and stay attached
+            // to it — reversing the flat list would scatter them, since the
+            // index emits each group immediately before its own children.
+            const tops = layers.filter((n) => n.parentId === undefined)
+            const childrenOf = (id: string): typeof layers => layers.filter((n) => n.parentId === id)
             return (
               <div key={panel.id} className="mb-1">
                 {row(panel, 0)}
-                {/* Reversed: topmost layer first. */}
-                {[...layers].reverse().map((n) => row(n, 1))}
+                {[...tops].reverse().map((n) => (
+                  <div key={n.id}>
+                    {row(n, 1)}
+                    {[...childrenOf(n.id)].reverse().map((c) => row(c, 2))}
+                  </div>
+                ))}
               </div>
             )
           })}

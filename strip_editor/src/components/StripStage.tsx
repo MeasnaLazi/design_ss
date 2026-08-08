@@ -236,9 +236,19 @@ export function StripStage(): React.ReactElement {
       const p = toDocPoint(e.clientX, e.clientY)
       if (!iframe || !p || status !== 'ready') return
       if (useEditorStore.getState().mode === 'agent') return
-      const id = hitTest(iframe, p.x, p.y)
+      // Double-click means "go one level in": into a group to its child, or
+      // into a text block to its content. Both are the same gesture — reach the
+      // thing under the pointer rather than the container holding it.
+      const deepId = hitTest(iframe, p.x, p.y, { deep: true })
+      const shallowId = hitTest(iframe, p.x, p.y)
+      const id = deepId ?? shallowId
       const node = id ? nodes.find((n) => n.id === id) : null
-      if (!id || node?.kind !== 'text') return
+      if (!id) return
+      if (id !== shallowId) {
+        select(id)
+        if (node?.kind !== 'text') return
+      }
+      if (node?.kind !== 'text') return
       select(id)
       startTextEditing(id)
     },
@@ -260,7 +270,9 @@ export function StripStage(): React.ReactElement {
         return
       }
 
-      const id = hitTest(iframe, p.x, p.y)
+      // Alt-click reaches inside a group without leaving it selected first —
+      // the same modifier every design tool uses for "select the thing itself".
+      const id = hitTest(iframe, p.x, p.y, { deep: e.altKey })
       if (id !== selectedId) select(id)
       if (!id || isPanelNodeId(id)) return
 

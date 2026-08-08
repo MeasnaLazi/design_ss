@@ -34,19 +34,27 @@ function useInline(r: BlockReadout): (prop: string) => string {
   return (prop: string) => el?.style.getPropertyValue(prop) ?? ''
 }
 
-function CommonAppearance({ r }: { r: BlockReadout }): React.ReactElement {
+/**
+ * `omit` drops rows that a more specific panel above already owns — decor has
+ * its own shape and rotation controls, and showing the raw ones again invites
+ * two fields writing the same property with different ideas about its value.
+ */
+function CommonAppearance({ r, omit = [] }: { r: BlockReadout; omit?: string[] }): React.ReactElement {
   const inline = useInline(r)
   const set = (prop: string, value: string | null): void => {
     applyDeclarations(r.node.id, [{ prop, value }], `appearance:${r.node.id}`)
   }
+  const has = (prop: string): boolean => !omit.includes(prop)
   return (
     <Section title="Appearance">
       <Row label="opacity">
         <CssField value={inline('opacity')} placeholder={r.computed.opacity} onCommit={(v) => set('opacity', v || null)} />
       </Row>
+      {has('border-radius') && (
       <Row label="border-radius">
         <CssField value={inline('border-radius')} placeholder="0" onCommit={(v) => set('border-radius', v || null)} />
       </Row>
+      )}
       <Row label="filter">
         <CssField
           value={inline('filter')}
@@ -54,6 +62,7 @@ function CommonAppearance({ r }: { r: BlockReadout }): React.ReactElement {
           onCommit={(v) => set('filter', v || null)}
         />
       </Row>
+      {has('transform') && (
       <Row label="transform">
         <CssField
           value={inline('transform')}
@@ -61,15 +70,78 @@ function CommonAppearance({ r }: { r: BlockReadout }): React.ReactElement {
           onCommit={(v) => set('transform', v || null)}
         />
       </Row>
+      )}
       <Row label="z-index">
         <CssField value={inline('z-index')} placeholder={r.computed.zIndex} onCommit={(v) => set('z-index', v || null)} />
       </Row>
       <Hint>
-        Empty inherits from the stylesheet. Rotation has no handle yet — write it here, e.g.{' '}
-        <code>rotate(-4deg)</code>.
+        Empty inherits from the stylesheet.{' '}
+        {has('transform') && (
+          <>
+            There is no rotation handle on the canvas — write it here, e.g. <code>rotate(-4deg)</code>.
+          </>
+        )}
       </Hint>
     </Section>
   )
+}
+
+/**
+ * Decor shape presets, written as `border-radius`.
+ *
+ * Radius is the whole vocabulary here on purpose: a decor block is a positioned
+ * box, so its silhouette is entirely a radius question, and going through
+ * `border-radius` means the shape survives a hand-edit of the HTML and reads
+ * the same to anyone opening the file. `blob` is the one non-obvious value —
+ * per-corner horizontal/vertical radii, which is how an organic shape is made
+ * without an SVG path.
+ */
+const SHAPES: Array<{ label: string; value: string }> = [
+  { label: 'square', value: '0' },
+  { label: 'rounded', value: '32px' },
+  { label: 'pill', value: '9999px' },
+  { label: 'circle', value: '50%' },
+  { label: 'blob', value: '60% 40% 55% 45% / 50% 60% 40% 50%' },
+]
+
+/**
+ * Shadow presets. Tuned to the two backgrounds the strips actually use: a soft
+ * dark shadow reads on a light field, a coloured glow on a dark one.
+ */
+const SHADOWS: Array<{ label: string; value: string }> = [
+  { label: 'none', value: '' },
+  { label: 'soft', value: '0 30px 60px rgba(12,12,10,0.18)' },
+  { label: 'deep', value: '0 50px 90px rgba(12,12,10,0.35)' },
+  { label: 'glow', value: '0 0 90px rgba(219,180,0,0.35)' },
+]
+
+const FILLS: Array<{ label: string; value: string }> = [
+  { label: 'tint', value: 'rgba(12,12,10,0.06)' },
+  { label: 'accent', value: 'rgba(219,180,0,0.18)' },
+  { label: 'fade ↓', value: 'linear-gradient(180deg, rgba(12,12,10,0.10), rgba(12,12,10,0))' },
+  { label: 'radial', value: 'radial-gradient(circle at 50% 50%, rgba(219,180,0,0.35), rgba(219,180,0,0) 70%)' },
+]
+
+/** Degrees in the inline `transform`, or '' when it has no rotate(). */
+function readRotation(transform: string): string {
+  const m = /rotate\(\s*(-?[\d.]+)deg\s*\)/i.exec(transform)
+  return m ? m[1] : ''
+}
+
+/**
+ * Set rotation without disturbing the rest of the transform.
+ *
+ * A decor block may legitimately carry `scale()` or `translate()` alongside its
+ * rotation, and a control that overwrote the whole property would silently drop
+ * them — so this rewrites the `rotate()` token in place and appends only when
+ * there is none.
+ */
+function writeRotation(transform: string, deg: string): string | null {
+  const rest = transform.replace(/rotate\(\s*-?[\d.]+deg\s*\)/i, '').trim()
+  if (!deg.trim()) return rest || null
+  const n = Number(deg)
+  if (!Number.isFinite(n)) return transform || null
+  return `${rest} rotate(${n}deg)`.trim()
 }
 
 export function DecorControls({ r }: { r: BlockReadout }): React.ReactElement | null {
@@ -78,24 +150,181 @@ export function DecorControls({ r }: { r: BlockReadout }): React.ReactElement | 
   const set = (prop: string, value: string | null): void => {
     applyDeclarations(r.node.id, [{ prop, value }], `decor:${r.node.id}`)
   }
+  const radius = inline('border-radius')
+  const fill = inline('background')
+  const shadow = inline('box-shadow')
+  const transform = inline('transform')
 
   return (
     <>
-      <Section title="Decor">
+      <Section title="Shape">
+        <div className="flex flex-wrap gap-1">
+          {SHAPES.map((sh) => (
+            <Chip key={sh.label} active={radius === sh.value} onClick={() => set('border-radius', sh.value)} title={sh.value}>
+              {sh.label}
+            </Chip>
+          ))}
+        </div>
+        <Row label="border-radius">
+          <CssField
+            value={radius}
+            placeholder={r.decor.borderRadius}
+            onCommit={(v) => set('border-radius', v || null)}
+          />
+        </Row>
+        <Row label="rotation">
+          <CssField
+            value={readRotation(transform)}
+            placeholder="0"
+            onCommit={(v) => set('transform', writeRotation(transform, v))}
+          />
+        </Row>
+        <Hint>Degrees. Size and position are on the Box panel above; a shape here is just a styled box.</Hint>
+      </Section>
+
+      <Section title="Fill">
+        <div className="flex flex-wrap gap-1">
+          {FILLS.map((f) => (
+            <Chip key={f.label} active={fill === f.value} onClick={() => set('background', f.value)} title={f.value}>
+              {f.label}
+            </Chip>
+          ))}
+        </div>
         <Row label="background">
-          <ColorField value={inline('background')} placeholder="none" onCommit={(v) => set('background', v || null)} />
+          <ColorField value={fill} placeholder="none" onCommit={(v) => set('background', v || null)} />
         </Row>
         <Row label="border">
           <CssField value={inline('border')} placeholder={r.decor.border} onCommit={(v) => set('border', v || null)} />
         </Row>
+        <Row label="shadow">
+          <div className="flex flex-wrap gap-1">
+            {SHADOWS.map((sd) => (
+              <Chip
+                key={sd.label}
+                active={shadow === sd.value || (sd.value === '' && !shadow)}
+                onClick={() => set('box-shadow', sd.value || null)}
+                title={sd.value || 'none'}
+              >
+                {sd.label}
+              </Chip>
+            ))}
+          </div>
+        </Row>
+        <Row label="box-shadow">
+          <CssField value={shadow} placeholder="none" onCommit={(v) => set('box-shadow', v || null)} />
+        </Row>
+        <Hint>
+          Presets are starting points — any CSS value works, and gradients belong in <code>background</code>.
+        </Hint>
         {r.decor.childCount > 0 && (
           <Hint>
             This block has {r.decor.childCount} child element{r.decor.childCount === 1 ? '' : 's'} — a composed shape.
-            Editing its parts means editing the HTML.
+            Everything above still applies to the container, but the parts inside it are not selectable; editing those
+            means editing the HTML.
           </Hint>
         )}
       </Section>
-      <CommonAppearance r={r} />
+      <CommonAppearance r={r} omit={['border-radius', 'transform']} />
+    </>
+  )
+}
+
+/**
+ * Group controls.
+ *
+ * A group is a container, so what it needs is layout, not decoration: how its
+ * children are arranged. The flex row here is the common case — an icon beside
+ * a label, a badge, a stat pair — and it is what makes the children line up
+ * without anyone positioning them by hand. Switch `layout` to *absolute* and
+ * the children become individually placeable instead.
+ */
+const GROUP_LAYOUTS: Array<{ label: string; declarations: Array<{ prop: string; value: string | null }> }> = [
+  {
+    label: 'row',
+    declarations: [
+      { prop: 'display', value: 'inline-flex' },
+      { prop: 'flex-direction', value: 'row' },
+      { prop: 'align-items', value: 'center' },
+    ],
+  },
+  {
+    label: 'column',
+    declarations: [
+      { prop: 'display', value: 'inline-flex' },
+      { prop: 'flex-direction', value: 'column' },
+      { prop: 'align-items', value: 'flex-start' },
+    ],
+  },
+  {
+    label: 'absolute',
+    // Children keep their own left/top; the group is just a moveable frame.
+    declarations: [
+      { prop: 'display', value: null },
+      { prop: 'flex-direction', value: null },
+      { prop: 'align-items', value: null },
+      { prop: 'gap', value: null },
+    ],
+  },
+]
+
+export function GroupControls({ r }: { r: BlockReadout }): React.ReactElement | null {
+  const inline = useInline(r)
+  if (!r.group) return null
+  const set = (prop: string, value: string | null): void => {
+    applyDeclarations(r.node.id, [{ prop, value }], `group:${r.node.id}`)
+  }
+  const display = inline('display')
+  const direction = inline('flex-direction')
+  const activeLayout = !display ? 'absolute' : direction === 'column' ? 'column' : 'row'
+  const flowing = r.group.flowChildren > 0
+
+  return (
+    <>
+      <Section title="Group">
+        <Row label="children">
+          <span className="font-mono text-[11px] text-zinc-400">
+            {r.group.childCount}
+            {flowing ? ` · ${r.group.flowChildren} in flow` : ''}
+          </span>
+        </Row>
+        <Row label="layout">
+          {GROUP_LAYOUTS.map((l) => (
+            <Chip
+              key={l.label}
+              active={activeLayout === l.label}
+              onClick={() => applyDeclarations(r.node.id, l.declarations, `group:${r.node.id}`)}
+            >
+              {l.label}
+            </Chip>
+          ))}
+        </Row>
+        {activeLayout !== 'absolute' && (
+          <>
+            <Row label="gap">
+              <CssField value={inline('gap')} placeholder="0" onCommit={(v) => set('gap', v || null)} />
+            </Row>
+            <Row label="padding">
+              <CssField value={inline('padding')} placeholder="0" onCommit={(v) => set('padding', v || null)} />
+            </Row>
+          </>
+        )}
+        <Row label="background">
+          <ColorField value={inline('background')} placeholder="none" onCommit={(v) => set('background', v || null)} />
+        </Row>
+        <Row label="border-radius">
+          <CssField value={inline('border-radius')} placeholder="0" onCommit={(v) => set('border-radius', v || null)} />
+        </Row>
+        <Row label="border">
+          <CssField value={inline('border')} placeholder="none" onCommit={(v) => set('border', v || null)} />
+        </Row>
+        <Hint>
+          Children are sub-layers: pick one in the layer tree, or alt-click it on the canvas.
+          {flowing
+            ? ' The ones in flow are placed by this group, so they have no drag handles — change gap, padding or layout here instead.'
+            : ' They are absolutely positioned, so drag them inside the group.'}
+        </Hint>
+      </Section>
+      <CommonAppearance r={r} omit={['border-radius']} />
     </>
   )
 }

@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TEXT_ROLES = new Set(['title', 'subtitle', 'caption'])
-const LAYER_KINDS = new Set(['text', 'device', 'image', 'decor'])
+const LAYER_KINDS = new Set(['text', 'device', 'image', 'decor', 'group'])
 
 /** Opening tags with their raw attribute text, in source order. */
 function* tags(html) {
@@ -81,6 +81,11 @@ const NON_VISUAL = new Set(['style', 'script', 'template'])
  * Depth matters: a shape nested *inside* a decor block is that block's business
  * — decor is free HTML/CSS — but an element sitting directly in the panel is a
  * layer, and if it is not labelled as one the editor cannot see it at all.
+ *
+ * A **group** is the one nesting that is not opaque: its children are layers
+ * too, so the same rule applies one level down. That is the whole difference
+ * between the two container kinds — decor hides what is inside it, a group
+ * exposes it.
  */
 function* panelChildren(html) {
   const tagRe = /<(\/?)([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g
@@ -103,6 +108,47 @@ function* panelChildren(html) {
       }
       if (depth === 0 && !NON_VISUAL.has(name)) yield { panel: index, name, attrs }
       if (!selfClose && !VOID_ELEMENTS.has(name)) depth += 1
+    }
+  }
+}
+
+/**
+ * Direct element children of every `data-layer="group"` block, with the panel
+ * index of the group they belong to.
+ *
+ * Reuses the same balance-tracking approach as {@link panelChildren}: walk from
+ * the group's opening tag, count depth, and yield only what sits at depth 0.
+ */
+function* groupChildren(html) {
+  const tagRe = /<(\/?)([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g
+  const groupRe = /<([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)>/g
+  let open
+  while ((open = groupRe.exec(html))) {
+    if (attr(open[2], 'data-layer') !== 'group') continue
+    const name = open[1].toLowerCase()
+    if (VOID_ELEMENTS.has(name)) continue
+    // Which panel is this group in? The last panel opened before it.
+    let panel = '?'
+    const panelRe = /<section((?:[^>"']|"[^"]*"|'[^']*')*?)>/g
+    let ps
+    while ((ps = panelRe.exec(html)) && ps.index < open.index) {
+      const idx = attr(ps[1], 'data-panel')
+      if (idx !== null) panel = idx
+    }
+
+    let depth = 0
+    tagRe.lastIndex = open.index + open[0].length
+    let t
+    while ((t = tagRe.exec(html))) {
+      const [, closing, rawName, attrs, selfClose] = t
+      const child = rawName.toLowerCase()
+      if (closing) {
+        if (child === name && depth === 0) break // end of this group
+        depth -= 1
+        continue
+      }
+      if (depth === 0 && !NON_VISUAL.has(child)) yield { panel, name: child, attrs, index: t.index }
+      if (!selfClose && !VOID_ELEMENTS.has(child)) depth += 1
     }
   }
 }
@@ -158,6 +204,12 @@ export async function checkStrip(html, label) {
   }
 
   // --- blocks -------------------------------------------------------------
+  // Source offsets of every block that a group lays out. Those are exempt from
+  // the absolute-positioning rule: a flex or block child *should* be static, and
+  // the group is what places it. The rule exists for blocks sitting directly in
+  // a panel, where static means the editor cannot move them at all.
+  const groupChildOffsets = new Set([...groupChildren(html)].map((c) => c.index))
+
   let blocks = 0
   for (const t of tags(html)) {
     const kind = attr(t.attrs, 'data-layer')
@@ -172,7 +224,8 @@ export async function checkStrip(html, label) {
 
     const style = attr(t.attrs, 'style') ?? ''
     const position = styleProp(style, 'position')
-    if (position !== 'absolute' && position !== 'fixed') {
+    const laidOutByGroup = groupChildOffsets.has(t.index)
+    if (position !== 'absolute' && position !== 'fixed' && !laidOutByGroup) {
       E(`${where} is not absolutely positioned — it cannot be moved by writing left/top, so the editor cannot place it`)
     }
 
@@ -238,6 +291,21 @@ export async function checkStrip(html, label) {
     )
   }
 
+  // Same rule, one level in. A group announces that its children are layers, so
+  // an unlabelled one inside it is the same quiet failure: it renders, and the
+  // editor cannot select it. Wrap loose text in a text block, or use decor if
+  // the contents were never meant to be edited separately.
+  for (const child of groupChildren(html)) {
+    if (attr(child.attrs, 'data-layer') !== null || attr(child.attrs, 'data-device') !== null) continue
+    const hint = attr(child.attrs, 'class')
+    const what = `<${child.name}${hint ? ` class="${hint}"` : ''}>`
+    E(
+      `panel ${child.panel}: ${what} inside a group has no data-layer — a group's children are ` +
+        `layers, so the editor cannot select it. Label it, or make the container data-layer="decor" ` +
+        `if its parts are not meant to be edited`,
+    )
+  }
+
   // --- assets -------------------------------------------------------------
   for (const m of html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)) {
     const url = m[1]
@@ -261,17 +329,12 @@ async function skeletonFromSchema() {
   const blocks = [...doc.matchAll(/```html\n([\s\S]*?)```/g)].map((m) => m[1])
   const skeleton = blocks.find((b) => b.includes('<!doctype html>'))
   if (!skeleton) throw new Error('no full-document example found in composer/strip-schema.md')
-  // The example uses a <id> stand-in for a screenshot; point it at a real file
-  // so the asset check exercises the path shape rather than the placeholder.
-  const dir = 'datasource/screenshots/appstore_iphone_portrait'
-  let real = null
-  try {
-    const names = await fs.readdir(path.join(REPO_ROOT, dir))
-    real = names.find((n) => n.toLowerCase().endsWith('.png'))
-  } catch {
-    /* library absent — leave the stand-in and let the asset check report it */
-  }
-  return real ? skeleton.replaceAll(`/${dir}/<id>.png`, `/${dir}/${real}`) : skeleton
+  // The example names a screenshot inside a strip folder that does not exist —
+  // it is documentation, not a strip. Drop the attribute rather than pointing it
+  // at some real file elsewhere: a device with no `data-screenshot` renders a
+  // blank screen, which the schema calls a legitimate design choice, so the
+  // structural check runs clean instead of reporting a missing asset every time.
+  return skeleton.replace(/\s*data-screenshot="[^"]*"/g, '')
 }
 
 /**

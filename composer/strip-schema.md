@@ -1,6 +1,30 @@
 # Strip HTML layer contract
 
-A strip is one plain HTML/CSS document holding every panel of a store
+## Where a strip lives
+
+A strip is a **folder**, and everything the design references lives inside it:
+
+```
+strips/<name>/
+  strip.html         the document — every panel of the set
+  copy.md            panel copy (titles, subtitles, captions)
+  images/            artwork for image layers: logos, textures, generated art
+  screenshots/       device screen captures for this strip
+  rendered/          panel PNGs + strip-data.json — gitignored, regenerable
+```
+
+Nothing is shared between strips. Duplicating a capture across two designs is
+the intended cost: it buys a folder you can move, copy or hand to someone with
+no hidden dependency on a library elsewhere in the repo. `rendered/` is the one
+exception, and only because it can always be rebuilt.
+
+`screenshots/` is flat — no export-preset buckets. A strip's panels are all one
+export size, so the preset is a property of the strip; there is nothing for a
+bucket to disambiguate.
+
+---
+
+A strip document is one plain HTML/CSS file holding every panel of a store
 screenshot set. Free CSS is allowed *inside* blocks; the **structure** below is
 mandatory, because two programs parse it:
 
@@ -22,8 +46,14 @@ unselectable in the editor or invisible to the exporter.
 3. Panels are screenshotted **individually**. Anything that appears to span
    panels must still export correctly panel by panel.
 4. Reference assets **root-relatively**; the server root is the repo root:
-   `/composer/device-frames/…`, `/datasource/screenshots/…`,
-   `/datasource/images/…`.
+   `/strips/<name>/images/…`, `/strips/<name>/screenshots/…`,
+   `/composer/device-frames/…`.
+
+   Root-relative, not relative, even though the assets sit beside the document.
+   The editor serves the strip through `/__api/strip-editor/raw?path=`, so a
+   relative `images/logo.png` would resolve against the API path — broken in the
+   editor, fine in the export. That is exactly the disagreement this contract
+   exists to prevent.
 5. **No external network resources** — no web fonts, no remote images. Anything
    not in the repo renders differently in the editor and the export, or fails
    outright in one of them.
@@ -53,8 +83,9 @@ Every visual element directly inside a panel carries `data-layer`:
 | --- | --- |
 | text | `<div data-layer="text" data-role="title\|subtitle\|caption">…</div>` |
 | device | `<div data-layer="device" data-device data-pack="…" data-pose="…" style="width:…">` |
-| image | `<img data-layer="image" src="/datasource/…">` |
+| image | `<img data-layer="image" src="/strips/<name>/images/…">` |
 | decor | `<div data-layer="decor">…</div>` — shapes, blobs, cards, badges, glows; free HTML/CSS |
+| group | `<div data-layer="group">…</div>` — a container whose children are themselves layers |
 
 **Position blocks absolutely.** A statically positioned block cannot be moved by
 writing `left`/`top`, so it arrives in the editor unusable. Overhanging a panel
@@ -97,9 +128,54 @@ real capture when one exists.
 
 ### Image blocks
 
-Plain `<img>`. Sources come from `/datasource/images/` (logos, textures,
-illustrations) or `/datasource/screenshots/` (app captures). An `<img>` with no
-`src` has zero intrinsic height and lays out invisibly, so always give it one.
+Plain `<img>`, sourced from this strip's own `images/` folder — logos, textures,
+illustrations, and anything generated for the design. An `<img>` with no `src`
+has zero intrinsic height and lays out invisibly, so always give it one.
+
+**An `<img>` belongs in an `image` block, not a `decor` one.** A decor block is
+free HTML, so `<img data-layer="decor">` is legal and exports correctly — but
+the editor routes its inspector off `data-layer` and will offer background and
+border, with no `src` field, no library picker and no `object-fit`. The one
+thing you want to change about a picture becomes the one thing you cannot.
+`check-schema` warns about it.
+
+### Group blocks
+
+A group holds other blocks. Its children carry `data-layer` like any other
+layer, appear indented under it in the editor's layer tree, and are selected
+from there or by alt-clicking on the canvas. Clicking the group on the canvas
+selects the *group*, so dragging a badge moves the badge rather than sliding its
+icon out of it.
+
+**Group versus decor is a question about the parts, not the look.** Both can
+draw a pill with an icon and a label in it. Decor is opaque by contract — free
+HTML/CSS, and the editor will not look inside — so use it when the contents are
+one indivisible piece of decoration. Use a group when the parts are content
+someone will want to change: swap that icon, retype that label.
+
+```html
+<div data-layer="group" class="chip" style="position:absolute; left:95px; top:790px;">
+  <img data-layer="image" src="/strips/<name>/images/icon.png" style="width:44px; height:30px;">
+  <div data-layer="text" data-role="caption">AI-assisted rewrite</div>
+</div>
+```
+
+Two rules follow from children being layers:
+
+- **Every direct child of a group needs `data-layer`** — the same rule as a
+  panel's children, for the same reason. An unlabelled one renders and is
+  unselectable. `check-schema` errors on it.
+- **A group's children need not be absolutely positioned.** This is the one
+  exception to *position blocks absolutely*: when the group lays its children
+  out (flex or block), `left`/`top` are not what moves them, and static is
+  correct. A statically positioned child gets no drag handles in the editor —
+  change the group's `gap`, `padding` or direction instead, or give the child
+  `position: absolute` to place it yourself against the group's box.
+
+Geometry inside a group is **group-relative**: a child's `left`/`top` resolve
+against the group, and the editor's inspector says so. That only holds while the
+group is positioned; a `position: static` group establishes no containing block,
+and the browser resolves its absolute children against the panel instead.
 
 ### z-order
 
@@ -129,7 +205,7 @@ order alone makes the intent invisible to anyone editing the file later.
     <div data-layer="text" data-role="subtitle"
          style="position:absolute; left:95px; top:530px; width:1000px;">Flip through your memories</div>
     <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
-         data-screenshot="/datasource/screenshots/appstore_iphone_portrait/<id>.png"
+         data-screenshot="/strips/<name>/screenshots/<file>.png"
          data-screen-fallback="#0c0c0a"
          style="position:absolute; left:220px; bottom:-320px; width:1400px;"></div>
   </section>
@@ -143,14 +219,14 @@ order alone makes the intent invisible to anyone editing the file later.
 ## Render
 
 ```bash
-node composer/render.mjs --strip output/strips/appstore_strip.html \
-  --out output/strips/rendered --full
+node composer/render.mjs --strip strips/<name>/strip.html --full
 ```
 
-Exit 0 and a JSON summary. The output directory receives `panel<N>.png` per
-panel, `strip.png` when `--full` is passed, and **`strip-data.json`** — every
-block's measured geometry plus a `problems` list, extracted from the rendered
-DOM. The problems also appear in the summary on stdout.
+Exit 0 and a JSON summary. Output defaults to `rendered/` beside the strip, and
+receives `panel<N>.png` per panel, `strip.png` when `--full` is passed, and
+**`strip-data.json`** — every block's measured geometry plus a `problems` list,
+extracted from the rendered DOM. The problems also appear in the summary on
+stdout. Pass `--out <dir>` to put them somewhere else.
 
 ### `strip-data.json`
 
@@ -177,6 +253,7 @@ Read it rather than exploring it — the shape is fixed:
         // device: pack, pose, screenshot, fit, screen_fallback, blank_screen
         // image:  src, natural_width, natural_height
         // decor:  children
+        // group:   children — and each child is listed as a layer in its own right
       ]
     }
   ],
@@ -197,7 +274,7 @@ pose, or a screenshot that did not load. Those never produce a partial render.
 Before rendering, a structural check costs nothing:
 
 ```bash
-node composer/check-schema.mjs output/strips/appstore_strip.html
+node composer/check-schema.mjs strips/<name>/strip.html
 ```
 
 It reads the source text only — no browser — and catches the mistakes this
@@ -207,7 +284,7 @@ To edit the result visually, open the same file in the editor:
 
 ```
 cd strip_editor && npm run dev
-http://localhost:4714/?strip=output/strips/appstore_strip.html
+http://localhost:4714/?strip=strips/<name>/strip.html
 ```
 
 There is no import step and no conversion. The editor opens the file the

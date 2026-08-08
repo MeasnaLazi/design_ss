@@ -35,8 +35,7 @@ The repo is intended for **local development**: run the Vite dev server, open a 
 | [`strip_editor/`](strip_editor/) | **Strip editor** — Vite + React editor (port 4714). Opens a strip HTML file at `?strip=<repo-relative path>`, watches it on disk, and reloads when anything else writes it. |
 | [`composer/`](composer/) | **HTML-first strip composer** — strips are authored as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)); `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot (measured geometry + `problems`) via Playwright; `check-schema.mjs` checks structure from source text, no browser. |
 | [`.claude/skills/`](.claude/skills/) | **The skill** — [`strip-design`](.claude/skills/strip-design/SKILL.md), the one agent-facing entry point. No agents, no helper scripts. |
-| [`datasource/`](datasource/) | Design inputs: [`input/`](datasource/input/) (panel copy, one `.md` per strip — tracked), `images/` (artwork for image layers — tracked), `screenshots/` (app captures — gitignored). |
-| [`output/`](output/) | **Outputs**: **`output/strips/*.html`** (the strips themselves) and `output/strips/rendered/` (panel PNGs + `strip-data.json`). Gitignored — **no version history**, so do not overwrite a strip casually. |
+| [`strips/`](strips/) | **The strips.** One folder each: `strip.html`, `copy.md`, `images/`, `screenshots/`, and a gitignored `rendered/`. Everything a design references lives with it — move the folder and it still renders. |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
 
 ## Architecture
@@ -55,7 +54,9 @@ The repo is intended for **local development**: run the Vite dev server, open a 
                │      the same HTML file       │
                └──────────────┬────────────────┘
                               ▼
-      output/strips/*.html  ·  datasource/ (screenshots, images)  ·  output/strips/rendered/
+                     strips/<name>/
+                       strip.html · copy.md
+                       images/ · screenshots/ · rendered/
 ```
 
 There is no canvas, no importer and no second representation — one HTML
@@ -65,8 +66,8 @@ document per strip, read by both programs.
 
 1. Read the strip and [`composer/strip-schema.md`](composer/strip-schema.md).
 2. Edit the HTML (real screenshots warped into device frames via `frame.json` homography).
-3. `node composer/check-schema.mjs <file>` — structural check, no browser, costs nothing.
-4. `node composer/render.mjs --strip <file> --out output/strips/rendered --full` — export-size PNGs + `strip-data.json`.
+3. `node composer/check-schema.mjs strips/<name>/strip.html` — structural check, no browser, costs nothing.
+4. `node composer/render.mjs --strip strips/<name>/strip.html --full` — export-size PNGs + `strip-data.json`, into `rendered/` beside the strip.
 5. Read the `problems` array first, then look at the PNGs against [`composer/references/`](composer/references/). Iterate.
 
 ## The design skill
@@ -94,7 +95,7 @@ npm install
 npm run dev
 ```
 
-Open a strip at **http://localhost:4714/?strip=output/strips/&lt;file&gt;.html**, or use **New strip** to create a blank one. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
+Open a strip at **http://localhost:4714/?strip=strips/&lt;name&gt;/strip.html**, or use **New strip** to create a blank one. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
 
 ### 2. Composer (HTML renderer)
 
@@ -133,7 +134,7 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 | Editor setup, keys & HTTP API | [`strip_editor/README.md`](strip_editor/README.md) |
 | Strip layer contract | [`composer/strip-schema.md`](composer/strip-schema.md) |
 | The design skill | [`.claude/skills/strip-design/SKILL.md`](.claude/skills/strip-design/SKILL.md) |
-| Panel copy (one `.md` per strip) | [`datasource/input/README.md`](datasource/input/README.md) |
+| Strip folder layout | [`composer/strip-schema.md`](composer/strip-schema.md) — *Where a strip lives* |
 | Device frame packs & pose sizing | [`composer/device-frames/README.md`](composer/device-frames/README.md) |
 | HTML strip composer | [`composer/README.md`](composer/README.md) · [`composer/strip-schema.md`](composer/strip-schema.md) |
 | SVG screen mask tool | [`mask_analysis/README.MD`](mask_analysis/README.MD) |
@@ -144,8 +145,8 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 
 Generated paths are in [`.gitignore`](.gitignore), and nothing clears them for you.
 
-- **`output/`** — `strips/*.html` (the strips — **no git history, so do not overwrite one casually**) and `strips/rendered/` (panel PNGs + `strip-data.json`, regenerable at any time).
-- **`datasource/screenshots/`** — Your app's screen captures. Ignored because they are yours, not the project's. `datasource/input/` and `datasource/images/` **are** tracked: a strip that references one must render from a fresh clone.
+- **`strips/*/rendered/`** — Panel PNGs and `strip-data.json`. The only ignored thing under `strips/`, because it is the only part that can always be rebuilt.
+- Everything else in a strip folder — `strip.html`, `copy.md`, `images/`, `screenshots/` — **is tracked**. That is what makes a strip folder portable: clone the repo, or copy the folder, and it renders.
 
 ### Tooling
 

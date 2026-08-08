@@ -21,8 +21,12 @@ export type BlockNode = {
   id: string
   kind: NodeKind
   panelIndex: number
-  /** DOM-order index among the panel's top-level layers; -1 for panels. */
+  /** DOM-order index among its siblings (panel's layers, or a group's children); -1 for panels. */
   order: number
+  /** 0 for a panel, 1 for a top-level layer, 2 for a group's child. */
+  depth: number
+  /** Id of the enclosing group, when this block is a sub-layer. */
+  parentId?: string
   role?: TextRole
   /** Short human label for the tree row. */
   label: string
@@ -45,7 +49,10 @@ export type BlockReadout = {
   overhang: { left: boolean; top: boolean; right: boolean; bottom: boolean }
   /** Strip-root-relative box, for drawing the overlay. */
   docRect: Rect
-  /** Size of the owning panel — the reference frame for right/bottom anchors. */
+  /**
+   * Size of the box `rect` is relative to — the panel, or the enclosing group
+   * for a sub-layer. The reference frame for right/bottom anchors.
+   */
   panelSize: { width: number; height: number }
   /** False when `position: static`: inline left/top would have no effect. */
   movable: boolean
@@ -82,7 +89,14 @@ export type BlockReadout = {
   }
   image?: { src: string; naturalWidth: number; naturalHeight: number }
   decor?: { background: string; borderRadius: string; border: string; childCount: number }
+  group?: { childCount: number; flowChildren: number }
   panel?: { background: string; layerCount: number }
+  /**
+   * The box `rect` is measured against and anchors resolve to: the group for a
+   * sub-layer, the panel for everything else. Same thing for a top-level block,
+   * which is why the geometry code needs no special case.
+   */
+  frameKind: 'panel' | 'group'
 }
 
 /** id → live element. Cleared and rebuilt on each document load. */
@@ -148,15 +162,53 @@ export function panelIdFor(panelIndex: number): string {
 const BLOCK_SELECTOR = '[data-layer], [data-device]'
 
 /**
- * Top-level blocks of a panel: elements matching {@link BLOCK_SELECTOR} whose
- * nearest block ancestor lies outside the panel. Nested blocks (rare, but decor
- * can wrap them) are not separately selectable — they belong to their parent.
+ * Blocks whose nearest block ancestor is `container` — one level, not the whole
+ * subtree.
+ *
+ * Used for a panel's top-level layers and, recursively, for a group's children.
+ * Anything nested inside a *non-group* block stays invisible on purpose: decor
+ * is free HTML/CSS by contract, and indexing its innards would turn every shape
+ * inside a composed badge into a selectable layer.
  */
-function topLevelLayers(panel: HTMLElement): HTMLElement[] {
-  return [...panel.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)].filter((el) => {
+function childLayers(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)].filter((el) => {
     const parentLayer = el.parentElement?.closest<HTMLElement>(BLOCK_SELECTOR)
-    return parentLayer === null || parentLayer === undefined || !panel.contains(parentLayer)
+    return parentLayer === null || parentLayer === undefined || parentLayer === container
   })
+}
+
+/** Top-level blocks of a panel. */
+function topLevelLayers(panel: HTMLElement): HTMLElement[] {
+  return childLayers(panel).filter((el) => {
+    const parentLayer = el.parentElement?.closest<HTMLElement>(BLOCK_SELECTOR)
+    return !parentLayer || !panel.contains(parentLayer)
+  })
+}
+
+function kindOf(el: HTMLElement): LayerKind {
+  const raw = el.dataset.layer
+  // Unknown kinds are surfaced as decor rather than hidden — an unselectable
+  // block is worse than a mislabelled one, and it flags a schema drift.
+  // A bare `data-device` block is a device even without `data-layer`.
+  return isLayerKind(raw) ? raw : el.hasAttribute('data-device') ? 'device' : 'decor'
+}
+
+/**
+ * The block a node's geometry is measured against: its group if it has one,
+ * otherwise its panel.
+ *
+ * Only a *positioned* group counts. A group left `position: static` establishes
+ * no containing block, so the browser resolves its children's `left`/`top`
+ * against the panel — and the editor must agree with the browser, or dragging a
+ * child would write coordinates that move it somewhere else entirely.
+ */
+function frameOf(el: HTMLElement, view: Window): { el: HTMLElement; kind: 'panel' | 'group' } {
+  const panel = el.closest<HTMLElement>('[data-panel]')
+  const parent = el.parentElement?.closest<HTMLElement>(BLOCK_SELECTOR) ?? null
+  if (parent && kindOf(parent) === 'group' && view.getComputedStyle(parent).position !== 'static') {
+    return { el: parent, kind: 'group' }
+  }
+  return { el: panel ?? el, kind: 'panel' }
 }
 
 function firstLine(s: string, max = 32): string {
@@ -176,6 +228,7 @@ function labelFor(el: HTMLElement, kind: LayerKind): string {
     return firstLine(src.split('/').pop() ?? 'image')
   }
   const cls = classListOf(el)[0]
+  if (kind === 'group') return cls ? `group · ${cls}` : 'group'
   return cls ? `decor · ${cls}` : 'decor'
 }
 
@@ -234,29 +287,36 @@ export function indexDocument(doc: Document): { nodes: BlockNode[]; byId: Map<st
       tagName: panel.tagName.toLowerCase(),
       className: classNameOf(panel),
       zIndex: null,
+      depth: 0,
       })
 
-    layers.forEach((el, order) => {
-      const raw = el.dataset.layer
-      // Unknown kinds are surfaced as decor rather than hidden — an unselectable
-      // block is worse than a mislabelled one, and it flags a schema drift.
-      // A bare `data-device` block is a device even without `data-layer`.
-      const kind: LayerKind = isLayerKind(raw) ? raw : el.hasAttribute('data-device') ? 'device' : 'decor'
-      const id = `layer:${panelIndex}:${order}`
-      next.set(id, el)
+    // Emit a block and, when it is a group, its children directly after it —
+    // depth-first, so the layer tree can render the array in order and the ids
+    // stay positional (`layer:0:3` for a top-level block, `layer:0:3.1` for its
+    // second child). Positional derivation is what lets the same id resolve to
+    // the same block in a clean parse of the file on disk.
+    const emit = (el: HTMLElement, idPath: string, order: number, depth: number, parentId?: string): void => {
+      const kind = kindOf(el)
+      next.set(idPath, el)
       const zRaw = el.ownerDocument.defaultView?.getComputedStyle(el).zIndex ?? 'auto'
       nodes.push({
-        id,
+        id: idPath,
         kind,
         panelIndex,
         order,
+        depth,
+        parentId,
         role: isTextRole(el.dataset.role) ? el.dataset.role : undefined,
         label: labelFor(el, kind),
         tagName: el.tagName.toLowerCase(),
         className: classNameOf(el),
         zIndex: zRaw === 'auto' ? null : Number(zRaw),
       })
-    })
+      if (kind !== 'group') return
+      childLayers(el).forEach((child, i) => emit(child, `${idPath}.${i}`, i, depth + 1, idPath))
+    }
+
+    layers.forEach((el, order) => emit(el, `layer:${panelIndex}:${order}`, order, 1))
   })
 
   return { nodes, byId: next }
@@ -303,11 +363,20 @@ export function layerCount(nodes: BlockNode[]): number {
 }
 
 /**
- * Hit-test a point given in **strip-document coordinates** and return the id of
- * the node that should be selected: the innermost top-level layer block under
- * the point, else the panel, else null.
+ * Hit-test a point in **strip-document coordinates**.
+ *
+ * `deep: true` returns the innermost registered block — a group's child rather
+ * than the group. The default returns the outermost, so clicking a group picks
+ * up the whole thing: dragging a badge should move the badge, not slide its icon
+ * out of it. Entering a group is therefore deliberate — alt-click, or click the
+ * child's row in the layer tree.
  */
-export function hitTest(iframe: HTMLIFrameElement, docX: number, docY: number): string | null {
+export function hitTest(
+  iframe: HTMLIFrameElement,
+  docX: number,
+  docY: number,
+  options?: { deep?: boolean },
+): string | null {
   const doc = iframe.contentDocument
   if (!doc) return null
   // The iframe is sized to the full strip and never scrolls, so document
@@ -330,11 +399,16 @@ export function hitTest(iframe: HTMLIFrameElement, docX: number, docY: number): 
   // to its panel instead of itself, so it could not be selected, dragged or
   // deleted from the canvas. Ids are opaque; ask the registry, not the prefix.
   let cur: HTMLElement | null = hit.closest<HTMLElement>(BLOCK_SELECTOR)
+  let found: string | null = null
   while (cur && panel.contains(cur)) {
     const id = reverse.get(cur)
-    if (id !== undefined) return id
+    if (id !== undefined) {
+      if (options?.deep) return id
+      found = id // keep walking out; the last hit inside the panel is outermost
+    }
     cur = cur.parentElement?.closest<HTMLElement>(BLOCK_SELECTOR) ?? null
   }
+  if (found !== null) return found
 
   return reverse.get(panel) ?? null
 }
@@ -414,20 +488,23 @@ export function readBlock(iframe: HTMLIFrameElement, node: BlockNode): BlockRead
   const view = doc.defaultView
   if (!view) return null
 
-  const panel = el.closest<HTMLElement>('[data-panel]') ?? el
-  const panelRect = rectOf(panel)
+  const cs = view.getComputedStyle(el)
+  // Geometry is expressed against whatever box the browser resolves this
+  // element's left/top against — its group when it has a positioned one, the
+  // panel otherwise. A panel node frames itself.
+  const frame = node.kind === 'panel' ? { el, kind: 'panel' as const } : frameOf(el, view)
+  const frameRect = rectOf(frame.el)
   const elRect = rectOf(el)
   const origin = stripOrigin(doc)
-  const cs = view.getComputedStyle(el)
 
   const rect: Rect = {
-    left: elRect.left - panelRect.left,
-    top: elRect.top - panelRect.top,
+    left: elRect.left - frameRect.left,
+    top: elRect.top - frameRect.top,
     width: elRect.width,
     height: elRect.height,
   }
-  const insetRight = panelRect.width - (rect.left + rect.width)
-  const insetBottom = panelRect.height - (rect.top + rect.height)
+  const insetRight = frameRect.width - (rect.left + rect.width)
+  const insetBottom = frameRect.height - (rect.top + rect.height)
 
   const readout: BlockReadout = {
     node,
@@ -446,7 +523,8 @@ export function readBlock(iframe: HTMLIFrameElement, node: BlockNode): BlockRead
       width: elRect.width,
       height: elRect.height,
     },
-    panelSize: { width: panelRect.width, height: panelRect.height },
+    panelSize: { width: frameRect.width, height: frameRect.height },
+    frameKind: frame.kind,
     movable: node.kind !== 'panel' && cs.position !== 'static',
     inline: inlineGeometry(el),
     computed: {
@@ -501,6 +579,17 @@ export function readBlock(iframe: HTMLIFrameElement, node: BlockNode): BlockRead
       src: img.getAttribute('src') ?? '',
       naturalWidth: img.naturalWidth ?? 0,
       naturalHeight: img.naturalHeight ?? 0,
+    }
+    return readout
+  }
+
+  if (node.kind === 'group') {
+    const children = childLayers(el)
+    readout.group = {
+      childCount: children.length,
+      // Children the browser lays out in flow (the group uses flex or block
+      // layout): they have no left/top to write, so they cannot be dragged.
+      flowChildren: children.filter((c) => view.getComputedStyle(c).position === 'static').length,
     }
     return readout
   }

@@ -5,8 +5,16 @@
  * it.
  */
 
-/** `data-layer` kinds. */
-export const LAYER_KINDS = ['text', 'device', 'image', 'decor'] as const
+/**
+ * `data-layer` kinds.
+ *
+ * `group` is the only kind whose children are themselves layers. `decor` stays
+ * deliberately opaque — the schema calls it free HTML/CSS, and indexing whatever
+ * happens to be inside one would make every nested `<span>` a selectable block.
+ * A group is the explicit opt-in: put `data-layer` on a child and the editor
+ * treats it as a sub-layer.
+ */
+export const LAYER_KINDS = ['text', 'device', 'image', 'decor', 'group'] as const
 export type LayerKind = (typeof LAYER_KINDS)[number]
 
 /** `data-role` values for text layers. */
@@ -30,6 +38,7 @@ export const KIND_LABEL: Record<NodeKind, string> = {
   device: 'Device',
   image: 'Image',
   decor: 'Decor',
+  group: 'Group',
 }
 
 /** Tailwind text colours used to tint each kind consistently in tree + overlay. */
@@ -39,6 +48,7 @@ export const KIND_COLOR: Record<NodeKind, string> = {
   device: 'text-violet-300',
   image: 'text-emerald-300',
   decor: 'text-amber-300',
+  group: 'text-rose-300',
 }
 
 /**
@@ -99,6 +109,16 @@ export function blockTemplate(spec: InsertSpec): string {
       // until a real image is chosen — and is loud enough that reaching an
       // export unnoticed is unlikely.
       return `<img data-layer="image" src="${spec.screenshot ?? IMAGE_PLACEHOLDER_SRC}" style="${at} width:600px;">`
+    case 'group':
+      // Absolutely positioned and `position:relative`-by-virtue-of-absolute, so
+      // children can be placed against the group's own box. Starts with one text
+      // child: an empty group is invisible and unselectable on the canvas, which
+      // reads as the insert having failed.
+      return (
+        `<div data-layer="group" style="${at} width:520px; height:120px;">` +
+        `<div data-layer="text" data-role="caption" style="position:absolute; left:0; top:0;">Group</div>` +
+        `</div>`
+      )
     case 'decor':
     default:
       return (

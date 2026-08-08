@@ -6,16 +6,31 @@ description: >-
   to an existing one — author or edit the file, check it with
   composer/check-schema.mjs, render it with composer/render.mjs, look at the
   PNGs against composer/references/, iterate. Use whenever the request is about
-  a strip in output/strips/: designing panels, adding or moving blocks, swapping
+  a strip in strips/: designing panels, adding or moving blocks, swapping
   a screenshot, resizing a device, retuning type, colour or spacing.
 ---
 
 # Designing a screenshot strip
 
-A **strip** is one plain HTML document holding every panel of a screenshot set.
-It is the single source of truth: no canvas, no importer, no second
+A **strip** is a folder. `strip.html` holds every panel of a screenshot set and
+is the single source of truth — no canvas, no importer, no second
 representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
 the same browser engine, from the same file.
+
+```
+strips/<name>/
+  strip.html         the document
+  copy.md            panel copy
+  images/            artwork for image layers — including anything you generate
+  screenshots/       device screen captures for this strip
+  rendered/          panel PNGs + strip-data.json — gitignored, regenerable
+```
+
+**Everything a strip references lives in its folder.** There is no shared asset
+library. If you create an image for a panel — generated art, an exported SVG, a
+texture — write it to `strips/<name>/images/` and reference it as
+`/strips/<name>/images/<file>`, root-relative. Never point a strip at an asset
+outside its own folder.
 
 You design by **writing HTML/CSS and looking at the rendered PNGs**. The full
 CSS vocabulary is yours: gradients, shadows, glows, overlap, cropping,
@@ -38,7 +53,7 @@ was hand-tuned.
 
 ## Required reading
 
-1. **`composer/strip-schema.md`** — the contract. Panel structure, the four
+1. **`composer/strip-schema.md`** — the contract. Panel structure, the five
    `data-layer` kinds, device attributes, z-order, and the shape of
    `strip-data.json`. Read it before writing any markup.
 2. **`composer/device-frames/README.md`** — each pose's viewBox and a starting
@@ -63,15 +78,16 @@ Nothing needs to be running. Rendering and review are entirely offline.
    mistakes that would otherwise waste a render:
 
    ```bash
-   node composer/check-schema.mjs output/strips/<file>.html
+   node composer/check-schema.mjs strips/<name>/strip.html
    ```
 
 4. **Render:**
 
    ```bash
-   node composer/render.mjs --strip output/strips/<file>.html \
-     --out output/strips/rendered --full
+   node composer/render.mjs --strip strips/<name>/strip.html --full
    ```
+
+   Output lands in `strips/<name>/rendered/` unless you pass `--out`.
 
 5. **Read the `problems` array from that output *before* looking at the PNGs**,
    then look at the PNGs.
@@ -151,8 +167,8 @@ that same panel. You are checking your change, not re-judging the design.
 
 ## Where copy comes from
 
-Panel copy — titles, subtitles, captions — lives in **`datasource/input/`**, one
-markdown file per strip: `datasource/input/<strip-name>.md`.
+Panel copy — titles, subtitles, captions — lives in the strip's own folder, at
+**`strips/<name>/copy.md`**.
 
 In order:
 
@@ -162,13 +178,13 @@ In order:
    changing the copy and changing the design.
 2. **Otherwise take the copy from the request**, or from the strip if it already
    has some.
-3. **If there is none, draft the file** in the format below, design with it, and
+3. **If there is none, draft `copy.md`** in the format below, design with it, and
    say in your final message that the copy is a draft and where it lives. Do not
    pause the run to ask for it — a draft the user can edit in one place beats a
    blocked turn, and it beats marketing text invented invisibly inside the HTML.
 
-When the user edits `datasource/input/<strip-name>.md`, re-read it and update the
-strip. The markdown is the input; the strip HTML is what ships.
+When the user edits `copy.md`, re-read it and update the strip. The markdown is
+the input; `strip.html` is what ships.
 
 ```markdown
 # <strip name>
@@ -178,7 +194,7 @@ Theme: #f5f1ee / #0c0c0a        <!-- optional: background / ink -->
 ## Panel 0
 - title: Your Life as a Book
 - subtitle: Flip through your memories
-- screenshot: /datasource/screenshots/appstore_iphone_portrait/<file>.png
+- screenshot: /strips/<name>/screenshots/<file>.png
 
 ## Panel 1
 - title: Private By Design
@@ -192,9 +208,9 @@ place. Anything else in the file is a note to you, not copy to render.
 
 ## Missing screenshots
 
-Prefer a real capture for every device — `datasource/screenshots/<preset>/`.
-Look at them before designing and pick the screen that proves each panel's
-claim.
+Prefer a real capture for every device — `strips/<name>/screenshots/`, flat.
+Look at what is there before designing and pick the screen that proves each
+panel's claim.
 
 When a panel has none, **omit `data-screenshot`**: the frame renders a blank
 screen filled with `data-screen-fallback` (choose a theme-fitting hex). That is
@@ -211,10 +227,10 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 
 | Source | Use |
 | --- | --- |
-| `output/strips/*.html` | The strips. **Gitignored — no version history. Do not rewrite one without being asked.** |
-| `datasource/input/<strip-name>.md` | Panel copy. Source of truth when present — see § Where copy comes from. |
-| `datasource/screenshots/<preset>/` | Real app screen captures, for device screens. |
-| `datasource/images/` | Logos, textures, artwork for image layers. |
+| `strips/<name>/strip.html` | The document. Tracked in git — but still someone's work: do not rewrite one you were not asked to touch. |
+| `strips/<name>/copy.md` | Panel copy. Source of truth when present — see § Where copy comes from. |
+| `strips/<name>/screenshots/` | Real app screen captures for this strip, for device screens. |
+| `strips/<name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
 | `composer/device-frames/` | Frame packs; `README.md` there has each pose's viewBox and a starting width. |
 | `composer/references/` | Reference strips, for the review step. |
 
@@ -225,7 +241,7 @@ cd strip_editor && npm run dev
 ```
 
 ```
-http://localhost:4714/?strip=output/strips/<file>.html
+http://localhost:4714/?strip=strips/<name>/strip.html
 ```
 
 The editor watches the file. **Every write you make reloads the canvas**, so the
@@ -267,7 +283,17 @@ Each of these was learned from a real failure.
 - **Every direct child of a panel needs `data-layer`.** A bare `<div>` or
   `<svg>` renders perfectly in the export and is completely invisible to the
   editor — unselectable, undraggable, absent from the layer tree. Decorative
-  shapes are `data-layer="decor"`. `check-schema` errors on this.
+  shapes are `data-layer="decor"`. `check-schema` errors on this, and on the
+  same omission inside a group.
+- **Composite things are groups, not decor — when their parts are content.** A
+  pill with an icon and a label: if someone will want to swap that icon or
+  retype that label, it is `data-layer="group"` with an `image` child and a
+  `text` child, and the editor can reach both. Decor is opaque by contract, so
+  the same markup as decor leaves the icon and the label uneditable. Use decor
+  when the contents really are one indivisible piece of decoration.
+- **A group's children are the one exception to positioning absolutely.** When
+  the group lays them out with flex, static is correct — do not add `left`/`top`
+  that the browser will ignore. Give the group `gap` and `padding` instead.
 - **A text block contains text and `<br>` only.** No `<span>`, no nested
   `<div>`. The editor rebuilds text content on first edit and silently discards
   anything else.
@@ -278,11 +304,18 @@ Each of these was learned from a real failure.
   by writing `left`/`top`, so it arrives in the editor unusable.
 - **No external network assets.** No web fonts, no remote images. Everything
   resolves from the repo, or the editor and the export disagree.
+- **Assets go in the strip's folder, referenced root-relatively.** Write new
+  images to `strips/<name>/images/` and reference `/strips/<name>/images/…`.
+  Not a relative `images/…`: the editor serves the document through
+  `/__api/strip-editor/raw?path=`, so a relative path resolves against the API
+  route — broken in the editor, fine in the export.
+- **An `<img>` is an `image` block, never a `decor` one.** Decor is free HTML so
+  the export looks right, but the editor then offers background and border and
+  no `src` — the picture becomes the one thing you cannot change.
 - **Smallest edit that achieves the request.** Do not reformat, reindent, or
-  rewrite panels you were not asked to touch. Strips in `output/` have no git
-  history, and the document may have been hand-tuned or edited in `strip_editor`
-  — its indentation, attribute line breaks and declaration order belong to
-  whoever wrote them.
+  rewrite panels you were not asked to touch. The document may have been
+  hand-tuned or edited in `strip_editor` — its indentation, attribute line
+  breaks and declaration order belong to whoever wrote them.
 - **Do not fix things you were not asked to fix.** Say what you noticed and let
   the user decide. An unrequested "improvement" buried in a diff is the fastest
   way to lose their trust in this loop.

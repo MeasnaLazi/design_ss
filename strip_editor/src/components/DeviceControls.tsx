@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Loader2, Upload, X } from 'lucide-react'
 
 import { Chip, ColorField, CssField, Hint, Row, Section } from './controls'
@@ -7,11 +7,11 @@ import {
   FRAMES_ROOT,
   listDevicePacks,
   listDevicePoses,
-  listScreenshotPresets,
   listScreenshots,
   uploadScreenshot,
 } from '../lib/api'
 import { getElement } from '../editor/blockRegistry'
+import { useEditorStore } from '../store/useEditorStore'
 import type { BlockReadout } from '../editor/blockRegistry'
 import type { DevicePose, ScreenshotFile } from '../lib/api'
 
@@ -100,39 +100,33 @@ function ScreenshotPicker({
   disabled: boolean
   onPick: (url: string | null) => void
 }): React.ReactElement {
-  const [presets, setPresets] = useState<string[]>([])
-  const [preset, setPreset] = useState<string>('')
+  const [dir, setDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ScreenshotFile[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  // Captures belong to the strip, so the library depends on which file is open.
+  const stripPath = useEditorStore((s) => s.filePath)
 
-  useEffect(() => {
-    listScreenshotPresets()
+  const refresh = useCallback((): void => {
+    if (!stripPath) return
+    listScreenshots(stripPath)
       .then((r) => {
-        setPresets(r.presets)
-        setPreset((p) => p || (current?.split('/')[3] ?? r.presets[0] ?? ''))
+        setFiles(r.files)
+        setDir(r.dir)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-    // Only on mount: the preset list does not change while a strip is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [stripPath])
 
-  const refresh = (p: string): void => {
-    if (!p) return
-    listScreenshots(p)
-      .then((r) => setFiles(r.files))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }
-
-  useEffect(() => refresh(preset), [preset])
+  useEffect(() => refresh(), [refresh])
 
   const upload = async (file: File): Promise<void> => {
+    if (!stripPath) return
     setBusy(true)
     setError(null)
     try {
-      const added = await uploadScreenshot(preset, file)
-      refresh(preset)
+      const added = await uploadScreenshot(stripPath, file)
+      refresh()
       onPick(added.url)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -143,16 +137,6 @@ function ScreenshotPicker({
 
   return (
     <>
-      <Row label="preset">
-        <select value={preset} onChange={(e) => setPreset(e.target.value)} className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-100">
-          {presets.length === 0 && <option value="">none found</option>}
-          {presets.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </Row>
 
       <div className="mt-1.5 grid max-h-44 grid-cols-4 gap-1 overflow-y-auto">
         {files.map((f) => (
@@ -170,8 +154,16 @@ function ScreenshotPicker({
           </button>
         ))}
       </div>
-      {files.length === 0 && preset && (
-        <p className="mt-1 text-[11px] text-zinc-600">No images in this preset yet.</p>
+      {files.length === 0 && (
+        <p className="mt-1 text-[11px] text-zinc-600">
+          {dir ? (
+            <>
+              No captures yet. Drop them into <code>{dir}/</code>, or upload below.
+            </>
+          ) : (
+            'This strip has no folder of its own, so there is nowhere to upload to.'
+          )}
+        </p>
       )}
 
       <div className="mt-1.5 flex items-center gap-1">
@@ -188,7 +180,7 @@ function ScreenshotPicker({
         />
         <button
           type="button"
-          disabled={!preset || busy || disabled}
+          disabled={!dir || busy || disabled}
           onClick={() => fileInput.current?.click()}
           className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40"
         >

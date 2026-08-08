@@ -17,9 +17,9 @@ step and nothing is converted.
 
 ## What it does
 
-**Open** any strip under `output/strips/` or `composer/test/`, or create a blank
+**Open** any strip under `strips/` or `composer/test/`, or create a blank
 one (name, export preset, panel count). The document loads in a same-origin
-iframe served at its repo path, so `/datasource/…` and `/composer/…` resolve
+iframe served at its repo path, so `/strips/…` and `/composer/…` resolve
 exactly as they do under `render.mjs` — including the device frames, which live
 in `composer/device-frames/`.
 
@@ -44,9 +44,9 @@ diagonal drag writes `left` and `top` separately and a cross-panel drag adds a
 structural command, but all of it reverts in a single press.
 
 **Save** (⌘S) writes atomically with an mtime precondition. **Export** renders
-panel PNGs through `render.mjs` into `output/strips/rendered/<strip>/`.
+panel PNGs through `render.mjs` into `strips/<name>/rendered/`.
 
-**The open strip lives in the URL** (`?strip=output/strips/x.html`), so a reload
+**The open strip lives in the URL** (`?strip=strips/x/strip.html`), so a reload
 returns you to the document rather than the picker, and Back / Forward move
 between them. Unsaved edits are confirmed before either can discard them.
 
@@ -82,12 +82,12 @@ Press **?** for the keyboard map.
   while it is still in place. It lives with the render engine rather than here
   because its path is written into the strip, and a strip should never depend on
   the editor that authored it.
-- **Two image libraries, on purpose.** Device screens come from
-  `datasource/screenshots/<preset>/` — bucketed because a phone screen has to
-  match its export preset's aspect ratio. Image layers come from
-  `datasource/images/`, which is flat and committed, because a logo or texture
-  has no such contract and a strip that references one should render from a
-  fresh clone.
+- **Two image libraries, on purpose — both inside the strip folder.** Device
+  screens come from `strips/<name>/screenshots/`, image layers from
+  `strips/<name>/images/`. Separate because they are different kinds of thing: a
+  capture goes on a phone screen and must suit the export preset's aspect ratio,
+  a logo or texture has no such contract. Neither is shared between strips, so
+  moving or cloning a strip folder brings everything it renders with it.
 - **Blank style fields mean inherit.** Clearing one hands the property back to
   the strip's stylesheet rather than freezing today's computed value.
 - **Saves are surgical.** Moving one headline changes one line; the rest of the
@@ -309,12 +309,12 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `POST /__api/strip-editor/validate?path=` | dropped — see P6 above |
 | `GET\|POST /__api/strip-editor/screenshots` | P4 |
 | `GET\|POST /__api/strip-editor/images` | ✅ |
-| Static `/datasource/*`, `/composer/*`, `/output/*` | ✅ |
+| Static `/strips/*`, `/composer/*`, `/datasource/*` | ✅ |
 | Alias `/__api/datasource/*` → `/datasource/*` | ✅ |
 | Alias `/web_ui/public/device-frames/*` → `/composer/device-frames/*` (legacy strips) | ✅ |
 
 Every path is jailed to the repo root; strip reads are further restricted to
-`.html` files under `output/strips/` and `composer/test/`.
+`.html` files under `strips/` (one level deep — `strips/<name>/strip.html`) and `composer/test/`.
 
 ## Known gaps
 
@@ -324,10 +324,9 @@ Every path is jailed to the repo root; strip reads are further restricted to
   endpoint are deferred; we decide at P6 whether to restore the toolkit or drop
   the feature.
 - **`composer/test/bio-strip.html` has dead screenshot references.** Its five
-  `data-screenshot` UUIDs are no longer in `datasource/screenshots/` (that
-  directory is gitignored and rotates). Those device blocks will render with a
-  red outline and appear in the editor's device-error toast. Use
-  `output/strips/appstore_strip.html` — which uses `data-screen-fallback`
+  `data-screenshot` UUIDs point into the retired shared library. Those device
+  blocks render with a red outline and appear in the editor's device-error
+  toast. Use `strips/hello-world/strip.html` — which uses `data-screen-fallback`
   colours and resolves fully — as the reference strip until bio-strip is
   repointed.
 - **Zoom floor is 4%, not the planned 25%.** A five-panel App Store strip is
@@ -362,12 +361,12 @@ easier to re-derive from the check than from the fix.
   return correct status and MIME.
 - Path jail rejects `../` traversal, files outside the allowed strip dirs, and
   non-`.html` paths.
-- Every asset referenced by `output/strips/appstore_strip.html` — including all
+- Every asset referenced by `strips/appstore-strip/strip.html` — including all
   eight `iphone_12_pro` pose SVGs and `frame.json` — resolves 200 through the
   editor's static aliasing.
 - Geometry model agrees with the exporter: 5 panels × 1290 px, gap 0 →
   6450×2796, matching `strip.width`/`strip.height` in
-  `output/strips/rendered/strip-data.json`.
+  `strips/<name>/rendered/strip-data.json`.
 
 ## Verified for P1
 
@@ -556,7 +555,7 @@ Chromium, and the download is blocked. On your Mac it should render normally;
 worth confirming once.
 
 **Worth doing by hand once:** move a title, save, then
-`node composer/render.mjs --strip <path> --out output/strips/rendered --full`
+`node composer/render.mjs --strip <path> --full`
 and confirm the PNG moved by the amount the inspector reported, and that
 `git diff` touches only that block's style attribute. Then retype a headline and
 check the same.

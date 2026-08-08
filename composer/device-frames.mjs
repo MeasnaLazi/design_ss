@@ -4,7 +4,7 @@
  * Authoring contract (see strip-schema.md):
  *
  *   <div data-device data-pack="iphone_12_pro" data-pose="isometric-left"
- *        data-screenshot="/datasource/screenshots/appstore_iphone_portrait/<id>.png"
+ *        data-screenshot="/strips/<name>/screenshots/<file>.png"
  *        style="width: 900px"></div>
  *
  * Optional attributes:

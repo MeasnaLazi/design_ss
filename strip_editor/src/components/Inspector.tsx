@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { KIND_LABEL } from '../editor/schema'
 import { applyGeometry } from '../editor/mutate'
 import { boxToDeclarations, resizePolicy, resolveAnchors } from '../editor/geometry'
-import { DecorControls, ImageControls, PanelControls } from './SurfaceControls'
+import { DecorControls, GroupControls, ImageControls, PanelControls } from './SurfaceControls'
 import { DeviceControls } from './DeviceControls'
 import { TextControls } from './TextControls'
 import { getElement } from '../editor/blockRegistry'
@@ -152,9 +152,11 @@ function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
     applyGeometry(r.node.id, boxToDeclarations(ctx, { ...r.rect, ...patch }), `inspector:${r.node.id}`)
   }
 
+  const frame = r.frameKind === 'group' ? 'group' : 'panel'
+
   if (!editable) {
     return (
-      <Section title="Measured · panel-relative">
+      <Section title={`Measured · ${frame}-relative`}>
         <Field label="left" value={px(r.rect.left)} />
         <Field label="top" value={px(r.rect.top)} />
         <Field label="width" value={px(r.rect.width)} />
@@ -165,7 +167,9 @@ function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
           <p className="mt-1.5 rounded bg-zinc-800/70 px-2 py-1.5 text-[11px] leading-snug text-zinc-400">
             This block is <code className="text-zinc-300">position: static</code>, so inline{' '}
             <code className="text-zinc-300">left</code>/<code className="text-zinc-300">top</code> would have no effect.
-            It is laid out by its parent; move it by editing the document.
+            {r.node.parentId
+              ? ' Its group lays it out — change the group’s padding, gap or direction, or give this block position: absolute to place it yourself.'
+              : ' It is laid out by its parent; move it by editing the document.'}
           </p>
         )}
       </Section>
@@ -173,14 +177,14 @@ function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
   }
 
   return (
-    <Section title="Geometry · panel-relative">
+    <Section title={`Geometry · ${frame}-relative`}>
       {anchors.x === 'left' ? (
         <NumberField label="left" value={r.rect.left} onCommit={(n) => setBox({ left: n })} />
       ) : (
         <NumberField
           label="right"
           value={r.insetRight}
-          hint="This block is anchored from the panel's right edge."
+          hint={`This block is anchored from the ${frame}'s right edge.`}
           onCommit={(n) => setBox({ left: r.panelSize.width - n - r.rect.width })}
         />
       )}
@@ -190,7 +194,7 @@ function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
         <NumberField
           label="bottom"
           value={r.insetBottom}
-          hint="This block is anchored from the panel's bottom edge."
+          hint={`This block is anchored from the ${frame}'s bottom edge.`}
           onCommit={(n) => setBox({ top: r.panelSize.height - n - r.rect.height })}
         />
       )}
@@ -255,6 +259,7 @@ function KindSection({ r }: { r: BlockReadout }): React.ReactElement | null {
   if (r.device) return <DeviceControls r={r} />
   if (r.image) return <ImageControls r={r} />
   if (r.decor) return <DecorControls r={r} />
+  if (r.group) return <GroupControls r={r} />
   if (r.panel) return <PanelControls r={r} />
   return null
 }

@@ -100,27 +100,22 @@ export async function createStrip(path: string, html: string): Promise<{ path: s
 
 export type ScreenshotFile = { name: string; url: string; size: number; mtime: string }
 
-export function listScreenshotPresets(): Promise<{ presets: string[] }> {
-  return getJson(`${API_PREFIX}/screenshots`)
-}
-
-export function listScreenshots(preset: string): Promise<{ preset: string; files: ScreenshotFile[] }> {
-  return getJson(`${API_PREFIX}/screenshots?preset=${encodeURIComponent(preset)}`)
-}
-
-/** Upload as a raw body — the filename and bucket ride in the query string. */
-export function uploadScreenshot(preset: string, file: File): Promise<ScreenshotFile> {
-  return postImage(`${API_PREFIX}/screenshots?${new URLSearchParams({ preset, filename: file.name })}`, file)
-}
-
 /**
- * Artwork library for image layers (`datasource/images/`).
+ * Device captures belonging to the open strip, from `strips/<name>/screenshots/`.
  *
- * Deliberately separate from the screenshot library: a screenshot goes on a
- * phone screen and is bucketed by export preset to keep its aspect ratio
- * honest, whereas an image layer is a logo or texture with no such contract.
- * Flat list, no presets.
+ * No export-preset bucket: every panel of a strip is authored at one export
+ * size, so the preset is a property of the strip and there is nothing left for
+ * a bucket to disambiguate.
  */
+export function listScreenshots(strip: string): Promise<{ dir: string | null; files: ScreenshotFile[] }> {
+  return getJson(`${API_PREFIX}/screenshots?${new URLSearchParams({ strip })}`)
+}
+
+/** Upload as a raw body — the strip and filename ride in the query string. */
+export function uploadScreenshot(strip: string, file: File): Promise<ScreenshotFile> {
+  return postImage(`${API_PREFIX}/screenshots?${new URLSearchParams({ strip, filename: file.name })}`, file)
+}
+
 /**
  * Artwork belonging to the open strip, from `strips/<name>/images/`.
  *

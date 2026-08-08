@@ -55,13 +55,27 @@ const STATIC_PREFIXES = ['/strips/', '/datasource/', '/composer/'] as const
 
 const API_PREFIX = '/__api/strip-editor/'
 
-/** Screenshot library, repo-relative. Buckets are export presets. */
-const SCREENSHOTS_DIR = 'datasource/screenshots'
+/**
+ * Device screen captures for the open strip: `strips/<name>/screenshots/`.
+ *
+ * Flat, with no export-preset buckets. A strip's panels are all authored at one
+ * export size, so the preset is a property of the strip, not of the folder — the
+ * bucket a shared library needed to disambiguate has nothing left to
+ * disambiguate once the captures belong to a single design.
+ */
+const SCREENSHOTS_SUBDIR = 'screenshots'
+
+/** Sibling of {@link stripImagesDir}, for device captures. */
+function stripScreenshotsDir(stripAbs: string): string | null {
+  const rel = toRepoRel(stripAbs)
+  if (!rel.startsWith('strips/')) return null
+  return `${path.posix.dirname(rel)}/${SCREENSHOTS_SUBDIR}`
+}
 /**
  * Artwork for image layers lives *inside the strip folder*, at
  * `strips/<name>/images/`, not in a shared library.
  *
- * Separate from {@link SCREENSHOTS_DIR} because the two are different kinds of
+ * Separate from {@link SCREENSHOTS_SUBDIR} because the two are different kinds of
  * thing. A screenshot is destined for a phone screen and must match its export
  * preset's aspect ratio, which is what the preset buckets encode; it is also
  * app capture, reusable across strips. A logo or texture belongs to one design,
@@ -655,64 +669,52 @@ export function editorApiPlugin(): Plugin {
         return
       }
 
-      // --- GET /__api/strip-editor/screenshots?preset= ---------------------
+      // --- GET /__api/strip-editor/screenshots?strip= ----------------------
       if (route === 'screenshots' && req.method === 'GET') {
-        const preset = url.searchParams.get('preset')
-        const dir = preset
-          ? resolveInRepo(path.posix.join(SCREENSHOTS_DIR, preset))
-          : resolveInRepo(SCREENSHOTS_DIR)
-        if (!dir || (preset && !SAFE_SEGMENT.test(preset))) {
-          sendJson(res, 400, { ok: false, error: 'bad_preset' })
+        const stripAbs = resolveStripPath(url.searchParams.get('strip'))
+        const relDir = stripAbs && stripScreenshotsDir(stripAbs)
+        if (!relDir) {
+          sendJson(res, 200, { ok: true, dir: null, files: [] })
           return
         }
-        if (!preset) {
-          // No preset given: enumerate the buckets so the UI can offer them.
-          let entries: Dirent[] = []
-          try {
-            entries = await fs.readdir(dir, { withFileTypes: true })
-          } catch {
-            /* datasource/screenshots absent — treat as empty */
-          }
-          sendJson(res, 200, { ok: true, presets: entries.filter((e) => e.isDirectory()).map((e) => e.name) })
+        const dir = resolveInRepo(relDir)
+        if (!dir) {
+          sendJson(res, 500, { ok: false, error: 'bad_screenshots_dir' })
           return
         }
-        sendJson(res, 200, {
-          ok: true,
-          preset,
-          files: await readImageDir(dir, `/${SCREENSHOTS_DIR}/${preset}`),
-        })
+        sendJson(res, 200, { ok: true, dir: relDir, files: await readImageDir(dir, `/${relDir}`) })
         return
       }
 
-      // --- POST /__api/strip-editor/screenshots?preset=&filename= ----------
+      // --- POST /__api/strip-editor/screenshots?strip=&filename= -----------
       if (route === 'screenshots' && req.method === 'POST') {
-        const preset = url.searchParams.get('preset') ?? ''
         const rawName = url.searchParams.get('filename') ?? ''
-        if (!SAFE_SEGMENT.test(preset)) {
-          sendJson(res, 400, { ok: false, error: 'bad_preset' })
-          return
-        }
         if (!validUploadName(rawName)) {
           sendJson(res, 400, { ok: false, error: 'bad_filename', allowed: [...IMAGE_EXT] })
           return
         }
-        const dir = resolveInRepo(path.posix.join(SCREENSHOTS_DIR, preset))
+        const stripAbs = resolveStripPath(url.searchParams.get('strip'))
+        const relDir = stripAbs && stripScreenshotsDir(stripAbs)
+        if (!relDir) {
+          sendJson(res, 400, { ok: false, error: 'no_strip_folder' })
+          return
+        }
+        const dir = resolveInRepo(relDir)
         if (!dir) {
-          sendJson(res, 400, { ok: false, error: 'bad_preset' })
+          sendJson(res, 500, { ok: false, error: 'bad_screenshots_dir' })
           return
         }
         const data = await receiveUpload(req, res)
         if (!data) return
 
         const name = await writeUnique(dir, rawName, data)
-        console.info(`[strip-editor] uploaded ${SCREENSHOTS_DIR}/${preset}/${name} (${data.length} bytes)`)
-        sendJson(res, 200, { ok: true, name, url: `/${SCREENSHOTS_DIR}/${preset}/${name}`, size: data.length })
+        console.info(`[strip-editor] uploaded ${relDir}/${name} (${data.length} bytes)`)
+        sendJson(res, 200, { ok: true, name, url: `/${relDir}/${name}`, size: data.length })
         return
       }
 
-      // --- GET /__api/strip-editor/images ----------------------------------
-      // Flat artwork library for image layers. No presets: an image layer has no
-      // aspect-ratio contract to honour, unlike a device screenshot.
+      // --- GET /__api/strip-editor/images?strip= ---------------------------
+      // Artwork for image layers, from the open strip's own folder.
       if (route === 'images' && req.method === 'GET') {
         const stripAbs = resolveStripPath(url.searchParams.get('strip'))
         const relDir = stripAbs && stripImagesDir(stripAbs)

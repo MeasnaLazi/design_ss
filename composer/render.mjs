@@ -2,11 +2,11 @@
  * Composer render CLI: strip HTML → export-size PNGs via headless Chromium.
  *
  * Usage (from repo root or composer/):
- *   node composer/render.mjs --strip output/strips/appstore_strip.html --out output/strips/rendered
+ *   node composer/render.mjs --strip strips/hello-world/strip.html
  *
  * Flags:
  *   --strip <path>            strip HTML file (relative to repo root or absolute)  [required]
- *   --out <dir>               output directory (default: output/strips/rendered)
+ *   --out <dir>               output directory (default: <strip folder>/rendered)
  *   --panel-selector <sel>    panel elements to screenshot (default: [data-panel])
  *   --full                    also save the whole strip as strip.png
  *   --scale <n>               deviceScaleFactor (default 1 — panels are authored at export size)
@@ -14,7 +14,7 @@
  *
  * The page is served over a local static file server rooted at the repo root,
  * so strip HTML can reference /composer/** (device frames, the runtime) and
- * /datasource/** (screenshots).
+ * /strips/** (each strip's own images/ and screenshots/).
  * Waits for window.__composerReady (set by device-frames.mjs) when the page
  * uses composer runtime; otherwise waits for load + fonts.
  */
@@ -46,7 +46,7 @@ const MIME = {
 }
 
 function parseArgs(argv) {
-  const args = { out: 'output/strips/rendered', panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false }
+  const args = { out: null, panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--strip') args.strip = argv[++i]
@@ -58,6 +58,9 @@ function parseArgs(argv) {
     else throw new Error(`unknown flag: ${a}`)
   }
   if (!args.strip) throw new Error('--strip <file.html> is required')
+  // Default the output beside the strip — strips/<name>/rendered/ — so a render
+  // belongs to the design that produced it and is deleted with it.
+  if (!args.out) args.out = path.join(path.dirname(args.strip), 'rendered')
   return args
 }
 
@@ -65,13 +68,12 @@ function startStaticServer(root) {
   const server = http.createServer(async (req, res) => {
     try {
       let urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname)
-      // Alias the dev-server datasource API route to the repo folder so strip
-      // HTML works with either /datasource/... or /__api/datasource/... URLs.
+      // Alias the dev-server datasource API route to the repo folder, for strip
+      // HTML written before assets moved into the strip folder.
       if (urlPath.startsWith('/__api/datasource/')) urlPath = urlPath.replace('/__api/datasource/', '/datasource/')
       // Device frames moved from web_ui/public/ to composer/. Strips authored
-      // before the move hardcode `framesRoot: '/web_ui/public'`, and many of
-      // them live in gitignored output/ where a bad rewrite is unrecoverable —
-      // so the old prefix is aliased rather than the files being rewritten.
+      // before the move hardcode `framesRoot: '/web_ui/public'`, so the old
+      // prefix is aliased rather than the files being rewritten.
       if (urlPath.startsWith('/web_ui/public/device-frames/')) {
         urlPath = urlPath.replace('/web_ui/public/device-frames/', '/composer/device-frames/')
       }
@@ -256,7 +258,7 @@ async function main() {
             if ((layer.src ?? '').includes('placeholder.svg')) {
               flag('warning', pi, id, 'image is still the editor placeholder')
             }
-          } else if (kind === 'decor') {
+          } else if (kind === 'decor' || kind === 'group') {
             layer.children = el.childElementCount
           }
 
