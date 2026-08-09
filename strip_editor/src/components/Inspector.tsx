@@ -141,7 +141,12 @@ function NumberField({
 function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
   const anyOverhang = Object.values(r.overhang).some(Boolean)
   const el = getElement(r.node.id)
-  const editable = r.movable && el !== null
+  // Two separate capabilities, and a group's child in flow has one without the
+  // other: `width`/`height` apply to a flex item perfectly well, `left`/`top` do
+  // nothing. Treating them as one thing is what made these blocks look
+  // completely inert.
+  const canMove = r.movable && el !== null
+  const canResize = el !== null && r.node.kind !== 'panel'
   const anchors = el ? resolveAnchors(el) : { x: 'left' as const, y: 'top' as const }
   const policy = resizePolicy(r.node.kind)
 
@@ -154,21 +159,30 @@ function GeometrySection({ r }: { r: BlockReadout }): React.ReactElement {
 
   const frame = r.frameKind === 'group' ? 'group' : 'panel'
 
-  if (!editable) {
+  if (!canMove) {
     return (
       <Section title={`Measured · ${frame}-relative`}>
         <Field label="left" value={px(r.rect.left)} />
         <Field label="top" value={px(r.rect.top)} />
-        <Field label="width" value={px(r.rect.width)} />
-        <Field label="height" value={px(r.rect.height)} />
+        {canResize && policy.width ? (
+          <NumberField label="width" value={r.rect.width} onCommit={(n) => setBox({ width: n })} />
+        ) : (
+          <Field label="width" value={px(r.rect.width)} />
+        )}
+        {canResize && policy.height ? (
+          <NumberField label="height" value={r.rect.height} onCommit={(n) => setBox({ height: n })} />
+        ) : (
+          <Field label="height" value={px(r.rect.height)} />
+        )}
         <Field label="right inset" value={px(r.insetRight)} />
         <Field label="bottom inset" value={px(r.insetBottom)} />
         {r.node.kind !== 'panel' && (
           <p className="mt-1.5 rounded bg-zinc-800/70 px-2 py-1.5 text-[11px] leading-snug text-zinc-400">
-            This block is <code className="text-zinc-300">position: static</code>, so inline{' '}
-            <code className="text-zinc-300">left</code>/<code className="text-zinc-300">top</code> would have no effect.
+            This block is <code className="text-zinc-300">position: static</code>, so it can be resized but not moved —{' '}
+            <code className="text-zinc-300">left</code>/<code className="text-zinc-300">top</code> would have no effect,
+            and only the right and bottom handles are offered.
             {r.node.parentId
-              ? ' Its group lays it out — change the group’s padding, gap or direction, or give this block position: absolute to place it yourself.'
+              ? ' Its group places it: change the group’s padding, gap or direction, or give this block position: absolute to place it yourself.'
               : ' It is laid out by its parent; move it by editing the document.'}
           </p>
         )}

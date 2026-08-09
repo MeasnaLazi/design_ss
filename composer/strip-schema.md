@@ -172,6 +172,23 @@ Two rules follow from children being layers:
   change the group's `gap`, `padding` or direction instead, or give the child
   `position: absolute` to place it yourself against the group's box.
 
+**Sizing a group: hug or fixed, per axis.** A group with no authored `width`
+takes its width from its children, their `gap` and its `padding` — so that is
+what you change to resize it; there is no edge to drag while the browser is
+computing one. Writing an explicit `width` takes the decision away from the
+children and makes the box yours. Mixed is common and correct: a badge with a
+fixed width that still grows in height to fit a second line of label. In the
+editor, dragging a handle switches *that axis* to fixed and leaves the other
+hugging.
+
+A child is **resizable even when it is not movable**. A child in flow is
+`position: static`, so `left`/`top` do nothing — but `width` and `height` apply
+normally, which is how the icon above gets its 44×30. The editor reflects that:
+such a child keeps the handles that grow away from its origin (right, bottom,
+bottom-right) and loses the ones that would have to move it. Dragging the west
+edge means "hold the right edge, move the left one", which needs a `left` the
+browser ignores.
+
 Geometry inside a group is **group-relative**: a child's `left`/`top` resolve
 against the group, and the editor's inspector says so. That only holds while the
 group is positioned; a `position: static` group establishes no containing block,

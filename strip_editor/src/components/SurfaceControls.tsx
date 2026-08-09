@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Upload } from 'lucide-react'
 
 import { Chip, ColorField, CssField, Hint, Row, Section } from './controls'
+import { px } from '../editor/geometry'
 import { applyAttribute, applyDeclarations } from '../editor/mutate'
 import { isPlaceholderImage } from '../editor/schema'
 import { listImages, uploadImage } from '../lib/api'
@@ -278,6 +279,20 @@ export function GroupControls({ r }: { r: BlockReadout }): React.ReactElement | 
   const activeLayout = !display ? 'absolute' : direction === 'column' ? 'column' : 'row'
   const flowing = r.group.flowChildren > 0
 
+  // Hug or fixed, per axis. A group with no authored width takes its width from
+  // its children; writing one takes that decision away from them. Both are
+  // legitimate and mixed is common — a badge with a fixed width that still grows
+  // to fit two lines of label.
+  const hugX = !inline('width')
+  const hugY = !inline('height')
+  const setSize = (prop: 'width' | 'height', hug: boolean): void => {
+    applyDeclarations(
+      r.node.id,
+      [{ prop, value: hug ? null : px(prop === 'width' ? r.rect.width : r.rect.height) }],
+      `group:${r.node.id}`,
+    )
+  }
+
   return (
     <>
       <Section title="Group">
@@ -287,6 +302,28 @@ export function GroupControls({ r }: { r: BlockReadout }): React.ReactElement | 
             {flowing ? ` · ${r.group.flowChildren} in flow` : ''}
           </span>
         </Row>
+        <Row label="width">
+          <Chip active={hugX} onClick={() => setSize('width', true)} title="Width follows the children">
+            hug
+          </Chip>
+          <Chip active={!hugX} onClick={() => setSize('width', false)} title="Width is authored here">
+            fixed
+          </Chip>
+          <span className="ml-1 font-mono text-[11px] text-zinc-500">{Math.round(r.rect.width)}px</span>
+        </Row>
+        <Row label="height">
+          <Chip active={hugY} onClick={() => setSize('height', true)} title="Height follows the children">
+            hug
+          </Chip>
+          <Chip active={!hugY} onClick={() => setSize('height', false)} title="Height is authored here">
+            fixed
+          </Chip>
+          <span className="ml-1 font-mono text-[11px] text-zinc-500">{Math.round(r.rect.height)}px</span>
+        </Row>
+        <Hint>
+          Hugging means the box is computed from the children, their <code>gap</code> and the{' '}
+          <code>padding</code> — so resize those, not the box. Dragging a handle switches that axis to fixed.
+        </Hint>
         <Row label="layout">
           {GROUP_LAYOUTS.map((l) => (
             <Chip

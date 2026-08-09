@@ -49,7 +49,10 @@ export function SelectionOverlay({
   onHandleDown: (handle: HandleId, e: React.PointerEvent) => void
 }): React.ReactElement {
   const b = screenBox(rect, zoom)
-  const handles = movable && !editing ? handlesFor(node.kind) : []
+  // Handles are about *resizing*, which a static block supports perfectly well —
+  // width and height apply to a flex child. Only moving needs a positioned
+  // block, so `movable` narrows which handles appear rather than removing them.
+  const handles = editing ? [] : handlesFor(node.kind, { positioned: movable })
 
   return (
     <div className="absolute" style={{ left: b.left, top: b.top, width: b.width, height: b.height }}>

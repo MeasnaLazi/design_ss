@@ -190,7 +190,12 @@ export function StripStage(): React.ReactElement {
       const node = nodes.find((n) => n.id === nodeId)
       if (!iframe || !el || !node) return false
       const r = readBlock(iframe, node)
-      if (!r || !r.movable) return false
+      if (!r) return false
+      // A static block cannot be *moved* — inline left/top do nothing — but it
+      // resizes fine, so only the body drag is refused. handlesFor() has already
+      // limited which handles a static block offers to the ones that do not need
+      // to move its origin.
+      if (!r.movable && handle === null) return false
 
       gestureRef.current = {
         nodeId,
@@ -418,6 +423,8 @@ export function StripStage(): React.ReactElement {
       const el = id ? getElement(id) : null
       if (!iframe || !id || !node || !el || node.kind === 'panel') return
       const r = readBlock(iframe, node)
+      // Arrow keys nudge position, so unlike a resize handle they do need a
+      // block the browser will actually move.
       if (!r?.movable) return
 
       e.preventDefault()

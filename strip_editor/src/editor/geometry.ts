@@ -64,16 +64,40 @@ export function resizePolicy(kind: NodeKind): { width: boolean; height: boolean;
     case 'image':
     case 'decor':
       return { width: true, height: true }
+    case 'group':
+      // Both axes, like decor — but a group has two sizing modes and only one of
+      // them is draggable. *Hug* (no authored width/height) derives the box from
+      // the children, their gap and the padding; the browser recomputes it, so
+      // there is nothing for a handle to hold on to. *Fixed* authors the box and
+      // lays the children out inside it.
+      //
+      // Dragging a hugging group therefore converts it to fixed, by writing the
+      // measured box it already had. That is what every design tool does, and it
+      // is the honest reading of the gesture: you cannot drag an edge that is
+      // defined by its contents without first deciding the edge is yours.
+      return { width: true, height: true }
     default:
       return { width: false, height: false, reason: 'Panels are sized by the export preset.' }
   }
 }
 
-/** Handles worth showing: only those that would actually change something. */
-export function handlesFor(kind: NodeKind): HandleId[] {
+/**
+ * Handles worth showing: only those that would actually change something.
+ *
+ * `positioned: false` means the block is `position: static` — a group's child in
+ * flow, typically. Such a block is **resizable but not movable**: `width` and
+ * `height` apply normally, `left`/`top` do nothing. That rules out exactly the
+ * handles that work by moving the block's origin. Dragging the west edge is
+ * "keep the right edge, move the left one", which needs a `left` the browser
+ * would ignore — so the block would appear to resize from the wrong side. Only
+ * the handles that grow away from the origin survive.
+ */
+export function handlesFor(kind: NodeKind, options?: { positioned?: boolean }): HandleId[] {
   const policy = resizePolicy(kind)
   if (!policy.width && !policy.height) return []
-  if (policy.width && !policy.height) return ['w', 'e']
+  const positioned = options?.positioned ?? true
+  if (policy.width && !policy.height) return positioned ? ['w', 'e'] : ['e']
+  if (!positioned) return ['e', 'se', 's']
   return ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 }
 
@@ -138,7 +162,7 @@ export function resizeBox(ctx: GestureContext, handle: HandleId, dx: number, dy:
   return { left: l, top: t, width: r - l, height: b - t }
 }
 
-function px(n: number): string {
+export function px(n: number): string {
   return `${Math.round(n)}px`
 }
 
