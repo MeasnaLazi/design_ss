@@ -13,3 +13,6 @@ strip_editor/package-lock.json
 
 # macOS Finder droppings.
 .DS_Store
+
+input/
+!input/README.md
