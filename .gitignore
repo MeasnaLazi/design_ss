@@ -1,13 +1,15 @@
-# Renders are regenerable and land beside the strip that produced them.
-strips/*/rendered/**
-strips/.rendered/**
+# Strips are output. `input/` is the source: a design run reads it and writes
+# strips/<app-name>/, replacing whatever was there. Nothing under strips/ is
+# tracked — re-run to regenerate.
+#
+# Worth knowing: a run is not deterministic. The agent makes the design
+# decisions, and none of them live in input/, so re-running the same input
+# produces a *different* strip rather than the same one back. Copy a strip
+# folder somewhere outside the repo if you want to keep a particular result.
+strips/**
 
 strip_editor/node_modules/
 strip_editor/package-lock.json
-
-# Everything else under strips/ IS tracked. strip.html, copy.md, images/ and
-# screenshots/ are the design: move the folder, or clone the repo, and the strip
-# still renders. That is the whole reason they live together.
 
 # macOS Finder droppings.
 .DS_Store

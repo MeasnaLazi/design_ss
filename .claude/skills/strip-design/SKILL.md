@@ -1,13 +1,12 @@
 ---
 name: strip-design
 description: >-
-  Design App Store / Play Store screenshot strips by writing HTML/CSS. Covers
-  both a blank strip created in strip_editor ("New strip") and a targeted change
-  to an existing one — author or edit the file, check it with
-  composer/check-schema.mjs, render it with composer/render.mjs, look at the
-  PNGs against composer/references/, iterate. Use whenever the request is about
-  a strip in strips/: designing panels, adding or moving blocks, swapping
-  a screenshot, resizing a device, retuning type, colour or spacing.
+  Design App Store / Play Store screenshot strips by writing HTML/CSS. Reads the
+  brief and screen captures from input/, writes one strip folder per app, checks
+  it with composer/check-schema.mjs, renders it with composer/render.mjs, looks
+  at the PNGs against composer/references/, and iterates. Also covers targeted
+  edits to a strip that already exists: adding or moving blocks, swapping a
+  screenshot, resizing a device, retuning type, colour or spacing.
 ---
 
 # Designing a screenshot strip
@@ -18,12 +17,17 @@ representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
 the same browser engine, from the same file.
 
 ```
-strips/<name>/
-  strip.html         the document
-  copy.md            panel copy
-  images/            artwork for image layers — including anything you generate
-  screenshots/       device screen captures for this strip
-  rendered/          panel PNGs + strip-data.json — gitignored, regenerable
+input/  →  design  →  strips/<app-name>/
+```
+
+A run reads `input/`, designs, and writes one strip folder named from the app:
+
+```
+input/                     strips/<app-name>/
+  app.md                     strip.html         the document
+  welcome.jpg                images/            artwork you create for it
+  transfer.jpg               screenshots/       the captures, copied from input/
+  ...                        rendered/          PNGs + strip-data.json (gitignored)
 ```
 
 **Everything a strip references lives in its folder.** There is no shared asset
@@ -39,17 +43,62 @@ asymmetry, decorative shapes, real app screenshots inside device frames.
 Design the strip as **one composition** with rhythm and continuity across
 panels — not as five independent posters.
 
-## Two starting points, one job
+## Start here: read `input/`
 
-| Situation | What changes |
-| --- | --- |
-| A blank strip from the editor's **New strip** — panels present, empty | You are composing from nothing. Establish the background system and pose rhythm first, then fill panels. |
-| An existing strip and a **specific request** — *"make panel 2's device bigger"*, *"add a caption to panel 3"* | Read the file first and make the **smallest edit** that achieves it. Never re-author a strip you were asked to edit. |
+**Before anything else, read `input/app.md` and list the images beside it.**
 
-An open-ended request on an existing strip (*"redesign this"*, *"make it
-better"*) is the first case applied to a file that already has content — say
-which reading you took before you start, so the user can stop you if the strip
-was hand-tuned.
+**Stop if `input/` is empty** — no `app.md`, or no images. Say what is missing
+and ask for it. Do not invent an app name, a summary, or marketing copy, and do
+not design a strip from nothing: a design that looks finished but describes an
+app that does not exist is worse than no design.
+
+`app.md` gives you:
+
+- **the app name** — which names the output folder: "Bio Journal" →
+  `strips/bio-journal/`
+- **summary, category, tone, theme** — the design direction. Tone and theme
+  steer type and palette; if either is absent, infer from the summary and *say
+  what you inferred*.
+- **per panel: `title`, `subtitle`, optional `caption`, optional `screenshot`**
+
+Copy is taken **verbatim**. If a line does not fit the layout, say so and let
+the user choose between changing the words and changing the design — never
+reword it quietly. The words are theirs.
+
+`screenshot` names a file in `input/`. **Copy the ones you use into
+`strips/<app-name>/screenshots/`** and reference them as
+`/strips/<app-name>/screenshots/<file>` — the finished strip must not depend on
+`input/`, which is a working inbox and will be replaced by the next app.
+
+A panel with no `screenshot` is not a blocker: omit `data-screenshot`, let the
+frame render a blank screen filled by `data-screen-fallback`, and list the gap
+at the end.
+
+### Re-running an app
+
+**The strip folder is output, and a run replaces it.** Designing "Bio Journal"
+again rewrites everything under `strips/bio-journal/`. That is the intended
+loop: the input describes the app, the strip folder is what the input produced,
+and changing the input and running again is how the design changes.
+
+Two things are *not* derived from `input/`, and `strips/` is gitignored, so
+neither can be recovered once you overwrite it:
+
+- whatever a human changed in `strip_editor` after the last run
+- the design decisions of the previous run — layout, poses, palette, crops.
+  None of them live in `input/`, so a re-run produces a *different* strip
+  rather than the same one back.
+
+So if the folder you are about to replace already has a design in it, say so
+before you overwrite it — not to refuse, just so the choice is theirs.
+
+### Editing an existing strip
+
+A request naming a specific change — *"make panel 2's device bigger"*, *"swap
+the screenshot on the last panel"* — is **not** a pipeline run. Read the file,
+make the **smallest edit** that achieves it, and leave `input/` alone. Never
+re-author a strip you were asked to edit, and never replace a folder because
+someone asked you to move one block.
 
 ## Required reading
 
@@ -72,22 +121,23 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
 ## The loop
 
-1. **Read** the strip and `composer/strip-schema.md`.
+1. **Read** `input/app.md`, then the strip (if one exists) and
+   `composer/strip-schema.md`.
 2. **Edit** the HTML.
 3. **Check the structure** — no browser, so it costs nothing and catches the
    mistakes that would otherwise waste a render:
 
    ```bash
-   node composer/check-schema.mjs strips/<name>/strip.html
+   node composer/check-schema.mjs strips/<app-name>/strip.html
    ```
 
 4. **Render:**
 
    ```bash
-   node composer/render.mjs --strip strips/<name>/strip.html --full
+   node composer/render.mjs --strip strips/<app-name>/strip.html --full
    ```
 
-   Output lands in `strips/<name>/rendered/` unless you pass `--out`.
+   Output lands in `strips/<app-name>/rendered/` unless you pass `--out`.
 
 5. **Read the `problems` array from that output *before* looking at the PNGs**,
    then look at the PNGs.
@@ -167,50 +217,32 @@ that same panel. You are checking your change, not re-judging the design.
 
 ## Where copy comes from
 
-Panel copy — titles, subtitles, captions — lives in the strip's own folder, at
-**`strips/<name>/copy.md`**.
+**`input/app.md`, verbatim.** It is the only source of panel copy — titles,
+subtitles, captions — and of the app's name, summary, tone and theme.
 
-In order:
+- **Never invent marketing text.** If `app.md` is missing, stop and ask (see
+  *Start here*). If it is present but a panel has no title, ask about that
+  panel rather than filling it in.
+- **Never reword to fit.** A headline that overflows its block is a design
+  problem first: try a size, a width, a line break. If it still does not work,
+  say which line and why, and let the user decide between the copy and the
+  layout.
+- **Do not write back to `input/`.** It is the user's inbox, not your workspace.
 
-1. **If that file exists, it is the source of truth.** Read it and take the copy
-   verbatim. Do not overwrite it, and do not silently reword it in the HTML — if
-   a line does not fit the layout, say so and let the user decide between
-   changing the copy and changing the design.
-2. **Otherwise take the copy from the request**, or from the strip if it already
-   has some.
-3. **If there is none, draft `copy.md`** in the format below, design with it, and
-   say in your final message that the copy is a draft and where it lives. Do not
-   pause the run to ask for it — a draft the user can edit in one place beats a
-   blocked turn, and it beats marketing text invented invisibly inside the HTML.
-
-When the user edits `copy.md`, re-read it and update the strip. The markdown is
-the input; `strip.html` is what ships.
-
-```markdown
-# <strip name>
-
-Theme: #f5f1ee / #0c0c0a        <!-- optional: background / ink -->
-
-## Panel 0
-- title: Your Life as a Book
-- subtitle: Flip through your memories
-- screenshot: /strips/<name>/screenshots/<file>.png
-
-## Panel 1
-- title: Private By Design
-- subtitle: Everything stays on your phone
-- caption: No account required
-```
-
-Keys are `title`, `subtitle`, `caption`, `screenshot` — all optional except a
-title. One title and one subtitle per panel; a caption only when it earns its
-place. Anything else in the file is a note to you, not copy to render.
+An existing strip already carries its copy in `strip.html`. When the request is
+a targeted edit rather than a pipeline run, that text is what you work with —
+do not re-read `app.md` and quietly restore copy the user changed by hand in
+the editor.
 
 ## Missing screenshots
 
-Prefer a real capture for every device — `strips/<name>/screenshots/`, flat.
-Look at what is there before designing and pick the screen that proves each
-panel's claim.
+Captures come from `input/`, named for what they show — `transfer.jpg`,
+`welcome.jpg`. **Look at them before designing.** `app.md` names one per panel;
+when it does not, pick the screen that proves that panel's claim, which is what
+the filenames are for.
+
+Copy every capture you use into `strips/<app-name>/screenshots/` and reference
+it there, so the finished strip does not depend on `input/`.
 
 When a panel has none, **omit `data-screenshot`**: the frame renders a blank
 screen filled with `data-screen-fallback` (choose a theme-fitting hex). That is
@@ -227,10 +259,11 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 
 | Source | Use |
 | --- | --- |
-| `strips/<name>/strip.html` | The document. Tracked in git — but still someone's work: do not rewrite one you were not asked to touch. |
-| `strips/<name>/copy.md` | Panel copy. Source of truth when present — see § Where copy comes from. |
-| `strips/<name>/screenshots/` | Real app screen captures for this strip, for device screens. |
-| `strips/<name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
+| `input/app.md` | **Required.** App name, summary, tone, theme, and the copy for every panel. Read first; stop if absent. |
+| `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
+| `strips/<app-name>/strip.html` | The document you write. **Gitignored — no version history**, so a rewrite cannot be undone. Do not rewrite one you were not asked to touch. |
+| `strips/<app-name>/screenshots/` | The captures you used, copied from `input/`. |
+| `strips/<app-name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
 | `composer/device-frames/` | Frame packs; `README.md` there has each pose's viewBox and a starting width. |
 | `composer/references/` | Reference strips, for the review step. |
 
@@ -241,7 +274,7 @@ cd strip_editor && npm run dev
 ```
 
 ```
-http://localhost:4714/?strip=strips/<name>/strip.html
+http://localhost:4714/?strip=strips/<app-name>/strip.html
 ```
 
 The editor watches the file. **Every write you make reloads the canvas**, so the
@@ -305,7 +338,9 @@ Each of these was learned from a real failure.
 - **No external network assets.** No web fonts, no remote images. Everything
   resolves from the repo, or the editor and the export disagree.
 - **Assets go in the strip's folder, referenced root-relatively.** Write new
-  images to `strips/<name>/images/` and reference `/strips/<name>/images/…`.
+  images to `strips/<app-name>/images/`, copy captures into
+  `strips/<app-name>/screenshots/`, and reference them there. A strip that
+  points at `/input/…` breaks the moment the next app arrives.
   Not a relative `images/…`: the editor serves the document through
   `/__api/strip-editor/raw?path=`, so a relative path resolves against the API
   route — broken in the editor, fine in the export.

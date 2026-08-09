@@ -5,13 +5,18 @@
 A strip is a **folder**, and everything the design references lives inside it:
 
 ```
-strips/<name>/
+strips/<app-name>/
   strip.html         the document — every panel of the set
-  copy.md            panel copy (titles, subtitles, captions)
   images/            artwork for image layers: logos, textures, generated art
-  screenshots/       device screen captures for this strip
+  screenshots/       device screen captures, copied from input/
   rendered/          panel PNGs + strip-data.json — gitignored, regenerable
 ```
+
+The folder is the output of a pipeline: `input/` (the brief and the app's
+captures) → design → one strip folder, named from the app. See
+[`input/README.md`](../input/README.md). Copy and app facts stay in `input/`;
+the strip folder holds the design and everything it renders from, and is
+gitignored like any other build output.
 
 Nothing is shared between strips. Duplicating a capture across two designs is
 the intended cost: it buys a folder you can move, copy or hand to someone with
