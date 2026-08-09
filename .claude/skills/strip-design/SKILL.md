@@ -47,10 +47,13 @@ panels — not as five independent posters.
 
 **Before anything else, read `input/app.md` and list the images beside it.**
 
-**Stop if `input/` is empty** — no `app.md`, or no images. Say what is missing
-and ask for it. Do not invent an app name, a summary, or marketing copy, and do
-not design a strip from nothing: a design that looks finished but describes an
-app that does not exist is worse than no design.
+**Stop if there is no `app.md`, or no images.** Say what is missing and ask for
+it. Do not invent an app name, a summary, or marketing copy, and do not design a
+strip from nothing: a design that looks finished but describes an app that does
+not exist is worse than no design.
+
+`input/README.md` ships with the repo and documents the format — it is not a
+brief. An `input/` holding only that file counts as empty.
 
 `app.md` gives you:
 

@@ -150,7 +150,7 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 | Strip layer contract | [`composer/strip-schema.md`](composer/strip-schema.md) |
 | The design skill | [`.claude/skills/strip-design/SKILL.md`](.claude/skills/strip-design/SKILL.md) |
 | Strip folder layout | [`composer/strip-schema.md`](composer/strip-schema.md) — *Where a strip lives* |
-| Writing the brief | [`input/README.md`](input/README.md) · [`input/app.template.md`](input/app.template.md) |
+| Writing the brief (`input/app.md`) | [`input/README.md`](input/README.md) |
 | Device frame packs & pose sizing | [`composer/device-frames/README.md`](composer/device-frames/README.md) |
 | HTML strip composer | [`composer/README.md`](composer/README.md) · [`composer/strip-schema.md`](composer/strip-schema.md) |
 | SVG screen mask tool | [`mask_analysis/README.MD`](mask_analysis/README.MD) |
