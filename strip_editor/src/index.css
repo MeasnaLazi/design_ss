@@ -45,6 +45,22 @@
 @layer components {
   /* Checkerboard behind the strip so panel edges and transparency read clearly. */
   .stage-backdrop {
+    /*
+     * Reserve the scrollbar gutter permanently, or 'fit' zoom oscillates.
+     *
+     * The loop: selection chrome is drawn at a block's full box, and a device
+     * cropped by the panel edge extends well below the stage — so hovering one
+     * adds scroll overflow, which shows a scrollbar. The ResizeObserver feeding
+     * 'fit' reads contentRect.width, which *excludes* the scrollbar, so the
+     * stage shrinks; the smaller stage no longer overflows, the scrollbar goes,
+     * the width grows back, and it repeats every frame. It reads as the canvas
+     * vibrating between scrolled and not-scrolled while the pointer rests on a
+     * cropped device.
+     *
+     * With the gutter always reserved, contentRect.width never changes when a
+     * scrollbar appears, and the loop has nothing to feed on.
+     */
+    scrollbar-gutter: stable;
     background-color: rgb(9 9 11);
     background-image:
       linear-gradient(45deg, rgb(24 24 27) 25%, transparent 25%),

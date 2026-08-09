@@ -285,6 +285,17 @@ not document pixels: six document pixels is under one screen pixel at fit-width
 (unhittable) and a twelve-pixel magnet at 200%. What should stay constant is the
 felt distance.
 
+**Nothing that measures the viewport may depend on scrollbar presence.** `fit`
+zoom is computed from the scroll container's `contentRect.width`, which excludes
+the scrollbar — so anything that toggles a scrollbar toggles the zoom, and the
+new zoom can untoggle the scrollbar. Selection chrome is drawn at a block's full
+box, and a device cropped by the panel edge extends far below the stage, so
+merely *hovering* one used to start that loop: the canvas vibrated between
+scrolled and not-scrolled for as long as the pointer rested on it. Fixed by
+reserving the gutter permanently (`scrollbar-gutter: stable` on
+`.stage-backdrop`). Any future measurement feeding a size decision needs the
+same treatment.
+
 **Never auto-correct layout.** Blocks may deliberately overhang a panel
 (`overflow: hidden` crops them — that is the cropped-device look). The editor
 must not clamp positions, and layout policy belongs to the validator, not to

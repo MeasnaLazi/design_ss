@@ -129,8 +129,8 @@ the screenshots are copied into it so the finished strip is self-contained.
 input, run again, and that app's folder is replaced by the new result. Editing
 `input/` and re-running is the normal way to change a design.
 
-`strips/` is gitignored — this folder is what the repo keeps. Note that a run is
-not deterministic, though: the design decisions live in the agent, not in
+Neither this folder nor `strips/` is tracked in git — only this README. And a
+run is not deterministic: the design decisions live in the agent, not in
 `app.md`, so re-running the same input gives a *different* strip rather than the
-same one back. Copy a strip folder elsewhere if a particular result is worth
-keeping.
+same one back. Nothing brings the old one back, so copy a strip folder elsewhere
+if a particular result is worth keeping.
