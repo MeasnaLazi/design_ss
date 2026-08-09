@@ -17,7 +17,7 @@ The **[`strip_editor/`](strip_editor/)** (port 4714) opens a strip HTML file dir
 
 - **Store-sized panels** — Panels are authored at the exact export size of the target preset (e.g. 1290×2796 for iPhone portrait). **New strip** scaffolds a blank, schema-conformant document.
 - **Four layer kinds** — text, device, image, decor. Select, move, resize and restyle any of them; the layer tree is built from the `data-layer` attributes in the file.
-- **Device mockups** — SVG frame packs with multiple poses (front, angled, tilted, isometric); real app screenshots are warped into the screen opening by homography and clipped to the pose's screen mask.
+- **Device mockups** — SVG frame packs, each with one or more poses; real app screenshots are warped into the screen opening by homography and clipped to the pose's screen mask. What is available is whatever `composer/device-frames/` contains — see its [README](composer/device-frames/README.md).
 - **Agent-aware** — When something else writes the file, the editor reloads and puts itself in read-only agent mode, with a lease that lapses shortly after the last write. So an agent running the `strip-design` skill can design while you watch. See [The design skill](#the-design-skill).
 
 ## What it does
@@ -159,17 +159,17 @@ Details: [`mask_analysis/README.MD`](mask_analysis/README.MD)
 
 ### What git tracks
 
-**`input/` is tracked. `strips/` is not.** The brief and the app's captures are
-the source; the strip folder is what a run produced from them, so it is treated
-like any other build output and stays out of the repo.
+**Neither `input/` nor `strips/` is tracked** — only `input/README.md`, which
+documents the format. Your brief, your app's captures and the strips made from
+them are working data, not repository content; the repo holds the tools.
 
-One caveat that does not apply to an ordinary build: **a run is not
+Worth knowing, because it does not apply to an ordinary build: **a run is not
 deterministic.** The agent makes the design decisions — layout, poses, palette,
 crops — and none of them live in `input/`, so re-running the same input gives
-you a *different* strip rather than the same one back. If a particular design is
-worth keeping, copy the folder somewhere outside the repo; git will not do it
-for you. The same goes for anything you hand-tuned in `strip_editor`, which
-exists only in the strip.
+you a *different* strip rather than the same one back. Nothing here is
+recoverable: if a design is worth keeping, copy the folder somewhere outside the
+repo. The same goes for anything you hand-tuned in `strip_editor`, which exists
+only in the strip.
 
 Nothing clears these folders for you.
 

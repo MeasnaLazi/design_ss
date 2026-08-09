@@ -79,38 +79,60 @@ at the end.
 
 ### Re-running an app
 
-**The strip folder is output, and a run replaces it.** Designing "Bio Journal"
-again rewrites everything under `strips/bio-journal/`. That is the intended
-loop: the input describes the app, the strip folder is what the input produced,
-and changing the input and running again is how the design changes.
+**Design from the input, not from the last result.**
 
-Two things are *not* derived from `input/`, and `strips/` is gitignored, so
-neither can be recovered once you overwrite it:
+If `strips/<app-name>/` already exists, replace it. Do not open the old
+`strip.html`, do not read its layout, do not treat it as a starting point or as
+something to preserve. It is the output of a previous run and has no authority
+over this one — the input does. Reading it only anchors the new design to the
+old one, which defeats the point of running again.
 
-- whatever a human changed in `strip_editor` after the last run
-- the design decisions of the previous run — layout, poses, palette, crops.
-  None of them live in `input/`, so a re-run produces a *different* strip
-  rather than the same one back.
+Do not ask whether to overwrite, and do not pause to warn. Replacement is what a
+run *is*. The user re-ran it because they wanted a new design.
 
-So if the folder you are about to replace already has a design in it, say so
-before you overwrite it — not to refuse, just so the choice is theirs.
+Clear the folder's `strip.html`, `images/` and `screenshots/` and write the new
+design in their place, so nothing from the previous run survives by accident —
+a stale screenshot no panel references, or an image the new design never uses.
 
-### Editing an existing strip
+### The one exception: a targeted edit
 
-A request naming a specific change — *"make panel 2's device bigger"*, *"swap
-the screenshot on the last panel"* — is **not** a pipeline run. Read the file,
-make the **smallest edit** that achieves it, and leave `input/` alone. Never
-re-author a strip you were asked to edit, and never replace a folder because
-someone asked you to move one block.
+A request naming a specific change to an existing strip — *"make panel 2's
+device bigger"*, *"swap the screenshot on the last panel"*, *"the subtitle is
+too close to the title"* — is **not** a pipeline run. It is a different job:
+read that strip, make the **smallest edit** that achieves it, leave `input/`
+alone, and replace nothing.
+
+Decide which of the two you are doing **before you touch anything**, and say
+which. Everything else in this skill assumes you have already classified the
+request:
+
+| The request | What it means |
+| --- | --- |
+| *"design the strip"*, *"run it again"*, *"redo it with the new copy"*, or nothing named | **Pipeline run.** Read `input/`, design fresh, replace the folder. |
+| A named change to a strip that exists | **Targeted edit.** Read that file, change that thing, leave the rest byte-identical. |
 
 ## Required reading
 
 1. **`composer/strip-schema.md`** — the contract. Panel structure, the five
    `data-layer` kinds, device attributes, z-order, and the shape of
    `strip-data.json`. Read it before writing any markup.
-2. **`composer/device-frames/README.md`** — each pose's viewBox and a starting
-   width. Read it before sizing any device; the poses differ enough that
-   guessing wastes a render round.
+2. **The device pack**, before sizing any device — width is what scales a
+   device, and the right width depends on the pose's viewBox, so guessing wastes
+   a render round.
+
+   ```bash
+   cat composer/device-frames/<pack>/frame.json              # which poses exist
+   grep -o 'viewBox="[^"]*"' composer/device-frames/<pack>/frame/<pose>.svg | head -1
+   ```
+
+   Take the dimensions from the **SVG's `viewBox`**, not from `frame.json`'s
+   `viewWidth` — the runtime scales to the viewBox and those JSON fields are a
+   fallback that has been stale before.
+
+   **Do not assume a pose exists.** The catalogue changes; poses get deleted
+   when they do not look good. Use what `frame.json` lists, and if a pack offers
+   only one pose, that is a normal state, not a problem to report.
+   `composer/device-frames/README.md` has the sizing rule and the craft notes.
 
 ## Preflight
 
@@ -124,8 +146,9 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
 ## The loop
 
-1. **Read** `input/app.md`, then the strip (if one exists) and
-   `composer/strip-schema.md`.
+1. **Read** `input/app.md` and `composer/strip-schema.md`. On a pipeline run
+   that is *all* you read — never the previous strip. On a targeted edit, read
+   the strip you were asked to change.
 2. **Edit** the HTML.
 3. **Check the structure** — no browser, so it costs nothing and catches the
    mistakes that would otherwise waste a render:
@@ -201,9 +224,11 @@ that same panel. You are checking your change, not re-judging the design.
 
 - **One focal point per panel.** Decide whether type or device leads, and size
   accordingly.
-- **Vary the layout across panels.** Alternate device side, height and pose; mix
-  a centred panel with asymmetric ones; consider one inverted panel for rhythm
-  when the theme has a dark counterpart.
+- **Vary the layout across panels.** Alternate which side the device sits on,
+  how large it is, and how far it crops off which edge; mix a centred panel with
+  asymmetric ones; consider one inverted panel for rhythm when the theme has a
+  dark counterpart. Alternate the **pose** too when the pack offers more than
+  one — and when it offers only one, the other levers are what carry the rhythm.
 - **Type hierarchy.** Title in the theme's display voice (serif or sans — infer
   from the app's character); subtitle quieter, smaller, muted. As a starting
   point at export size, titles read well from about 96px and subtitles from
@@ -232,10 +257,10 @@ subtitles, captions — and of the app's name, summary, tone and theme.
   layout.
 - **Do not write back to `input/`.** It is the user's inbox, not your workspace.
 
-An existing strip already carries its copy in `strip.html`. When the request is
-a targeted edit rather than a pipeline run, that text is what you work with —
-do not re-read `app.md` and quietly restore copy the user changed by hand in
-the editor.
+On a **targeted edit**, the strip's own text is what you work with — do not
+re-read `app.md` and quietly restore copy the user changed by hand in the
+editor. On a **pipeline run**, `app.md` is the copy, full stop; whatever the
+previous run put in the strip is irrelevant.
 
 ## Missing screenshots
 
@@ -264,7 +289,7 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 | --- | --- |
 | `input/app.md` | **Required.** App name, summary, tone, theme, and the copy for every panel. Read first; stop if absent. |
 | `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
-| `strips/<app-name>/strip.html` | The document you write. **Gitignored — no version history**, so a rewrite cannot be undone. Do not rewrite one you were not asked to touch. |
+| `strips/<app-name>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
 | `strips/<app-name>/screenshots/` | The captures you used, copied from `input/`. |
 | `strips/<app-name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
 | `composer/device-frames/` | Frame packs; `README.md` there has each pose's viewBox and a starting width. |
@@ -334,8 +359,8 @@ Each of these was learned from a real failure.
   `<div>`. The editor rebuilds text content on first edit and silently discards
   anything else.
 - **A device block gets a CSS `width` and never a height.** Height follows the
-  pose's SVG viewBox aspect. Read `composer/device-frames/README.md` before
-  sizing one.
+  pose's SVG viewBox aspect. Read that viewBox before sizing one: width ≈
+  1.0–1.3 × its width.
 - **Position blocks absolutely.** A statically positioned block cannot be moved
   by writing `left`/`top`, so it arrives in the editor unusable.
 - **No external network assets.** No web fonts, no remote images. Everything
@@ -343,17 +368,19 @@ Each of these was learned from a real failure.
 - **Assets go in the strip's folder, referenced root-relatively.** Write new
   images to `strips/<app-name>/images/`, copy captures into
   `strips/<app-name>/screenshots/`, and reference them there. A strip that
-  points at `/input/…` breaks the moment the next app arrives.
+  points at `/input/…` breaks the moment the next app arrives, and `input/` is
+  not tracked in git, so there is nothing to fall back to.
   Not a relative `images/…`: the editor serves the document through
   `/__api/strip-editor/raw?path=`, so a relative path resolves against the API
   route — broken in the editor, fine in the export.
 - **An `<img>` is an `image` block, never a `decor` one.** Decor is free HTML so
   the export looks right, but the editor then offers background and border and
   no `src` — the picture becomes the one thing you cannot change.
-- **Smallest edit that achieves the request.** Do not reformat, reindent, or
-  rewrite panels you were not asked to touch. The document may have been
-  hand-tuned or edited in `strip_editor` — its indentation, attribute line
-  breaks and declaration order belong to whoever wrote them.
+- **On a targeted edit, make the smallest edit that achieves the request.** Do
+  not reformat, reindent, or rewrite panels you were not asked to touch. The
+  document may have been hand-tuned in `strip_editor` — its indentation,
+  attribute line breaks and declaration order belong to whoever wrote them.
+  (This does not apply to a pipeline run, which authors the document outright.)
 - **Do not fix things you were not asked to fix.** Say what you noticed and let
   the user decide. An unrequested "improvement" buried in a diff is the fastest
   way to lose their trust in this loop.

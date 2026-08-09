@@ -123,9 +123,15 @@ pose's SVG viewBox aspect; writing one distorts the frame. This is the single
 most common way to break a device block.
 
 Pose viewBoxes differ enough that the same width gives very different phone
-sizes — see **`composer/device-frames/README.md`** for each pose's box and a
-starting width. Read it before sizing a device rather than guessing and
-re-rendering.
+sizes, so read the pose SVG's **`viewBox`** before sizing a device rather than
+guessing and re-rendering — a useful starting point is width ≈ 1.0–1.3 × the
+viewBox width. Read it from the artwork, not from `frame.json`'s `viewWidth`:
+the runtime scales to the `viewBox`, and those JSON fields are a fallback that
+has been stale before.
+
+`frame.json` *is* the list of poses that exist. Packs and poses change — poses
+get deleted when they do not look good — so do not assume a pose name from
+another strip is still there.
 
 Omitting `data-screenshot` is a legitimate design choice, not a failure: the
 frame renders with a blank screen filled by `data-screen-fallback`. Prefer a
@@ -226,7 +232,7 @@ order alone makes the intent invisible to anyone editing the file later.
          style="position:absolute; left:95px; top:230px; width:1100px;">Your Life as a Book</div>
     <div data-layer="text" data-role="subtitle"
          style="position:absolute; left:95px; top:530px; width:1000px;">Flip through your memories</div>
-    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
          data-screenshot="/strips/<name>/screenshots/<file>.png"
          data-screen-fallback="#0c0c0a"
          style="position:absolute; left:220px; bottom:-320px; width:1400px;"></div>
