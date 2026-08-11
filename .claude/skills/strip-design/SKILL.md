@@ -113,10 +113,18 @@ request:
 
 ## Required reading
 
-1. **`composer/strip-schema.md`** — the contract. Panel structure, the five
+1. **`composer/references/archetypes.md`** — the design vocabulary: panel
+   archetypes, set rhythms, and the axes (device treatment, type placement,
+   background, palette, decor, screenshot treatment) that a design is assembled
+   from. Read it on a pipeline run **before you write any markup**, and choose
+   from it — see *Choose the concept* below.
+
+   Consulting it after the panels exist is too late: by then the concept is
+   committed and the only thing left to change is spacing.
+2. **`composer/strip-schema.md`** — the contract. Panel structure, the five
    `data-layer` kinds, device attributes, z-order, and the shape of
    `strip-data.json`. Read it before writing any markup.
-2. **The device pack**, before sizing any device — width is what scales a
+3. **The device pack**, before sizing any device — width is what scales a
    device, and the right width depends on the pose's viewBox, so guessing wastes
    a render round.
 
@@ -146,18 +154,20 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
 ## The loop
 
-1. **Read** `input/app.md` and `composer/strip-schema.md`. On a pipeline run
-   that is *all* you read — never the previous strip. On a targeted edit, read
-   the strip you were asked to change.
-2. **Edit** the HTML.
-3. **Check the structure** — no browser, so it costs nothing and catches the
+1. **Read** `input/app.md`, `composer/references/archetypes.md` and
+   `composer/strip-schema.md`. On a pipeline run that is *all* you read — never
+   the previous strip. On a targeted edit, read the strip you were asked to
+   change and skip to step 3.
+2. **Choose the concept, and say it** — see below.
+3. **Edit** the HTML.
+4. **Check the structure** — no browser, so it costs nothing and catches the
    mistakes that would otherwise waste a render:
 
    ```bash
    node composer/check-schema.mjs strips/<app-name>/strip.html
    ```
 
-4. **Render:**
+5. **Render:**
 
    ```bash
    node composer/render.mjs --strip strips/<app-name>/strip.html --full
@@ -165,10 +175,38 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
    Output lands in `strips/<app-name>/rendered/` unless you pass `--out`.
 
-5. **Read the `problems` array from that output *before* looking at the PNGs**,
+6. **Read the `problems` array from that output *before* looking at the PNGs**,
    then look at the PNGs.
-6. **Iterate.** Renders are cheap. Stop when a round stops improving, or after
+7. **Iterate.** Renders are cheap. Stop when a round stops improving, or after
    about four rounds.
+8. **Append the concept line** to `composer/references/history.md`.
+
+### Choose the concept
+
+Before any markup, pick from `archetypes.md` and **state the picks in one line**
+so they can be rejected before five panels exist:
+
+```
+bio · continuous-canvas · full-bleed-screen · bare/no-frame · type-behind · dark + one accent
+     ^rhythm             ^archetype          ^device         ^type        ^palette
+```
+
+Four rules:
+
+- **Pick the set rhythm first.** It constrains everything else, and it is the
+  axis that silently defaults to `uniform` — five identical panels, a template
+  rather than a design.
+- **Pick the other axes independently.** Do not adopt a bundle because some
+  reference happened to use it. Combinations absent from `archetypes.md` are the
+  point of having axes.
+- **Do not repeat the previous run.** Read the last line of
+  `composer/references/history.md`; change the archetype and at least two
+  **structural** axes — set rhythm, device treatment, type placement, screenshot
+  treatment, decor. A palette pinned by `app.md` does not count as variation;
+  **mood** does, and is usually the only colour decision left. If the history
+  file is missing or empty, this is the first run — choose freely.
+- **Invent when nothing fits.** If no archetype suits the app, make one, use it,
+  and add it to `archetypes.md` with a name.
 
 ## Reading a render
 

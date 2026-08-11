@@ -90,12 +90,27 @@ The `# ` heading names the output folder: `# Bio Journal` → `strips/bio-journa
 | `summary` | What the app does and who it is for. One or two sentences. |
 | `category` | e.g. lifestyle / journal, productivity, finance |
 | `tone` | e.g. warm and literary · clinical and precise · playful |
-| `theme` | `background / ink`, plus an accent if you have one |
+| `theme` | `background / ink`, plus an accent if you have one. Add a second pair after `·` for an inverted variant — see below. |
+| `mood` | Optional. `midnight`, `ember`, `golden hour`, `dawn`, `overcast`, `parchment`, `neon`, `clinical`, `deep water`, `spotlight`. Atmosphere rather than colour; the agent picks one if you leave it out. |
 | `store` | `appstore` or `play` |
 | `preset` | Export size, e.g. `appstore_iphone_portrait` (1290×2796) |
 
 `tone` and `theme` steer type and palette. Leave either out and the agent infers
 it from the summary and tells you what it inferred.
+
+**Two palettes, one brand.** A pinned `theme` keeps every strip on-brand across
+iPhone, iPad and Play — which is what you want, and it also means the palette
+stops being a source of variety. Declaring both a dark and a light version of
+the *same* palette gives back one real axis of variation at no cost to
+coherence:
+
+```
+- theme: #0b0a08 / #f4eee2 + #c9a24b · #f4eee2 / #0b0a08 + #c9a24b
+         ^ dark ground, parchment ink   ^ the same palette inverted
+```
+
+The agent picks one per run and says which. Useful anyway if your app has a dark
+mode — showing it has become close to expected.
 
 ### `## Panel N`
 
