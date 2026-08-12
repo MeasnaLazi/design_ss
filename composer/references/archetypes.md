@@ -107,7 +107,7 @@ Structure only — where the mass sits. Not a look.
 | `full-bleed-screen` | The screenshot *is* the panel — edge to edge, no frame, no margin. Type overlaid on a dimmed or blurred region. Very strong; needs a screenshot that can carry it. |
 | `device-bleed-side` | Device cropped off the left or right edge, often 30–50% gone. Type in the remaining column. Creates motion across the set when the side alternates. |
 | `floating-card` | A UI element lifted *out* of the device screen and enlarged beside it — a notification, a row, a chart. The most-used "modern" move. Shows the feature without needing the whole screen readable. |
-| `two-device-overlap` | Two frames, one behind the other, offset and often at different scales. Shows a flow or a before/after. |
+| `two-device-overlap` | Two frames, one behind the other, offset and usually at different scales. **Reach for it when two screens tell one story** — a before/after, a flow (compose → published), a state change — not because there were spare captures. Surplus captures are a reason to *choose better*, not to pack more in. `app.md` signals it with two filenames on one panel's `screenshot:` line. **Size them for two**: the standard width guide is written for a single dominant device, and applying it twice puts 2.6 phone-widths in a 1.7-phone-wide panel. See Axis 3 · Scale. |
 | `split-panel` | Hard horizontal or vertical division — colour block one side, device the other. Graphic, poster-like. |
 | `tilted-device` | Device rotated 3–15°, usually with a directional shadow. Buys energy from a single flat pose. |
 | `annotated` | Callout lines or arrows from labels to UI elements. Instructional register; good for complex tools, deadly for consumer apps. |
@@ -126,9 +126,45 @@ the one that most separates professional sets from generated ones.**
 | `alternating` | Device side, or type position, flips panel to panel. Creates rhythm when scrolled. |
 | `escalating` | Density or saturation increases across the set — calm opening, busy finish. Or the reverse. |
 | `narrative` | Panels form a sequence: problem → action → result. Copy carries it; layout supports it. |
-| `continuous-canvas` | Background, or a single graphic element, runs across panel boundaries so the set reads as one image when swiped. Highest-effort, highest-impact. Requires designing the strip as one 6450px canvas, which this pipeline already does natively. |
+| `continuous-canvas` | Background, or a single graphic element, runs across panel boundaries so the set reads as one image when swiped. Highest-effort, highest-impact. Requires designing the strip as one 6450px canvas, which this pipeline already does natively — but see *What survives the gap* below before choosing what to run across. |
 | `bookended` | Panels 0 and 4 carry claims; 1–3 carry features. Opens and closes on the argument rather than the feature list. **The bookends still show the app** — make them claim-led *layouts* (bigger type, more air), not the device-less `statement` archetype. Panel 0 especially: see CONVENTION (cited) above. |
 | `zoom-sequence` | Progressively tighter crops of the same screen, each with a different label. Good for one dense feature. |
+
+### What survives the gap
+
+**The store never shows your panels edge to edge.** They appear as separate
+images in a scrolling row, with visible spacing and rounded corners between
+them. So cross-panel continuity is always an *approximation* — the eye is being
+asked to join two pictures across a gutter. Some things it will happily join;
+others read as a broken export.
+
+| Survives the gap | Does not |
+| --- | --- |
+| A background, gradient or colour ramp walking across the set | A device cut in half |
+| A horizontal rule, timeline or route line | A word split across two panels |
+| A large soft shape or glow continuing | An icon or logo sliced |
+| Texture, grain, a repeating pattern | A face, or any recognisable object |
+
+The rule underneath: **continuity works for fields, not for objects.** A
+gradient has no "correct" shape, so the eye interpolates across the gutter
+without complaint. A phone does have one, and half a phone beside a gap is not
+read as a continued phone — it is read as a mistake.
+
+Two constraints that make this stricter than it sounds:
+
+- **Every panel is also seen alone.** ~70% of viewers never scroll past panel 0,
+  and search results show one to three. A panel that only makes sense next to
+  its neighbour fails for most of the people who see it.
+- **Blocks never actually cross a panel.** Panels are `overflow: hidden` and each
+  is exported as its own PNG, so a block belongs to exactly one panel. The
+  continuity is *composed*, not overflowed: each panel is self-contained, and the
+  artwork is positioned so the pieces line up when the panels sit side by side.
+
+If you want a device to appear to continue across two panels, that is **two
+device blocks, one in each panel**, positioned so their edges align. Each panel
+then still reads as a deliberate crop on its own — which is the standard look —
+and together they gesture at continuity. Do not reach for a single block and
+hope it bleeds; it cannot.
 
 ## Axis 3 · Device treatment
 
@@ -145,8 +181,21 @@ the one that most separates professional sets from generated ones.**
 
   Past roughly 60% cropped you are showing a sliver, and the panel needs
   something else to lead it. Check the render, not the intention.
-- **Scale** — dominant (device is the subject) · balanced · incidental (small,
-  one element among several)
+- **Scale** — as a multiple of the pose's viewBox width, which is the only
+  number that travels between poses:
+
+  | | × viewBox width | when |
+  | --- | --- | --- |
+  | dominant | 1.0–1.3 | the device is the subject of the panel |
+  | balanced | 0.7–1.0 | device and type share the panel |
+  | incidental | 0.4–0.7 | one element among several — `floating-card`, `collage` |
+  | **two in one panel** | **0.6–0.9 each** | and overlap them by a third or more |
+
+  The last row is the one that gets missed. The dominant range assumes *one*
+  device; used twice it asks for about 2.6 phone-widths inside a panel a little
+  over 1.7 phone-widths wide, and the two collide. Two devices that merely sit
+  side by side without overlapping read as a row of small phones rather than as
+  a composition — the overlap is what makes it one object instead of two.
 - **Angle** — flat front · rotated 3–8° (subtle) · rotated 10–20° (energetic) ·
   perspective/isometric if the pack has such a pose
 - **Depth** — flat on background · drop shadow · coloured glow · resting on a

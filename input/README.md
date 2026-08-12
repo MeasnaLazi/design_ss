@@ -135,6 +135,39 @@ earns its place.
 `screenshot` names a file sitting beside `app.md` in this folder. Omit it and
 that panel's device renders a blank screen, which is a legitimate design choice.
 
+**Two filenames means two devices in that panel** — the `two-device-overlap`
+layout, for a before/after, a flow, or a state change:
+
+```
+## Panel 2
+
+- title: Speak It, Save It
+- subtitle: Record a thought — the app transcribes it for you.
+- screenshot: recording.png, transcript.png     ← before, after
+```
+
+Order matters: the first is the one behind, the second the one in front. Use it
+when **two screens are needed to tell one story**, not because you had a spare
+capture.
+
+### More captures than panels
+
+That is a good position to be in, and the answer is usually **not** to fit them
+all in. The agent is asked to pick the screen that proves each panel's claim —
+a surplus is what makes that a real choice instead of a formality. Apple's own
+guidance is one benefit per panel, and ~70% of visitors never scroll past the
+first, so a panel carrying two unrelated screens says more and communicates
+less.
+
+Three legitimate responses, in order of preference:
+
+1. **Pick the best five and leave the rest unused.** The default.
+2. **Pair two screens on one panel** with the plural `screenshot:` form above —
+   but only when they genuinely tell one story.
+3. **Add panels.** Apple allows up to ten. Reasonable if you have that many
+   distinct benefits, though only ~9% of viewers see them all, so panels six
+   through ten do very little work.
+
 **Copy is taken verbatim.** If a line does not fit the layout, the agent says so
 rather than rewording it — the words are yours. Anything else in the file is a
 note to the designer, not copy to render.

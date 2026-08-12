@@ -59,6 +59,13 @@ travels between them:
 Below that the phone reads as small; above it, it dominates. A starting point to
 tune by eye, not a constraint.
 
+**That range is for one device leading the panel.** Scale down when the device
+is not the subject — roughly 0.7–1.0× when it shares the panel with type of
+equal weight, 0.4–0.7× when it is one element among several. And for **two
+devices in one panel, 0.6–0.9× each, overlapping by a third or more**: applying
+the dominant range twice asks for about 2.6 phone-widths inside a panel a little
+over 1.7 wide, and they collide.
+
 **If a pose looks wrong at a width that "should" work, re-read its `viewBox`
 before adjusting by eye.** An earlier version of this file carried a
 hand-written table of these numbers, and one row was wrong by a third — every
