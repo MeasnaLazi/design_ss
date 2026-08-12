@@ -259,6 +259,47 @@ Ordered roughly by how much they cost in taste:
 - Hand-drawn marks — underline, circle, scribble arrow
 - Particles, confetti, sparkles (use once, or not at all)
 
+### Drawing it — you do not need an image file
+
+Decor is free HTML/CSS, and **an inline `<svg>` is a first-class decor block**:
+put `data-layer="decor"` and `position:absolute` on the `<svg>` itself and it
+renders, exports, and is selectable, movable and resizable in the editor like
+any other block. Shapes *inside* it are that block's business — `check-schema`
+stays quiet about them. There is a regression test for exactly this
+(`strip_editor/test/svg-decor.test.mjs`).
+
+So the shape vocabulary is not limited to what someone drew earlier:
+
+| Want | How |
+| --- | --- |
+| star, badge, chevron, any polygon | CSS `clip-path: polygon(...)` on a decor div |
+| circle, ring, arc, pill | `border-radius`, or `<circle>` / `<path>` with `fill:none; stroke:` |
+| cloud, blob, leaf, quote mark | a few overlapping `<circle>`/`<ellipse>`, or one `<path>` |
+| sparkle, four-point star, burst | one `<path>` with cubic curves |
+| waveform, timeline, route line | `<path>` or a row of `<rect>`s; `stroke-linecap:round` |
+| dot grid, hatch, rules | `<pattern>`, or a repeating CSS gradient |
+| grain, paper texture | `<feTurbulence>` at low opacity over the panel |
+| soft glow, aura | `<feGaussianBlur>`, or a CSS radial gradient |
+| progress ring, pie | `conic-gradient`, or `stroke-dasharray` on a `<circle>` |
+| hand-drawn underline, circle-around | a single `<path>` with a slightly irregular curve |
+
+Two placements, and the choice matters:
+
+- **Inline in the strip** — colours can use `currentColor` or the theme's CSS
+  variables, so the shape follows the palette and the editor can restyle it.
+  Use for anything themed. This is the default.
+- **A standalone `.svg` in `strips/<app-name>/images/`, as an `image` block** —
+  gets the image inspector and a swappable `src`, but its colours are baked in.
+  Use for something repeated across panels.
+
+An icon *with* a label is a **group** (`data-layer="group"` holding an
+`image`/`svg` child and a `text` child), so both stay selectable — see
+`composer/strip-schema.md` § Group blocks.
+
+Restraint still applies: everything above is cheap to make, which is exactly why
+a panel ends up with five of them. The decor list is ordered by cost in taste
+for a reason.
+
 ## Axis 9 · Screenshot treatment
 
 Frequently forgotten, and it changes a strip more than decor does.

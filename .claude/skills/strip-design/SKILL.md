@@ -327,6 +327,7 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 | --- | --- |
 | `input/app.md` | **Required.** App name, summary, tone, theme, and the copy for every panel. Read first; stop if absent. |
 | `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
+| `input/*icon*.png` | Optional. The app icon — the best source for a palette when `theme` is absent, and a motif for decor. Use it as a mark on at most one panel. |
 | `strips/<app-name>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
 | `strips/<app-name>/screenshots/` | The captures you used, copied from `input/`. |
 | `strips/<app-name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |

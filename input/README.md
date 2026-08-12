@@ -15,11 +15,25 @@ first and **will not start without it**.
 input/
   README.md           this file — the only thing here you did not write
   app.md              app name, summary, and the copy for each panel
+  *icon*.png            your app icon — optional, but see below
   welcome.jpg         your app's screens — meaningful filenames, not UUIDs
   transfer.jpg
   history.jpg
   ...                 five or more
 ```
+
+**The icon earns its place.** It is the densest statement of your visual
+identity you own, and the only brand asset the store shows *beside* the strip.
+Three uses: colours read off it beat colours inferred from your `summary`, so it
+is the better source when `theme` is left out; its shape language gives decor a
+motif that is yours rather than arbitrary — an arc, a serif, a rounded square
+echoed in the panels; and it can appear as a small mark where a panel needs a
+brand anchor.
+
+Once, though, or not at all. An icon in the corner of all five panels is a
+common amateur tell, and Apple already shows it directly above the screenshots.
+
+It is **not** part of the gate — a run starts without it.
 
 **Filenames matter.** `transfer.jpg` tells the agent what that screen proves, so
 it can put it on the panel whose headline is about transfers. `IMG_4821.PNG`
