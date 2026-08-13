@@ -54,10 +54,34 @@ poses, because a rotated or tilted phone needs a wider viewBox to contain it. So
 a width that suited one pose will usually be wrong for another. The rule that
 travels between them:
 
-> **CSS width ≈ 1.0–1.3 × the pose's viewBox width,** read from the SVG.
+> **A dominant device is 0.85–1.05 × the *panel* width.**
+> The viewBox multiple is the cross-pose check, not the primary number.
 
-Below that the phone reads as small; above it, it dominates. A starting point to
-tune by eye, not a constraint.
+**Size against the panel, not the artwork.** The viewBox multiple tells you how
+big the phone is relative to its own drawing; it is blind to the box it is going
+into, and that is how side margins appear. Worked through for
+`appstore_iphone_portrait` (1290×2796) and the `front` pose:
+
+| × panel width | px | × viewBox | side margin | device covers |
+| --- | --- | --- | --- | --- |
+| 0.60 | 774 | 1.00 | 40% | 34% |
+| 0.74 | 955 | 1.24 | 26% | 51% |
+| 0.85 | 1096 | 1.42 | 15% | 68% |
+| 0.90 | 1161 | 1.50 | 10% | 76% |
+| 1.00 | 1290 | 1.67 | 0% | 94% |
+| 1.10 | 1419 | 1.84 | bleeds | crops 92px |
+
+Read the third column: **the old "1.0–1.3 × viewBox" rule lands at 0.60–0.78 of
+panel width for this preset**, which guarantees 22–40% of the panel is empty
+column either side of the phone. That is not a taste decision, it is arithmetic,
+and it is why a strip can pass every other check and still look half-finished.
+
+Note that a device at *full panel width* is 2625px tall against a 2796px panel —
+so it fits with room to spare, no crop required. Going past ~1.05 starts
+cropping the sides, which is a legitimate and common look.
+
+Below 0.8 the phone reads as small and the panel reads as empty; above 1.05 it
+dominates and must crop. Starting points to tune by eye, not constraints.
 
 **That range is for one device leading the panel.** Scale down when the device
 is not the subject — roughly 0.7–1.0× when it shares the panel with type of

@@ -184,12 +184,21 @@ hope it bleeds; it cannot.
 - **Scale** — as a multiple of the pose's viewBox width, which is the only
   number that travels between poses:
 
-  | | × viewBox width | when |
-  | --- | --- | --- |
-  | dominant | 1.0–1.3 | the device is the subject of the panel |
-  | balanced | 0.7–1.0 | device and type share the panel |
-  | incidental | 0.4–0.7 | one element among several — `floating-card`, `collage` |
-  | **two in one panel** | **0.6–0.9 each** | and overlap them by a third or more |
+  | | **× panel width** | × viewBox width | when |
+  | --- | --- | --- | --- |
+  | dominant | **0.85–1.05** | 1.4–1.75 | the device is the subject of the panel |
+  | balanced | **0.65–0.85** | 1.1–1.4 | device and type share the panel |
+  | incidental | **0.35–0.6** | 0.6–1.0 | one element among several — `floating-card`, `collage` |
+  | **two in one panel** | **0.5–0.7 each** | 0.85–1.2 | and overlap them by a third or more |
+
+  **Panel width is the primary number.** The viewBox multiple is blind to the
+  box the device is going into: for `appstore_iphone_portrait` + `front`, the
+  once-stated "1.0–1.3 × viewBox" lands at **0.60–0.78 of panel width**, which
+  leaves 22–40% of the panel as empty column either side of the phone. That is
+  arithmetic, not taste — and it is how a strip passes every other check and
+  still looks half-finished. Keep the viewBox multiple only as a sanity check
+  when comparing across poses. See `composer/device-frames/README.md` for the
+  full table.
 
   The last row is the one that gets missed. The dominant range assumes *one*
   device; used twice it asks for about 2.6 phone-widths inside a panel a little
@@ -291,7 +300,15 @@ decision left, and leaving it unmade is how three runs end up looking identical.
 
 ## Axis 8 · Decor vocabulary
 
-**OPINION.** The ordering below is an aesthetic judgement, not a finding.
+**OPINION.** The orderings below are aesthetic judgements, not findings.
+
+**Two families. Say which one you chose, in the concept line.** Ten consecutive
+runs of this repo picked abstract every single time — rules, pills, rings,
+numerals, grain, glow, bars, dots — and never once considered a representational
+mark. That is a default, not a decision. Abstract may well be right; it has to
+be chosen.
+
+### Family A · Abstract & typographic
 
 Ordered roughly by how much they cost in taste:
 
@@ -299,14 +316,66 @@ Ordered roughly by how much they cost in taste:
 - Device shadow or glow treated as the only decorative element
 - Geometric shapes — circles, arcs, rings, bars, often cropped by the panel edge
 - Blurred colour blobs
-- Badges and pills — "New", "Offline", "No account needed"
-- Feature icons in a row beneath the headline
 - Rules and dividers
-- Ratings, star rows, award laurels, press logos (social proof)
-- Arrows or pointers connecting a label to a UI element
+- Numerals, folio marks, chapter tags — type used as ornament
+- Badges and pills — "New", "Offline", "No account needed"
 - Grain or noise overlay across the whole panel
 - Hand-drawn marks — underline, circle, scribble arrow
 - Particles, confetti, sparkles (use once, or not at all)
+
+### Family B · Representational — a mark that means something
+
+A symbol carries meaning the abstract family cannot: a lock *says* private in a
+way a ring never will. Grouped by what they claim, because that is how you pick
+one:
+
+| Claim | Marks |
+| --- | --- |
+| private, secure | lock, shield, key, closed eye, fingerprint |
+| offline, sync | cloud, struck-through cloud, aeroplane, circular arrows, struck-through wifi |
+| fast, effortless | bolt, stopwatch, feather, arrow through |
+| time, history | clock, hourglass, calendar, timeline dot, rings of a tree |
+| writing, journal | pen, quill, page, folded corner, open book, bookmark, ink drop |
+| voice, audio | microphone, waveform, concentric sound arcs |
+| photos, media | camera, stacked frames, film strip, aperture |
+| AI, magic | four-point sparkle, wand, small burst, orbiting dots |
+| growth, progress | line chart, rising arrow, progress ring, stair steps |
+| quality, delight | heart, star, crown, laurel, medal |
+| calm, nature | leaf, moon, sun, droplet, mountain line, wave |
+| place, reach | pin, globe, compass, route line |
+| structure | tag, folder, stacked layers, grid, brackets |
+
+All of them are one or two SVG paths — see *Drawing it* below.
+
+**Placements that are not the cliché.** The move to avoid is a **row of three to
+five equal icons under a headline**: that reads as a feature list, which is what
+Apple's one-benefit-per-panel and the outcome-over-feature finding both argue
+against. It is the row that fails, not the symbol. These work:
+
+- **Watermark** — one mark at 600–900px, 5–10% opacity, cropped by a panel edge,
+  sitting behind everything. Enormous and quiet.
+- **Inside a badge** — one small mark beside a short label. That is a `group`,
+  so both parts stay editable.
+- **Instead of a bullet** — when a panel genuinely lists two or three points.
+- **Echoing the app icon** — lift the icon's own motif and repeat it as decor.
+  This repo has done it once (run 34, "echoes the app icon's swirl") and it is
+  the strongest option available, because nobody else on the store page can use
+  it.
+- **The whole decor of a `statement` panel** — one symbol, one line of type.
+- **A terminal mark** — a single symbol on the last panel, closing the set.
+
+**Scale and weight.** At 1290px wide, a mark below roughly 80px stops reading;
+120–200px is a comfortable label size and 600px+ is a watermark. Match stroke
+weight to the type — a hairline icon beside a heavy serif looks borrowed, which
+it should not, because you drew it.
+
+### Choosing between the families
+
+Abstract suits editorial, literary and premium registers, and anything where the
+screenshots are already busy. Representational suits claims that are hard to
+show — privacy, offline, speed — where a symbol does work no amount of geometry
+can. Mixing is fine; leading with both is not, since the panel then has two
+things asking to be looked at.
 
 ### Drawing it — you do not need an image file
 
@@ -389,9 +458,19 @@ because it explains value, whatever it does to elegance.
 
 These recur, and every one of them is a decision someone made:
 
-- **Dead space.** A region larger than about a quarter of the panel with
-  nothing in it. Almost always the symptom of a device pushed too far off the
-  edge, or type that stopped short — see *Failures seen here*.
+- **Dead space, measured as area — not just as a band.** Three checks, and the
+  second is the one that gets missed:
+  1. **Empty band** — a fully empty horizontal strip more than ~15% of panel
+     height. Usually a device pushed too far off an edge, or type that stopped
+     short.
+  2. **Empty columns** — a fully empty vertical strip more than ~10% of panel
+     width running most of the panel's height. This is what an undersized device
+     produces: two tall gutters either side of the phone. A band check cannot
+     see it, because every row contains *something*.
+  3. **Total coverage** — union of all layer boxes below roughly **70% of panel
+     area**, on a panel meant to be dense. `strip-data.json` has every box, so
+     this is arithmetic, not an impression. A deliberately airy `type-dominant`
+     or `statement` panel is exempt; say so rather than letting it slide.
 - A subtitle that restates the title
 - More than seven words in a headline
 - A device so small the screen is unreadable at any size
@@ -436,7 +515,9 @@ Fixed by sizing the device to 950px (1.23×) and cropping 7% and 2%.
 3. Pick the **archetype** for the supporting panels, and decide how panel 0
    differs.
 4. Pick the remaining axes independently. Say what you picked, in one line, so
-   the choice is visible and can be rejected before anything is built.
+   the choice is visible and can be rejected before anything is built. **Name
+   the decor family** (abstract or representational) — it is the axis this repo
+   has never once chosen deliberately.
 5. Do not repeat the previous run's archetype, and change at least two
    **structural** axes — rhythm, device treatment, type placement, screenshot
    treatment, decor. A pinned palette cannot be one of them; mood can.

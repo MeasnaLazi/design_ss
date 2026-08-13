@@ -187,9 +187,13 @@ Before any markup, pick from `archetypes.md` and **state the picks in one line**
 so they can be rejected before five panels exist:
 
 ```
-bio · continuous-canvas · full-bleed-screen · bare/no-frame · type-behind · dark + one accent
-     ^rhythm             ^archetype          ^device         ^type        ^palette
+bio · continuous-canvas · full-bleed-screen · bare/no-frame · type-behind · dark + one accent · decor: representational (lock watermark)
+     ^rhythm             ^archetype          ^device         ^type        ^palette             ^which decor family, and what
 ```
+
+**Name the decor family** — abstract/typographic, or representational. Ten
+consecutive runs picked abstract without considering the alternative, so state
+it and make it a decision. `archetypes.md` § Axis 8 has both lists.
 
 Four rules:
 
@@ -232,6 +236,15 @@ script to discover the field names.
 
 A device hanging off a panel edge is **not** a problem — that is the standard
 crop, and the inspector deliberately stays quiet about it.
+
+**Measure emptiness; do not eyeball it.** `strip-data.json` gives every layer's
+box, so per panel compute the union area as a fraction of panel area, and look
+for fully empty bands and columns. Under ~70% coverage on a panel meant to be
+dense, or an empty column more than ~10% of panel width running most of the
+height, means the composition is leaving space it did not intend to. The usual
+cause is a device sized against its own artwork rather than against the panel —
+see `archetypes.md` § Axis 3 · Scale. An empty *column* is invisible to any
+row-by-row check, which is why it has to be measured as area.
 
 Anything that stops the render outright — a missing pack, an unknown pose, a
 dead device screenshot — never reaches this step: `render.mjs` exits non-zero
