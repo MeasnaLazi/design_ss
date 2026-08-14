@@ -17,13 +17,14 @@ representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
 the same browser engine, from the same file.
 
 ```
-input/  →  design  →  strips/<app-name>/
+input/  →  design  →  strips/<device>/
 ```
 
-A run reads `input/`, designs, and writes one strip folder named from the app:
+A run reads `input/`, designs, and writes one strip folder, named for the
+device target in `preset` — `strips/iphone/` today:
 
 ```
-input/                     strips/<app-name>/
+input/                     strips/<device>/
   app.md                     strip.html         the document
   welcome.jpg                images/            artwork you create for it
   transfer.jpg               screenshots/       the captures, copied from input/
@@ -57,8 +58,12 @@ brief. An `input/` holding only that file counts as empty.
 
 `app.md` gives you:
 
-- **the app name** — which names the output folder: "Bio Journal" →
-  `strips/bio-journal/`
+- **the app name** — used *in* the design (brand chip, watermark, wordmark). It
+  does **not** name the output folder.
+- **`preset`** — which names the output folder, by device target:
+  `appstore_iphone_portrait` → `strips/iphone/`, `appstore_ipad_portrait` →
+  `strips/ipad/`, `play_phone_portrait` → `strips/phone/`,
+  `play_tablet_portrait` → `strips/tablet/`. Today only `iphone` is in use.
 - **summary, category, tone, theme** — the design direction. Tone and theme
   steer type and palette; if either is absent, infer from the summary and *say
   what you inferred*.
@@ -69,19 +74,19 @@ the user choose between changing the words and changing the design — never
 reword it quietly. The words are theirs.
 
 `screenshot` names a file in `input/`. **Copy the ones you use into
-`strips/<app-name>/screenshots/`** and reference them as
-`/strips/<app-name>/screenshots/<file>` — the finished strip must not depend on
+`strips/<device>/screenshots/`** and reference them as
+`/strips/<device>/screenshots/<file>` — the finished strip must not depend on
 `input/`, which is a working inbox and will be replaced by the next app.
 
 A panel with no `screenshot` is not a blocker: omit `data-screenshot`, let the
 frame render a blank screen filled by `data-screen-fallback`, and list the gap
 at the end.
 
-### Re-running an app
+### Re-running a target
 
 **Design from the input, not from the last result.**
 
-If `strips/<app-name>/` already exists, replace it. Do not open the old
+If `strips/<device>/` already exists, replace it. Do not open the old
 `strip.html`, do not read its layout, do not treat it as a starting point or as
 something to preserve. It is the output of a previous run and has no authority
 over this one — the input does. Reading it only anchors the new design to the
@@ -164,16 +169,16 @@ Nothing needs to be running. Rendering and review are entirely offline.
    mistakes that would otherwise waste a render:
 
    ```bash
-   node composer/check-schema.mjs strips/<app-name>/strip.html
+   node composer/check-schema.mjs strips/<device>/strip.html
    ```
 
 5. **Render:**
 
    ```bash
-   node composer/render.mjs --strip strips/<app-name>/strip.html --full
+   node composer/render.mjs --strip strips/<device>/strip.html --full
    ```
 
-   Output lands in `strips/<app-name>/rendered/` unless you pass `--out`.
+   Output lands in `strips/<device>/rendered/` unless you pass `--out`.
 
 6. **Read the `problems` array from that output *before* looking at the PNGs**,
    then look at the PNGs.
@@ -320,7 +325,7 @@ Captures come from `input/`, named for what they show — `transfer.jpg`,
 when it does not, pick the screen that proves that panel's claim, which is what
 the filenames are for.
 
-Copy every capture you use into `strips/<app-name>/screenshots/` and reference
+Copy every capture you use into `strips/<device>/screenshots/` and reference
 it there, so the finished strip does not depend on `input/`.
 
 When a panel has none, **omit `data-screenshot`**: the frame renders a blank
@@ -341,9 +346,9 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 | `input/app.md` | **Required.** App name, summary, tone, theme, and the copy for every panel. Read first; stop if absent. |
 | `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
 | `input/*icon*.png` | Optional. The app icon — the best source for a palette when `theme` is absent, and a motif for decor. Use it as a mark on at most one panel. |
-| `strips/<app-name>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
-| `strips/<app-name>/screenshots/` | The captures you used, copied from `input/`. |
-| `strips/<app-name>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
+| `strips/<device>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
+| `strips/<device>/screenshots/` | The captures you used, copied from `input/`. |
+| `strips/<device>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
 | `composer/device-frames/` | Frame packs; `README.md` there has each pose's viewBox and a starting width. |
 | `composer/references/` | Reference strips, for the review step. |
 
@@ -354,7 +359,7 @@ cd strip_editor && npm run dev
 ```
 
 ```
-http://localhost:4714/?strip=strips/<app-name>/strip.html
+http://localhost:4714/?strip=strips/<device>/strip.html
 ```
 
 The editor watches the file. **Every write you make reloads the canvas**, so the
@@ -418,8 +423,8 @@ Each of these was learned from a real failure.
 - **No external network assets.** No web fonts, no remote images. Everything
   resolves from the repo, or the editor and the export disagree.
 - **Assets go in the strip's folder, referenced root-relatively.** Write new
-  images to `strips/<app-name>/images/`, copy captures into
-  `strips/<app-name>/screenshots/`, and reference them there. A strip that
+  images to `strips/<device>/images/`, copy captures into
+  `strips/<device>/screenshots/`, and reference them there. A strip that
   points at `/input/…` breaks the moment the next app arrives, and `input/` is
   not tracked in git, so there is nothing to fall back to.
   Not a relative `images/…`: the editor serves the document through

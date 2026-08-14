@@ -3,7 +3,7 @@
 The start of the pipeline:
 
 ```
-input/  →  strip-design  →  strips/<app-name>/
+input/  →  strip-design  →  strips/<device>/
 ```
 
 Everything the agent needs to design a strip goes here. It reads this folder
@@ -95,7 +95,21 @@ horizontal rule is the format the agent reads.
 
 ### The heading
 
-The `# ` heading names the output folder: `# Bio Journal` → `strips/bio-journal/`.
+The `# ` heading is the app's name. It is used in the design — as a brand chip,
+a watermark, a wordmark — but it does **not** name the output folder.
+
+**The output folder is named for the device target**, taken from `preset`:
+
+| `preset` | folder | panel size |
+| --- | --- | --- |
+| `appstore_iphone_portrait` | `strips/iphone/` | 1290×2796 |
+| `appstore_ipad_portrait` | `strips/ipad/` | 2048×2732 |
+| `play_phone_portrait` | `strips/phone/` | 1080×1920 |
+| `play_tablet_portrait` | `strips/tablet/` | — |
+
+**Only `iphone` is in use today.** One `input/` describes one app; the folders
+under `strips/` are that app's per-device outputs. When you add an iPad or Play
+target later, it gets its own folder beside this one and nothing has to move.
 
 ### `## About`
 
@@ -184,8 +198,9 @@ upload is worse than designing around the hole.
 
 ## What comes out
 
-`strips/<app-name>/` — the folder is named from the app name in `app.md`, and
-the screenshots are copied into it so the finished strip is self-contained.
+`strips/<device>/` — named for the device target in `preset` (`strips/iphone/`
+today), with the screenshots copied into it so the finished strip is
+self-contained.
 
 **The strip folder is output.** It is derived from what is in here: change the
 input, run again, and that app's folder is replaced by the new result. Editing

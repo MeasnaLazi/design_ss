@@ -406,7 +406,7 @@ Two placements, and the choice matters:
 - **Inline in the strip** — colours can use `currentColor` or the theme's CSS
   variables, so the shape follows the palette and the editor can restyle it.
   Use for anything themed. This is the default.
-- **A standalone `.svg` in `strips/<app-name>/images/`, as an `image` block** —
+- **A standalone `.svg` in `strips/<device>/images/`, as an `image` block** —
   gets the image inspector and a swappable `src`, but its colours are baked in.
   Use for something repeated across panels.
 
