@@ -35,7 +35,7 @@ The repo is intended for **local development**: run the Vite dev server, open a 
 | [`strip_editor/`](strip_editor/) | **Strip editor** — Vite + React editor (port 4714). Opens a strip HTML file at `?strip=<repo-relative path>`, watches it on disk, and reloads when anything else writes it. |
 | [`composer/`](composer/) | **HTML-first strip composer** — strips are authored as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)); `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot (measured geometry + `problems`) via Playwright; `check-schema.mjs` checks structure from source text, no browser. |
 | [`.claude/skills/`](.claude/skills/) | **The skill** — [`strip-design`](.claude/skills/strip-design/SKILL.md), the one agent-facing entry point. No agents, no helper scripts. |
-| [`input/`](input/) | **The brief.** `app.md` (app name, summary, tone, theme, and the copy for each panel) plus the app's screen captures. The design run starts here and refuses to start without it. |
+| [`input/`](input/) | **The brief.** `app.md` (app name, summary, tone, theme, and — optionally — the copy for each panel) plus the app's screen captures. The design run starts here and refuses to start without it. Give it only a description and it drafts the panel copy, writing it back into `app.md`. |
 | [`strips/`](strips/) | **The strips.** One folder per device target (`iphone`, later `ipad` / `phone` / `tablet`): `strip.html`, `images/`, `screenshots/`, and a gitignored `rendered/`. Everything a design references lives with it — move the folder and it still renders. |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
 
@@ -81,6 +81,7 @@ document per strip, read by both programs.
 **The design loop:**
 
 0. Read [`input/app.md`](input/) and the captures beside it. No input, no run.
+   Draft any panel copy the file does not already have, and write it back there.
 1. Read the strip and [`composer/strip-schema.md`](composer/strip-schema.md).
 2. Edit the HTML (real screenshots warped into device frames via `frame.json` homography).
 3. `node composer/check-schema.mjs strips/<device>/strip.html` — structural check, no browser, costs nothing.

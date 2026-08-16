@@ -48,10 +48,19 @@ panels — not as five independent posters.
 
 **Before anything else, read `input/app.md` and list the images beside it.**
 
-**Stop if there is no `app.md`, or no images.** Say what is missing and ask for
-it. Do not invent an app name, a summary, or marketing copy, and do not design a
-strip from nothing: a design that looks finished but describes an app that does
-not exist is worse than no design.
+**Three things are required. Stop and ask if any is missing:**
+
+| Required | Why |
+| --- | --- |
+| the app's name — the `# ` heading | never invent what the app is called |
+| panel copy, **or** a `summary` to draft it from | with neither there is nothing to say on five panels |
+| at least one image | a strip of empty phones is not a design |
+
+Panel copy is **not** required — see *Draft the panels that are missing* below.
+A description plus the captures is enough to start.
+
+What stays forbidden is inventing the *app*: a design that looks finished but
+describes software that does not exist is worse than no design.
 
 `input/README.md` ships with the repo and documents the format — it is not a
 brief. An `input/` holding only that file counts as empty.
@@ -67,10 +76,14 @@ brief. An `input/` holding only that file counts as empty.
 - **summary, category, tone, theme** — the design direction. Tone and theme
   steer type and palette; if either is absent, infer from the summary and *say
   what you inferred*.
-- **per panel: `title`, `subtitle`, optional `caption`, optional `screenshot`**
+- **`panels`** — optional, 5-10. How many panels to design. Only consulted for
+  panels `app.md` does not already contain.
+- **per panel, where they exist: `title`, `subtitle`, optional `caption`,
+  optional `screenshot`**
 
-Copy is taken **verbatim**. If a line does not fit the layout, say so and let
-the user choose between changing the words and changing the design — never
+Copy that is already in `app.md` is taken **verbatim** — whether the user wrote
+it or a previous run drafted it. If a line does not fit the layout, say so and
+let the user choose between changing the words and changing the design — never
 reword it quietly. The words are theirs.
 
 `screenshot` names a file in `input/`. **Copy the ones you use into
@@ -81,6 +94,62 @@ reword it quietly. The words are theirs.
 A panel with no `screenshot` is not a blocker: omit `data-screenshot`, let the
 frame render a blank screen filled by `data-screen-fallback`, and list the gap
 at the end.
+
+### Draft the panels that are missing
+
+**How many panels:**
+
+> `panels` if set and within 5-10, otherwise the number of `## Panel N` sections
+> in `app.md`, otherwise 5.
+
+Then **draft every panel section that does not exist, and never touch one that
+does.** `panels: 6` with two panels written means writing four. `panels` outside
+5-10 is ignored, the count falls back to 5, and the run says so in one line.
+
+`panels` **extends, never truncates.** Eight panel sections with `panels: 5` is
+eight panels. Never drop a panel to satisfy a number — that deletes the user's
+copy to honour a field they probably forgot to update.
+
+**Write the drafts back into `input/app.md`**, appended after `## About` in
+panel order, each marked:
+
+```markdown
+<!-- drafted by strip-design 2026-08-14 -->
+## Panel 3
+
+- title: Speak It, Save It
+- subtitle: Record a thought — the app transcribes it for you.
+- screenshot: voice.jpg
+```
+
+This write-back is the point. Copy that lives only in `strip.html` dies with the
+next run, which replaces the folder — so without it every run starts from zero
+and nothing the user corrected survives. Written into `app.md`, the second run
+starts from copy they have had a chance to fix, and the file converges.
+
+The marker changes no behaviour: on the next run a drafted panel is just a
+panel, verbatim like any other. It exists so the user can see which lines to
+review, and so the final message can say which were theirs and which were yours.
+
+**Write as a marketing copywriter, inside three constraints:**
+
+- **Every claim traceable.** It must be supported by the `summary` or visibly
+  true in a capture. Apple requires screenshots to represent the actual app, so
+  a headline promising a feature that does not exist is a rejection risk. No
+  superlatives, no "#1", no invented capabilities.
+- **Outcome, not feature.** *"Save an hour every day"*, not *"Smart scheduling
+  engine"* — the one cited finding on headline wording. 2-5 words, one benefit
+  per panel, per Apple's own guidance.
+- **Panel 0 says what the app is.** ~70% never scroll past it. It is not the
+  place to be clever.
+
+Then **look at the captures and match each drafted claim to the screen that
+proves it** — that is what the filenames are for. If there are more panels than
+captures, reuse a screen across panels cropped to a different region each time,
+and say which panels share one.
+
+Never append a panel section that already exists, and never edit one. If the
+draft and an existing panel would collide, the existing one wins.
 
 ### Re-running a target
 
@@ -163,16 +232,21 @@ Nothing needs to be running. Rendering and review are entirely offline.
    `composer/strip-schema.md`. On a pipeline run that is *all* you read — never
    the previous strip. On a targeted edit, read the strip you were asked to
    change and skip to step 3.
-2. **Choose the concept, and say it** — see below.
-3. **Edit** the HTML.
-4. **Check the structure** — no browser, so it costs nothing and catches the
+2. **Settle the copy.** Resolve the panel count, draft any missing panel
+   sections, and write them back into `input/app.md` — see *Draft the panels
+   that are missing*. Do this **before** choosing the concept: the number of
+   panels and what each one claims are inputs to the set rhythm, not decorations
+   applied afterwards.
+3. **Choose the concept, and say it** — see below.
+4. **Edit** the HTML.
+5. **Check the structure** — no browser, so it costs nothing and catches the
    mistakes that would otherwise waste a render:
 
    ```bash
    node composer/check-schema.mjs strips/<device>/strip.html
    ```
 
-5. **Render:**
+6. **Render:**
 
    ```bash
    node composer/render.mjs --strip strips/<device>/strip.html --full
@@ -180,11 +254,11 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
    Output lands in `strips/<device>/rendered/` unless you pass `--out`.
 
-6. **Read the `problems` array from that output *before* looking at the PNGs**,
+7. **Read the `problems` array from that output *before* looking at the PNGs**,
    then look at the PNGs.
-7. **Iterate.** Renders are cheap. Stop when a round stops improving, or after
+8. **Iterate.** Renders are cheap. Stop when a round stops improving, or after
    about four rounds.
-8. **Append the concept line** to `composer/references/history.md`.
+9. **Append the concept line** to `composer/references/history.md`.
 
 ### Choose the concept
 
@@ -301,22 +375,29 @@ that same panel. You are checking your change, not re-judging the design.
 
 ## Where copy comes from
 
-**`input/app.md`, verbatim.** It is the only source of panel copy — titles,
-subtitles, captions — and of the app's name, summary, tone and theme.
+**`input/app.md`.** It is the only source of panel copy — titles, subtitles,
+captions — and of the app's name, summary, tone and theme.
 
-- **Never invent marketing text.** If `app.md` is missing, stop and ask (see
-  *Start here*). If it is present but a panel has no title, ask about that
-  panel rather than filling it in.
+- **Whatever is in the file is verbatim.** Never reword, never "improve", never
+  quietly tighten — including copy a previous run drafted. Once a line is in
+  `app.md` it is the user's, whoever typed it first.
+- **Draft what is absent, into the file.** A panel section that does not exist
+  is yours to write, subject to the constraints in *Draft the panels that are
+  missing*. Write it into `app.md`, not only into the strip.
 - **Never reword to fit.** A headline that overflows its block is a design
   problem first: try a size, a width, a line break. If it still does not work,
   say which line and why, and let the user decide between the copy and the
   layout.
-- **Do not write back to `input/`.** It is the user's inbox, not your workspace.
+- **Never invent the app.** Drafting a headline is writing; claiming a feature
+  the app does not have is fabrication, and a store rejection. Every claim must
+  trace to the `summary` or to something visible in a capture.
+- **`input/app.md` is the only file you write there.** Append panel sections;
+  never rewrite the user's `## About`, never touch their captures.
 
 On a **targeted edit**, the strip's own text is what you work with — do not
 re-read `app.md` and quietly restore copy the user changed by hand in the
-editor. On a **pipeline run**, `app.md` is the copy, full stop; whatever the
-previous run put in the strip is irrelevant.
+editor, and do not draft anything. On a **pipeline run**, `app.md` is the copy,
+full stop; whatever the previous run put in the strip is irrelevant.
 
 ## Missing screenshots
 
@@ -343,7 +424,7 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 
 | Source | Use |
 | --- | --- |
-| `input/app.md` | **Required.** App name, summary, tone, theme, and the copy for every panel. Read first; stop if absent. |
+| `input/app.md` | **Required.** App name, summary, tone, theme, optional `panels` count, and the copy for any panel the user wrote. Read first; stop if absent. The one file in `input/` you write to — appending drafted panel sections. |
 | `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
 | `input/*icon*.png` | Optional. The app icon — the best source for a palette when `theme` is absent, and a motif for decor. Use it as a mark on at most one panel. |
 | `strips/<device>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
@@ -451,3 +532,8 @@ at the panels against `composer/references/`, and a round stopped improving. Say
 what you changed in a line or two, name anything you noticed and deliberately
 left alone, list any panels left with blank device screens, and give the user
 the editor URL for the file.
+
+**Say which copy you wrote.** Name the panels whose headlines you drafted and
+where they now live (`input/app.md`), so the user knows what to review rather
+than discovering it later in the render. If you resolved the panel count from
+`panels`, or ignored an out-of-range value, that is one more line.
