@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
+import { FilePlus2, FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
 
 import { DEVICE_TARGETS, type DeviceTarget } from '../editor/devices'
 import { blankStripTemplate } from '../editor/schema'
@@ -94,12 +94,24 @@ export function FilePicker(): React.ReactElement {
     }
   }, [setFiles])
 
+  /** Primary action: open what is there, or set up what is not. */
   const pickTarget = (target: DeviceTarget): void => {
     const existing = present.get(target.folder)
     if (existing) {
       openFile(existing)
       return
     }
+    startBlank(target)
+  }
+
+  /**
+   * Secondary action on an occupied target: begin again from a blank strip.
+   *
+   * Present as its own control because otherwise an occupied target has no
+   * route back to blank at all — the only way to start over would be deleting
+   * the folder in a terminal, which is not a user interface.
+   */
+  const startBlank = (target: DeviceTarget): void => {
     setCreateError(null)
     setLoadOpen(false)
     setCreatingFor((cur) => (cur?.folder === target.folder ? null : target))
@@ -108,7 +120,9 @@ export function FilePicker(): React.ReactElement {
   const create = async (target: DeviceTarget): Promise<void> => {
     const path = `strips/${target.folder}/strip.html`
     try {
-      await createStrip(path, blankStripTemplate(target.folder, panelCount, target.width, target.height))
+      await createStrip(path, blankStripTemplate(target.folder, panelCount, target.width, target.height), {
+        replace: present.has(target.folder),
+      })
       setCreateError(null)
       openFile(path)
     } catch (e: unknown) {
@@ -214,68 +228,117 @@ export function FilePicker(): React.ReactElement {
             const exists = present.has(t.folder)
             const active = creatingFor?.folder === t.folder
             return (
-              <button
+              // A div wrapping two buttons, not one button: an occupied target
+              // needs a second action, and a button inside a button is invalid.
+              <div
                 key={t.folder}
-                type="button"
-                onClick={() => pickTarget(t)}
-                title={`${t.label} · ${t.width}×${t.height}`}
-                className={`rounded-lg border px-2 py-2 text-left transition-colors ${
-                  exists
-                    ? 'border-zinc-700 bg-zinc-900 hover:border-sky-500/60'
-                    : active
-                      ? 'border-sky-500/60 bg-zinc-900/60'
+                className={`relative rounded-lg border transition-colors ${
+                  active
+                    ? 'border-sky-500/60 bg-zinc-900/60'
+                    : exists
+                      ? 'border-zinc-700 bg-zinc-900 hover:border-sky-500/60'
                       : 'border-dashed border-zinc-800 bg-transparent hover:border-zinc-600'
                 }`}
               >
-                <span
-                  className={`flex items-center gap-1 text-sm font-medium ${
-                    exists ? 'text-zinc-100' : 'text-zinc-500'
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => pickTarget(t)}
+                  title={exists ? `Open strips/${t.folder}/` : `${t.label} · ${t.width}×${t.height}`}
+                  className="block w-full px-2 py-2 text-left"
                 >
-                  {!exists && <Plus size={12} className="shrink-0" />}
-                  {t.folder}
-                </span>
-                <span className="mt-0.5 block text-[10px] leading-tight text-zinc-600">
-                  {t.width}×{t.height}
-                </span>
-              </button>
+                  <span
+                    className={`flex items-center gap-1 text-sm font-medium ${
+                      exists ? 'text-zinc-100' : 'text-zinc-500'
+                    }`}
+                  >
+                    {!exists && <Plus size={12} className="shrink-0" />}
+                    {t.folder}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] leading-tight text-zinc-600">
+                    {t.width}×{t.height}
+                  </span>
+                </button>
+                {exists && (
+                  <button
+                    type="button"
+                    onClick={() => startBlank(t)}
+                    title={`Start over — replace strips/${t.folder}/ with a blank strip`}
+                    className="absolute right-1 top-1 rounded p-1 text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                  >
+                    <FilePlus2 size={11} />
+                  </button>
+                )}
+              </div>
             )
           })}
         </div>
 
-        {creatingFor && (
-          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
-            <p className="mb-2 text-[12px] leading-snug text-zinc-400">
-              A blank, schema-conformant strip at{' '}
-              <code className="text-zinc-300">strips/{creatingFor.folder}/</code> — {creatingFor.label},{' '}
-              {creatingFor.width}×{creatingFor.height}.
-            </p>
-            <label className="mb-2 flex items-center gap-2">
-              <span className="text-[11px] uppercase tracking-wide text-zinc-500">Panels</span>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                autoFocus
-                value={panelCount}
-                onChange={(e) => setPanelCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                className="w-16 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
-              />
-            </label>
-            <p className="mb-3 text-[11px] leading-snug text-zinc-500">
-              A design run from <code className="text-zinc-400">input/</code> replaces this folder outright, so copy it
-              elsewhere if you want to keep what you make here.
-            </p>
-            {createError && <p className="mb-2 text-xs text-rose-300">{createError}</p>}
-            <button
-              type="button"
-              onClick={() => void create(creatingFor)}
-              className="rounded bg-sky-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-sky-400"
-            >
-              Create strips/{creatingFor.folder}/
-            </button>
-          </div>
-        )}
+        {creatingFor &&
+          (() => {
+            // Starting blank over an occupied target destroys the folder that is
+            // there, so it reads as a different action from creating into an
+            // empty slot — different colour, different verb, the consequence
+            // stated before the button rather than after it.
+            const overwriting = present.has(creatingFor.folder)
+            return (
+              <div
+                className={`mb-3 rounded-lg border p-3 ${
+                  overwriting ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-800 bg-zinc-900'
+                }`}
+              >
+                <p className={`mb-2 text-[12px] leading-snug ${overwriting ? 'text-amber-100' : 'text-zinc-400'}`}>
+                  A blank, schema-conformant strip at{' '}
+                  <code className={overwriting ? 'text-amber-50' : 'text-zinc-300'}>
+                    strips/{creatingFor.folder}/
+                  </code>{' '}
+                  — {creatingFor.label}, {creatingFor.width}×{creatingFor.height}.
+                </p>
+                {overwriting && (
+                  <p className="mb-2 text-xs leading-snug text-amber-200">
+                    That folder already holds a strip. Starting blank deletes it and everything in it — the design, its
+                    screenshots, its images. <code>strips/</code> is not in git, so nothing brings it back.
+                  </p>
+                )}
+                <label className="mb-2 flex items-center gap-2">
+                  <span className="text-[11px] uppercase tracking-wide text-zinc-500">Panels</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    autoFocus
+                    value={panelCount}
+                    onChange={(e) => setPanelCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    className="w-16 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
+                  />
+                </label>
+                <p className="mb-3 text-[11px] leading-snug text-zinc-500">
+                  A design run from <code className="text-zinc-400">input/</code> replaces this folder outright, so copy
+                  it elsewhere if you want to keep what you make here.
+                </p>
+                {createError && <p className="mb-2 text-xs text-rose-300">{createError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void create(creatingFor)}
+                    className={`rounded px-2.5 py-1 text-xs font-medium text-zinc-950 ${
+                      overwriting ? 'bg-amber-400 hover:bg-amber-300' : 'bg-sky-500 hover:bg-sky-400'
+                    }`}
+                  >
+                    {overwriting ? 'Delete and start blank' : `Create strips/${creatingFor.folder}/`}
+                  </button>
+                  {overwriting && (
+                    <button
+                      type="button"
+                      onClick={() => setCreatingFor(null)}
+                      className="rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
 
         {/* --- load ------------------------------------------------------- */}
         <button

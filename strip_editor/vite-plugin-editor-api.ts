@@ -710,14 +710,39 @@ export function editorApiPlugin(): Plugin {
           sendJson(res, 400, { ok: false, error: 'bad_path', allowedDirs: STRIP_DIRS })
           return
         }
-        // Creating never overwrites: a strip is someone's work, and a name
-        // collision is far more likely a mistake than an intent to replace.
+        // Creating never overwrites *by default*: a strip is someone's work,
+        // and a name collision is far more likely a mistake than an intent to
+        // replace. `replace=1` is the explicit opposite, and the client only
+        // sends it behind a confirmation.
+        const replace = url.searchParams.get('replace') === '1'
+        let occupied = true
         try {
           await fs.access(abs)
+        } catch {
+          occupied = false
+        }
+        if (occupied && !replace) {
           sendJson(res, 409, { ok: false, error: 'already_exists', path: toRepoRel(abs) })
           return
-        } catch {
-          /* absent, good */
+        }
+        if (occupied) {
+          // Clear the whole strip folder, not just the document. A blank strip
+          // references nothing, so the old screenshots and images would survive
+          // as orphans — invisible, still on disk, and liable to be wired into
+          // the next design by accident. This is what a pipeline run does too:
+          // the folder is the unit, not the file.
+          //
+          // Only ever the folder directly under strips/. A flat fixture in
+          // composer/test/ has no folder of its own, and deleting its parent
+          // would take the other fixtures with it.
+          const rel = toRepoRel(abs)
+          const parent = path.posix.dirname(rel)
+          if (parent.startsWith('strips/') && parent.split('/').length === 2) {
+            await fs.rm(path.resolve(REPO_ROOT, parent), { recursive: true, force: true })
+            console.info(`[strip-editor] cleared ${parent}/ before recreating`)
+          } else {
+            await fs.rm(abs, { force: true })
+          }
         }
         const html = await readBody(req)
         if (!html.trim()) {

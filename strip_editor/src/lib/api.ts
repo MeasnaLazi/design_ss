@@ -84,9 +84,20 @@ export async function writeStrip(
   return { path: body.path, mtime: body.mtime, bytes: body.bytes }
 }
 
-/** Create a new strip file. Fails with 409 rather than overwriting. */
-export async function createStrip(path: string, html: string): Promise<{ path: string; mtime: string }> {
-  const res = await fetch(`${API_PREFIX}/create?path=${encodeURIComponent(path)}`, {
+/**
+ * Create a new strip file. Fails with 409 rather than overwriting.
+ *
+ * @param replace clear the strip's folder first. Destructive, and the reason
+ *   the default is to fail: `strips/` is not in git, so nothing brings back
+ *   what this removes.
+ */
+export async function createStrip(
+  path: string,
+  html: string,
+  opts: { replace?: boolean } = {},
+): Promise<{ path: string; mtime: string }> {
+  const q = `path=${encodeURIComponent(path)}${opts.replace ? '&replace=1' : ''}`
+  const res = await fetch(`${API_PREFIX}/create?${q}`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
     body: html,
