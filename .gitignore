@@ -1,5 +1,5 @@
 # Strips are output. `input/` is the source: a design run reads it and writes
-# strips/<app-name>/, replacing whatever was there. Nothing under strips/ is
+# strips/<device>/, replacing whatever was there. Nothing under strips/ is
 # tracked — re-run to regenerate.
 #
 # Worth knowing: a run is not deterministic. The agent makes the design
@@ -14,6 +14,16 @@ strip_editor/package-lock.json
 # Vite's production bundle. This project runs as a dev server; `npm run build`
 # exists to prove the app still compiles, and its output is not shipped.
 strip_editor/dist/
+
+# Reference galleries — the category folders under composer/references/, not the
+# three documents beside them (README.md, archetypes.md, history.md), which are
+# ours and stay tracked.
+#
+# These are screenshots of store pages by other people, kept as local anchors
+# for the design skill's review step. They are someone else's copyrighted work:
+# fine to hold on your own disk as reference, not ours to redistribute under
+# this repo's MIT licence. composer/references/README.md has always said so.
+composer/references/*/
 
 # macOS Finder droppings.
 .DS_Store
