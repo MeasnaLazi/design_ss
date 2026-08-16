@@ -3,7 +3,7 @@
 The start of the pipeline:
 
 ```
-input/  →  strip-design  →  strips/<device>/
+input/<device>/  →  strip-design  →  strips/<device>/
 ```
 
 Everything the agent needs to design a strip goes here. It reads this folder
@@ -14,13 +14,38 @@ first and **will not start without it**.
 ```
 input/
   README.md           this file — the only thing here you did not write
-  app.md              app name, summary, and the copy for each panel
-  *icon*.png            your app icon — optional, but see below
-  welcome.jpg         your app's screens — meaningful filenames, not UUIDs
-  transfer.jpg
-  history.jpg
-  ...                 five or more
+  app.md              the app: name, summary, tone, theme, panel copy
+  *icon*.png          your app icon — optional, but see below
+
+  iphone/             one folder per device target — the captures for it
+    welcome.PNG       meaningful filenames, not UUIDs
+    recording.PNG
+    timeline.PNG
+    ...               five or more
+
+  ipad/               a second target, when you have one
+    welcome.PNG       the same screens, captured on iPad
+    recording.PNG
 ```
+
+**The device folders mirror the output.** `input/iphone/` designs into
+`strips/iphone/`, `input/ipad/` into `strips/ipad/`. The four names are
+`iphone`, `ipad`, `phone` and `tablet`, and the folder is the *only* thing that
+says which target a run is for — there is no `preset` key to keep in sync with
+it, and nothing to disagree.
+
+**Captures are per device because they genuinely differ.** An iPad screenshot is
+not an iPhone screenshot scaled up: the app lays itself out differently, often
+in split view. Apple requires screenshots to represent the actual app, so an
+iPhone capture in the iPad slot is a misrepresentation, not a shortcut.
+
+Give the same screen the same filename in every folder — `welcome.PNG` in both
+`iphone/` and `ipad/` — and one line of panel copy serves both targets, because
+`screenshot: welcome.PNG` resolves inside whichever folder is being designed.
+
+**`app.md` and the icon stay at the root.** They describe the app, which does
+not change between devices. Copying them per target would only give them room
+to drift.
 
 **The icon earns its place.** It is the densest statement of your visual
 identity you own, and the only brand asset the store shows *beside* the strip.
@@ -57,7 +82,7 @@ horizontal rule is the format the agent reads.
 - tone: warm and literary
 - theme: #f5f1ee / #0c0c0a
 - store: appstore
-- preset: appstore_iphone_portrait
+- panels: 5
 
 ## Panel 0
 
@@ -96,26 +121,45 @@ horizontal rule is the format the agent reads.
 ### The heading
 
 The `# ` heading is the app's name. It is used in the design — as a brand chip,
-a watermark, a wordmark — but it does **not** name the output folder.
+a watermark, a wordmark — but it does **not** name any folder.
 
-**The output folder is named for the device target**, taken from `preset`:
+### The device targets
 
-| `preset` | folder | panel size |
+| folder | panel size | store |
 | --- | --- | --- |
-| `appstore_iphone_portrait` | `strips/iphone/` | 1290×2796 |
-| `appstore_ipad_portrait` | `strips/ipad/` | 2048×2732 |
-| `play_phone_portrait` | `strips/phone/` | 1080×1920 |
-| `play_tablet_portrait` | `strips/tablet/` | 1600×2560 |
+| `iphone` | 1290×2796 | App Store |
+| `ipad` | 2048×2732 | App Store |
+| `phone` | 1080×1920 | Play |
+| `tablet` | 1600×2560 | Play |
+
+`input/<device>/` in, `strips/<device>/` out, the same name on both ends.
+**There is no `preset` key.** The folder is the declaration; a name written in
+two places is a name that can disagree with itself.
 
 The two Apple sizes are specifications — Apple publishes exact export sizes and
 rejects anything else. The two Play sizes are **house choices**: Google
 publishes a range (320–3840px per side, at most 2:1) and no canonical
-resolution, so those two numbers sit inside the range rather than being required
-by it.
+resolution, so those numbers sit inside the range rather than being required by
+it. They are declared in `strip_editor/src/editor/devices.ts`.
 
-**Only `iphone` is in use today.** One `input/` describes one app; the folders
-under `strips/` are that app's per-device outputs. When you add an iPad or Play
-target later, it gets its own folder beside this one and nothing has to move.
+**One `input/` describes one app.** Each device folder is that app on one
+device. Add a target by creating its folder and putting captures in it; nothing
+else moves.
+
+### Designing more than one target
+
+**A run designs one target.** Say which — *"design the ipad strip"* — or leave
+it out when only one device folder exists, which is the common case.
+
+One at a time, for two reasons. The editor watches a single file, so a run
+touching four targets would change three of them where you cannot see them; and
+four targets is a long wait before there is anything to judge.
+
+Targets are **peers, not copies**. `ipad` is not derived from `iphone`: an iPad
+panel is the *same height* as an iPhone panel and 59% wider, so a layout that
+works on one is not a layout on the other. What carries across is the concept —
+same copy, same palette, same archetype — laid out again for the new
+proportion.
 
 ### `## About`
 
@@ -127,7 +171,7 @@ target later, it gets its own folder beside this one and nothing has to move.
 | `theme` | `background / ink`, plus an accent if you have one. Add a second pair after `·` for an inverted variant — see below. |
 | `mood` | Optional. `midnight`, `ember`, `golden hour`, `dawn`, `overcast`, `parchment`, `neon`, `clinical`, `deep water`, `spotlight`. Atmosphere rather than colour; the agent picks one if you leave it out. |
 | `store` | `appstore` or `play` |
-| `preset` | Export size, e.g. `appstore_iphone_portrait` (1290×2796) |
+| `panels` | Optional. How many panels to design, **5–10**. Only consulted for panels you did *not* write — see below. |
 
 `tone` and `theme` steer type and palette. Leave either out and the agent infers
 it from the summary and tells you what it inferred.
@@ -146,14 +190,72 @@ coherence:
 The agent picks one per run and says which. Useful anyway if your app has a dark
 mode — showing it has become close to expected.
 
+### Panel copy is optional
+
+Writing five outcome-driven headlines is the hardest part of this file. You do
+not have to. **Give the agent a `summary` and the captures and it will draft the
+panels**, working from what the app does and what each screen shows.
+
+A minimal `app.md` is legal:
+
+````markdown
+# Bio Journal
+
+## About
+
+- summary: A private journal that turns everyday moments into a story worth
+  keeping. For people who want to write a little, not a lot.
+- tone: warm and literary
+- panels: 6
+````
+
+**Drafted copy is written back into this file**, below your `## About`, marked
+with a comment:
+
+```markdown
+<!-- drafted by strip-design 2026-08-16 -->
+## Panel 0
+
+- title: Your Life, Beautifully Kept
+- subtitle: Turn everyday moments into a story worth keeping.
+- screenshot: welcome.PNG
+```
+
+That write-back is the point, not a side effect. Without it the copy would live
+only in `strips/<device>/strip.html`, which the next run replaces — so every run
+would start from zero and any line you fixed would evaporate. Written here, run
+two starts from copy you have had a chance to correct.
+
+The marker is for **you**, so you can see at a glance which headlines to review.
+It changes nothing on the next run: once a panel is in this file it is your
+copy, taken verbatim, whoever typed it first.
+
+**How many panels you get:**
+
+> `panels` if set, otherwise the number of `## Panel N` sections, otherwise 5.
+
+The agent drafts any panel section that does not exist and **never touches one
+that does**. So `panels: 6` with two panels written gets you your two plus four
+drafted. `panels` outside 5–10 is ignored and you get 5, and the run says so.
+
+`panels` can only **extend, never truncate** — set it to 5 with eight panels
+written and you get all eight. Your copy is not deleted to satisfy a number.
+
+If `panels` asks for more panels than the target folder has captures, the agent
+reuses a screen across panels — cropped to a different region each time, which
+is a real technique, not a bodge — and tells you which panels share one.
+
 ### `## Panel N`
 
-Keys are `title`, `subtitle`, `caption`, `screenshot`. A title is required; the
-rest are optional. One title and one subtitle per panel — a caption only when it
-earns its place.
+Optional; see above. Keys are `title`, `subtitle`, `caption`, `screenshot`. A
+title is required; the rest are optional. One title and one subtitle per panel —
+a caption only when it earns its place.
 
-`screenshot` names a file sitting beside `app.md` in this folder. Omit it and
-that panel's device renders a blank screen, which is a legitimate design choice.
+`screenshot` names a file inside the **device folder being designed** —
+`input/iphone/welcome.PNG` for the iphone run, `input/ipad/welcome.PNG` for the
+ipad one. That is why the same filename in each folder lets one line of copy
+serve every target. Omit it and that panel's device renders a blank screen,
+which is a legitimate design choice.
 
 **Two filenames means two devices in that panel** — the `two-device-overlap`
 layout, for a before/after, a flow, or a state change:
@@ -184,18 +286,37 @@ Three legitimate responses, in order of preference:
 1. **Pick the best five and leave the rest unused.** The default.
 2. **Pair two screens on one panel** with the plural `screenshot:` form above —
    but only when they genuinely tell one story.
-3. **Add panels.** Apple allows up to ten. Reasonable if you have that many
-   distinct benefits, though only ~9% of viewers see them all, so panels six
-   through ten do very little work.
+3. **Add panels** — write more `## Panel N` sections, or raise `panels`. Apple
+   allows up to ten. Reasonable if you have that many distinct benefits, though
+   only ~9% of viewers see them all, so panels six through ten do very little
+   work.
 
-**Copy is taken verbatim.** If a line does not fit the layout, the agent says so
-rather than rewording it — the words are yours. Anything else in the file is a
-note to the designer, not copy to render.
+**Copy you wrote is taken verbatim.** If a line does not fit the layout, the
+agent says so rather than rewording it — the words are yours. Anything else in
+the file is a note to the designer, not copy to render.
+
+Copy the agent drafted is verbatim too, from the moment it lands in this file.
+It is not re-drafted on the next run, and it is not quietly improved. Edit it
+here if you want it changed.
 
 ## The gate
 
-The agent stops and asks if there is no `app.md`, or no images. It will not
-invent your app's name or write your marketing copy.
+The agent stops and asks if any of three things is missing:
+
+| Required | Why |
+| --- | --- |
+| **The app's name** — the `# ` heading in `app.md` | It will not invent what your app is called. |
+| **Panel copy, or a description** to draft it from | With neither, there is nothing to say on five panels. |
+| **A device folder holding at least one image** | A strip of empty phones is not a design. Captures loose at `input/` root belong to no target and are not read. |
+
+It will draft your marketing copy. It will not invent your app.
+
+Every claim it drafts has to be supported by your description or visibly true in
+a capture — Apple requires screenshots to represent the actual app, so a
+headline promising a feature you do not have is a rejection risk as well as a
+disappointed download. No superlatives, no invented capabilities.
+
+The run tells you which headlines were yours and which it wrote.
 
 It does **not** stop for a missing screenshot on some individual panel. That
 panel renders with a blank device screen (`data-screen-fallback`), which is a
@@ -204,13 +325,13 @@ upload is worse than designing around the hole.
 
 ## What comes out
 
-`strips/<device>/` — named for the device target in `preset` (`strips/iphone/`
-today), with the screenshots copied into it so the finished strip is
-self-contained.
+`strips/<device>/` — the same name as the input folder it came from, with the
+captures copied into it so the finished strip is self-contained.
 
 **The strip folder is output.** It is derived from what is in here: change the
-input, run again, and that app's folder is replaced by the new result. Editing
-`input/` and re-running is the normal way to change a design.
+input, run again, and that target's folder is replaced by the new result.
+Editing `input/` and re-running is the normal way to change a design. Other
+targets are untouched — a run replaces the one folder it designed.
 
 Neither this folder nor `strips/` is tracked in git — only this README. And a
 run is not deterministic: the design decisions live in the agent, not in

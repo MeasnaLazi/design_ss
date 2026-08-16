@@ -35,7 +35,7 @@ The repo is intended for **local development**: run the Vite dev server, open a 
 | [`strip_editor/`](strip_editor/) | **Strip editor** — Vite + React editor (port 4714). Opens a strip HTML file at `?strip=<repo-relative path>`, watches it on disk, and reloads when anything else writes it. |
 | [`composer/`](composer/) | **HTML-first strip composer** — strips are authored as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)); `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot (measured geometry + `problems`) via Playwright; `check-schema.mjs` checks structure from source text, no browser. |
 | [`.claude/skills/`](.claude/skills/) | **The skill** — [`strip-design`](.claude/skills/strip-design/SKILL.md), the one agent-facing entry point. No agents, no helper scripts. |
-| [`input/`](input/) | **The brief.** `app.md` (app name, summary, tone, theme, and — optionally — the copy for each panel) plus the app's screen captures. The design run starts here and refuses to start without it. Give it only a description and it drafts the panel copy, writing it back into `app.md`. |
+| [`input/`](input/) | **The brief.** `app.md` at the root (app name, summary, tone, theme, and — optionally — the copy for each panel), plus one folder per device target holding that target's captures: `input/iphone/`, `input/ipad/`. The design run starts here and refuses to start without it. Give it only a description and it drafts the panel copy, writing it back into `app.md`. |
 | [`strips/`](strips/) | **The strips.** One folder per device target (`iphone`, later `ipad` / `phone` / `tablet`): `strip.html`, `images/`, `screenshots/`, and a gitignored `rendered/`. Everything a design references lives with it — move the folder and it still renders. |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
 
@@ -63,25 +63,35 @@ The repo is intended for **local development**: run the Vite dev server, open a 
 The whole thing is a pipeline with one input and one output:
 
 ```text
-input/                     strips/<device>/
-  app.md          ──────▶    strip.html
-  welcome.jpg      design     images/ · screenshots/ · rendered/
-  transfer.jpg …
+input/                          strips/
+  app.md            shared        iphone/    strip.html
+  appicon.png       shared                   images/ · screenshots/ · rendered/
+  iphone/  *.PNG   ──────▶        ipad/      …
+  ipad/    *.PNG    design
 ```
 
-The strip folder is named for the **device target** — `strips/iphone/` today,
-with `ipad`, `phone` and `tablet` beside it as those targets are added. One
-`input/` describes one app; each folder under `strips/` is that app's output for
-one device. It is **output**: change the input, run again, and that folder is
-replaced by the new result.
+**`input/` mirrors `strips/`** — one folder per device target, the same name on
+both ends: `iphone`, `ipad`, `phone`, `tablet`. The folder is the only thing
+that says which target a run is for, so there is no preset key to keep in step
+with it.
+
+Captures are per device because they genuinely differ: an iPad screenshot is not
+an iPhone screenshot scaled up, and Apple requires screenshots to represent the
+actual app. `app.md` and the icon stay at the root, because they describe the
+app rather than one device.
+
+One `input/` describes one app. **A run designs one target**, and the folder
+under `strips/` is **output**: change the input, run again, and that folder is
+replaced. Other targets are untouched.
 
 There is no canvas, no importer and no second representation — one HTML
 document per strip, read by both programs.
 
 **The design loop:**
 
-0. Read [`input/app.md`](input/) and the captures beside it. No input, no run.
-   Draft any panel copy the file does not already have, and write it back there.
+0. Read [`input/app.md`](input/) and the captures in the target's device folder.
+   No input, no run. Draft any panel copy the file does not already have, and
+   write it back there.
 1. Read the strip and [`composer/strip-schema.md`](composer/strip-schema.md).
 2. Edit the HTML (real screenshots warped into device frames via `frame.json` homography).
 3. `node composer/check-schema.mjs strips/<device>/strip.html` — structural check, no browser, costs nothing.

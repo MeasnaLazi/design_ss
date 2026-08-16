@@ -14,7 +14,8 @@ strips/<device>/
 
 The folder is the output of a pipeline: `input/` (the brief and the app's
 captures) → design → one strip folder per **device target** — `iphone`, `ipad`,
-`phone`, `tablet` — taken from `app.md`'s `preset`. See
+`phone`, `tablet` — the same name as the `input/<device>/` folder it was
+designed from. See
 [`input/README.md`](../input/README.md). Copy and app facts stay in `input/`;
 the strip folder holds the design and everything it renders from, and is
 gitignored like any other build output.

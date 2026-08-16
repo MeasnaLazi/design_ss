@@ -17,18 +17,20 @@ representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
 the same browser engine, from the same file.
 
 ```
-input/  →  design  →  strips/<device>/
+input/<device>/  →  design  →  strips/<device>/
 ```
 
-A run reads `input/`, designs, and writes one strip folder, named for the
-device target in `preset` — `strips/iphone/` today:
+A run reads `input/`, designs **one** target, and writes the strip folder of the
+same name:
 
 ```
-input/                     strips/<device>/
-  app.md                     strip.html         the document
-  welcome.jpg                images/            artwork you create for it
-  transfer.jpg               screenshots/       the captures, copied from input/
-  ...                        rendered/          PNGs + strip-data.json (gitignored)
+input/                       strips/<device>/
+  app.md          shared       strip.html       the document
+  appicon.png     shared       images/          artwork you create for it
+  <device>/                    screenshots/     the captures, copied in
+    welcome.PNG                rendered/        PNGs + strip-data.json (gitignored)
+    transfer.PNG
+    ...
 ```
 
 **Everything a strip references lives in its folder.** There is no shared asset
@@ -46,7 +48,19 @@ panels — not as five independent posters.
 
 ## Start here: read `input/`
 
-**Before anything else, read `input/app.md` and list the images beside it.**
+**Before anything else, read `input/app.md` and list the device folders beside
+it.**
+
+`input/` mirrors `strips/`: one folder per device target, same name on both
+ends.
+
+```
+input/                       strips/
+  app.md          shared       iphone/   ← designed from input/iphone/
+  appicon.png     shared       ipad/     ← designed from input/ipad/
+  iphone/  welcome.PNG …
+  ipad/    welcome.PNG …
+```
 
 **Three things are required. Stop and ask if any is missing:**
 
@@ -54,7 +68,10 @@ panels — not as five independent posters.
 | --- | --- |
 | the app's name — the `# ` heading | never invent what the app is called |
 | panel copy, **or** a `summary` to draft it from | with neither there is nothing to say on five panels |
-| at least one image | a strip of empty phones is not a design |
+| a device folder holding at least one image | a strip of empty phones is not a design |
+
+**Images loose at `input/` root belong to no target.** They are not read. If
+that is all there is, say so and name the folder they should move into.
 
 Panel copy is **not** required — see *Draft the panels that are missing* below.
 A description plus the captures is enough to start.
@@ -65,14 +82,37 @@ describes software that does not exist is worse than no design.
 `input/README.md` ships with the repo and documents the format — it is not a
 brief. An `input/` holding only that file counts as empty.
 
+### Which target
+
+**One run designs one target.** The folder names it, and there is no `preset`
+key — the folder *is* the declaration.
+
+| Situation | What to design |
+| --- | --- |
+| the user named a target | that one |
+| exactly one device folder exists | that one, without asking |
+| several exist, none named | **ask which**, listing them |
+
+| folder | panel size |
+| --- | --- |
+| `iphone` | 1290×2796 |
+| `ipad` | 2048×2732 |
+| `phone` | 1080×1920 |
+| `tablet` | 1600×2560 |
+
+Never design two targets in one run. The editor watches one file, so the others
+would change where the user cannot see them, and there would be nothing to judge
+until all of it was finished.
+
+**Targets are peers, not copies.** Do not open another target's strip for
+reference. An iPad panel is the same height as an iPhone panel and 59% wider, so
+its layout is a different problem, not a scaled one — and reading the other
+design anchors this one to it. Same input, designed again.
+
 `app.md` gives you:
 
 - **the app name** — used *in* the design (brand chip, watermark, wordmark). It
-  does **not** name the output folder.
-- **`preset`** — which names the output folder, by device target:
-  `appstore_iphone_portrait` → `strips/iphone/`, `appstore_ipad_portrait` →
-  `strips/ipad/`, `play_phone_portrait` → `strips/phone/`,
-  `play_tablet_portrait` → `strips/tablet/`. Today only `iphone` is in use.
+  does **not** name any folder.
 - **summary, category, tone, theme** — the design direction. Tone and theme
   steer type and palette; if either is absent, infer from the summary and *say
   what you inferred*.
@@ -86,9 +126,13 @@ it or a previous run drafted it. If a line does not fit the layout, say so and
 let the user choose between changing the words and changing the design — never
 reword it quietly. The words are theirs.
 
-`screenshot` names a file in `input/`. **Copy the ones you use into
-`strips/<device>/screenshots/`** and reference them as
-`/strips/<device>/screenshots/<file>` — the finished strip must not depend on
+`screenshot` names a file in **the device folder being designed** —
+`input/iphone/welcome.PNG` on an iphone run. The same filename in each device
+folder is how one line of copy serves every target, so resolve it against the
+current target and never against another one.
+
+**Copy the ones you use into `strips/<device>/screenshots/`** and reference them
+as `/strips/<device>/screenshots/<file>` — the finished strip must not depend on
 `input/`, which is a working inbox and will be replaced by the next app.
 
 A panel with no `screenshot` is not a blocker: omit `data-screenshot`, let the
@@ -401,8 +445,8 @@ full stop; whatever the previous run put in the strip is irrelevant.
 
 ## Missing screenshots
 
-Captures come from `input/`, named for what they show — `transfer.jpg`,
-`welcome.jpg`. **Look at them before designing.** `app.md` names one per panel;
+Captures come from `input/<device>/` — the folder for the target being
+designed — named for what they show: `transfer.jpg`, `welcome.jpg`. **Look at them before designing.** `app.md` names one per panel;
 when it does not, pick the screen that proves that panel's claim, which is what
 the filenames are for.
 
@@ -425,8 +469,8 @@ blank screen via `data-screen-fallback` is a different thing and is allowed.
 | Source | Use |
 | --- | --- |
 | `input/app.md` | **Required.** App name, summary, tone, theme, optional `panels` count, and the copy for any panel the user wrote. Read first; stop if absent. The one file in `input/` you write to — appending drafted panel sections. |
-| `input/*.jpg` `*.png` | **Required.** The app's screen captures, named for what they show. |
-| `input/*icon*.png` | Optional. The app icon — the best source for a palette when `theme` is absent, and a motif for decor. Use it as a mark on at most one panel. |
+| `input/<device>/*.jpg` `*.png` | **Required.** That target's screen captures, named for what they show. One folder per device target; the folder names the target. |
+| `input/*icon*.png` | Optional, and shared by every target. The app icon — the best source for a palette when `theme` is absent, and a motif for decor. Use it as a mark on at most one panel. |
 | `strips/<device>/strip.html` | The document you write. A pipeline run replaces it outright; a targeted edit changes only what was asked. **Gitignored — no version history**, so on a targeted edit a careless rewrite cannot be undone. |
 | `strips/<device>/screenshots/` | The captures you used, copied from `input/`. |
 | `strips/<device>/images/` | Logos, textures, generated artwork for image layers. Write new images here. |
