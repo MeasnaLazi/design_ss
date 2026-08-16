@@ -44,7 +44,7 @@ try {
   if (!e.stdout?.toString().includes('error TS')) throw e
 }
 
-const { DEVICE_TARGETS, deviceForSize, deviceForFolder, panelSizeFromHtml } = await import(
+const { DEVICE_TARGETS, deviceForSize, deviceForFolder, panelSizeFromHtml, retargetStripAssets } = await import(
   path.join(out, 'devices.js')
 )
 const { blankStripTemplate } = await import(path.join(out, 'schema.js'))
@@ -133,6 +133,42 @@ check('a document that states no panel size measures as null', () => {
 
 check('a percentage panel is not a pixel panel', () => {
   assert.equal(panelSizeFromHtml(rule('width: 100%; height: 100%;')), null)
+})
+
+// --- retargeting ------------------------------------------------------------
+
+check('a strip authored elsewhere is retargeted to its new folder', () => {
+  const html = `<img data-layer="image" src="/strips/bio/images/leaf.svg">
+    <div data-device data-screenshot="/strips/bio/screenshots/welcome.PNG"></div>`
+  const r = retargetStripAssets(html, 'iphone')
+  assert.equal(r.changed, 2)
+  assert.ok(!r.html.includes('/strips/bio/'), 'no reference may still name the old folder')
+  assert.ok(r.html.includes('/strips/iphone/images/leaf.svg'))
+  assert.ok(r.html.includes('/strips/iphone/screenshots/welcome.PNG'))
+})
+
+check('a strip already in the right folder is left byte-identical', () => {
+  const html = `<div data-screenshot="/strips/iphone/screenshots/a.png"></div>`
+  const r = retargetStripAssets(html, 'iphone')
+  assert.equal(r.changed, 0)
+  assert.equal(r.html, html)
+})
+
+check('retargeting does not touch other root-relative URLs', () => {
+  const html = `<script src="/composer/device-frames.mjs"></script>
+    <img src="/datasource/images/x.png">`
+  const r = retargetStripAssets(html, 'iphone')
+  assert.equal(r.changed, 0)
+  assert.equal(r.html, html)
+})
+
+check('every device target is a valid retarget destination', () => {
+  const html = `<div data-screenshot="/strips/whatever/screenshots/a.png"></div>`
+  for (const t of DEVICE_TARGETS) {
+    const r = retargetStripAssets(html, t.folder)
+    assert.equal(r.changed, 1)
+    assert.ok(r.html.includes(`/strips/${t.folder}/screenshots/a.png`))
+  }
 })
 
 rmSync(out, { recursive: true, force: true })

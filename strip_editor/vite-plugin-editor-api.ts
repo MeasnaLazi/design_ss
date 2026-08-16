@@ -35,7 +35,7 @@ import nodeFs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { deviceForSize, panelSizeFromHtml } from './src/editor/devices'
+import { deviceForSize, panelSizeFromHtml, retargetStripAssets } from './src/editor/devices'
 
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
@@ -814,6 +814,16 @@ export function editorApiPlugin(): Plugin {
           return
         }
 
+        // The folder name is baked into the document's asset paths, so a strip
+        // authored as `strips/bio/` points every screenshot at `/strips/bio/…`
+        // and resolves nothing once it is copied somewhere else. Retarget before
+        // the check, or a perfectly good folder fails on paths that describe
+        // where it used to live.
+        const retarget = retargetStripAssets(html, device.folder)
+        if (retarget.changed > 0) {
+          await fs.writeFile(path.join(dir, 'strip.html'), retarget.html, 'utf8')
+        }
+
         const targetRel = `strips/${device.folder}`
         const target = path.join(REPO_ROOT, targetRel)
         let exists = true
@@ -863,6 +873,7 @@ export function editorApiPlugin(): Plugin {
           device: device.folder,
           label: device.label,
           replaced: exists,
+          retargeted: retarget.changed,
         })
         return
       }

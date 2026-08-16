@@ -354,6 +354,16 @@ purpose. Create writes a panel size from a device; load reads a device from a
 panel size. `test/device-targets.test.mjs` asserts that round trip for every
 target, against the real template and the real parser.
 
+**Asset paths are retargeted on the way in.** A strip carries absolute paths —
+`/strips/iphone/screenshots/a.png` — because that is the URL space `render.mjs`
+serves, so the folder name is baked into the document. A strip authored as
+`strips/bio/` points every screenshot at `/strips/bio/…` and resolves nothing
+once it is copied elsewhere. `retargetStripAssets` repoints every `/strips/<x>/`
+at the destination folder before the check runs; the schema already requires a
+strip to reference only its own folder, so this restates that correctly rather
+than guessing. The count comes back in the response and the UI says how many
+moved, because the document was edited and the user should hear it from us.
+
 Commit order is: move the existing folder aside → copy the stage into place →
 run `check-schema.mjs` **on the real path** → restore the backup if it fails.
 The check runs after the move because a strip references its captures as

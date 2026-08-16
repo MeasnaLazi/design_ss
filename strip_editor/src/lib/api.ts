@@ -281,6 +281,15 @@ export interface LoadResult {
   device: string
   label: string
   replaced: boolean
+  /**
+   * How many `/strips/…/` asset paths were repointed at the new folder.
+   *
+   * Non-zero means the document was edited on the way in, which the user is
+   * told about rather than left to discover: a strip authored as `strips/bio/`
+   * has the old folder name baked into every screenshot path, and copying it
+   * without rewriting them resolves nothing.
+   */
+  retargeted: number
 }
 
 /**
@@ -332,6 +341,7 @@ export async function loadStripFolder(
     device?: string
     label?: string
     replaced?: boolean
+    retargeted?: number
     width?: number
     height?: number
     output?: string
@@ -348,6 +358,7 @@ export async function loadStripFolder(
     device: body.device ?? '',
     label: body.label ?? '',
     replaced: body.replaced ?? false,
+    retargeted: body.retargeted ?? 0,
   }
 }
 

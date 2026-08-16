@@ -107,6 +107,37 @@ export function deviceForSize(width: number, height: number): DeviceTarget | nul
  *
  * @returns the measured size, or `null` if the document does not state one.
  */
+/**
+ * Point every `/strips/…/` reference in a document at `folder`.
+ *
+ * A strip carries **absolute** asset paths — `/strips/iphone/screenshots/a.png`
+ * — because that is the URL space `render.mjs` serves. The folder name is
+ * therefore baked into the document, and a strip authored as `strips/bio/` has
+ * every screenshot pointing at `/strips/bio/…` no matter where the folder ends
+ * up. Copy it into `strips/iphone/` untouched and nothing resolves.
+ *
+ * Rewriting is not a guess about intent. `strip-schema.md` requires a strip to
+ * reference only assets inside its own folder — "never point a strip at an
+ * asset outside its own folder" — so every `/strips/<x>/` in a conformant
+ * document *means* "my folder", whatever `<x>` happens to say. Retargeting them
+ * all restates that correctly for the new location.
+ *
+ * A strip that violated the rule and borrowed from a sibling loses that
+ * reference here. That is the intended outcome: the borrow was already broken,
+ * because the sibling is not guaranteed to exist.
+ *
+ * @returns the rewritten document and how many references moved.
+ */
+export function retargetStripAssets(html: string, folder: string): { html: string; changed: number } {
+  let changed = 0
+  const next = html.replace(/\/strips\/([^/"'\s)]+)\//g, (match, current: string) => {
+    if (current === folder) return match
+    changed++
+    return `/strips/${folder}/`
+  })
+  return { html: next, changed }
+}
+
 export function panelSizeFromHtml(html: string): { width: number; height: number } | null {
   let width: number | null = null
   let height: number | null = null

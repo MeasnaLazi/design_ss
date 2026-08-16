@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
 
 import { DEVICE_TARGETS, type DeviceTarget } from '../editor/devices'
@@ -57,11 +57,18 @@ export function FilePicker(): React.ReactElement {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ folder: string; stage: string } | null>(null)
   const [staged, setStaged] = useState<FolderFile[]>([])
+  const [retargeted, setRetargeted] = useState<{ path: string; folder: string; count: number } | null>(null)
 
   // `webkitdirectory` turns a file input into a folder picker. It is not in
-  // React's attribute types, so it goes on after mount rather than through JSX.
-  useEffect(() => {
-    const el = folderInput.current
+  // React's attribute types, so it has to be set on the element directly.
+  //
+  // A **callback ref**, not an effect. The input is rendered conditionally, so
+  // it does not exist when this component mounts — a `useEffect(…, [])` reads a
+  // null ref, returns, and never runs again, leaving a plain file picker that
+  // silently selects one file. A callback ref fires whenever the node appears,
+  // which is the only moment that can be relied on here.
+  const attachFolderInput = useCallback((el: HTMLInputElement | null) => {
+    folderInput.current = el
     if (!el) return
     el.setAttribute('webkitdirectory', '')
     el.setAttribute('directory', '')
@@ -118,6 +125,13 @@ export function FilePicker(): React.ReactElement {
         onProgress: (done, total) => setBusy(`Copying ${done}/${total}…`),
       })
       setConfirm(null)
+      // A load that rewrote asset paths changed the user's document. Say so and
+      // let them open it deliberately, rather than editing a file and jumping
+      // straight into the editor as though nothing had happened.
+      if (result.retargeted > 0) {
+        setRetargeted({ path: result.path, folder: result.device, count: result.retargeted })
+        return
+      }
       openFile(result.path)
     } catch (e: unknown) {
       if (e instanceof StripExistsError) {
@@ -133,15 +147,28 @@ export function FilePicker(): React.ReactElement {
   const onFolderPicked = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setConfirm(null)
     setLoadError(null)
+    setRetargeted(null)
     const chosen = Array.from(e.target.files ?? [])
     e.target.value = '' // so picking the same folder twice fires again
+
+    // Without webkitRelativePath the browser handed us loose files, not a
+    // folder — a different failure from picking the wrong folder, and worth
+    // saying so rather than reporting a missing strip.html the user can see is
+    // sitting right there.
+    if (chosen.length > 0 && !chosen.some((f) => f.webkitRelativePath)) {
+      setLoadError(
+        'That selected files rather than a folder. Loading needs the whole folder — the strip references screenshots ' +
+          'beside it, and a browser cannot read them from a single file.',
+      )
+      return
+    }
 
     // webkitRelativePath is `<chosen folder>/…`; the folder's own name is not
     // used for anything — the device decides where this lands — so the leading
     // segment comes off here.
     const picked: FolderFile[] = []
     for (const file of chosen) {
-      const rel = (file.webkitRelativePath || file.name).split('/').slice(1).join('/')
+      const rel = file.webkitRelativePath.split('/').slice(1).join('/')
       if (keepForUpload(rel)) picked.push({ rel, file })
     }
 
@@ -282,9 +309,24 @@ export function FilePicker(): React.ReactElement {
               guessed. <code className="text-zinc-300">rendered/</code> is skipped — it regenerates.
             </p>
 
-            <input ref={folderInput} type="file" multiple className="hidden" onChange={onFolderPicked} />
+            <input ref={attachFolderInput} type="file" multiple className="hidden" onChange={onFolderPicked} />
 
-            {confirm ? (
+            {retargeted ? (
+              <div className="rounded border border-sky-500/40 bg-sky-500/5 p-2.5">
+                <p className="mb-2 text-xs leading-snug text-sky-100">
+                  Copied into <code>strips/{retargeted.folder}/</code>. {retargeted.count} asset{' '}
+                  {retargeted.count === 1 ? 'path' : 'paths'} pointed at the folder this strip used to live in and{' '}
+                  {retargeted.count === 1 ? 'was' : 'were'} repointed here — otherwise nothing would have resolved.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openFile(retargeted.path)}
+                  className="rounded bg-sky-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-sky-400"
+                >
+                  Open strips/{retargeted.folder}/
+                </button>
+              </div>
+            ) : confirm ? (
               <div className="rounded border border-amber-500/40 bg-amber-500/5 p-2.5">
                 <p className="mb-2 text-xs leading-snug text-amber-200">
                   <code>{confirm.folder}</code> already holds a strip. Replacing it deletes what is there — it is not in
