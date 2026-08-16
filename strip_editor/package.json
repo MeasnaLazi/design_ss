@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "test": "node test/schema-contract.test.mjs && node test/svg-decor.test.mjs && node test/group-layers.test.mjs"
+    "test": "node test/schema-contract.test.mjs && node test/svg-decor.test.mjs && node test/group-layers.test.mjs && node test/device-targets.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

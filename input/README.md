@@ -105,7 +105,13 @@ a watermark, a wordmark — but it does **not** name the output folder.
 | `appstore_iphone_portrait` | `strips/iphone/` | 1290×2796 |
 | `appstore_ipad_portrait` | `strips/ipad/` | 2048×2732 |
 | `play_phone_portrait` | `strips/phone/` | 1080×1920 |
-| `play_tablet_portrait` | `strips/tablet/` | — |
+| `play_tablet_portrait` | `strips/tablet/` | 1600×2560 |
+
+The two Apple sizes are specifications — Apple publishes exact export sizes and
+rejects anything else. The two Play sizes are **house choices**: Google
+publishes a range (320–3840px per side, at most 2:1) and no canonical
+resolution, so those two numbers sit inside the range rather than being required
+by it.
 
 **Only `iphone` is in use today.** One `input/` describes one app; the folders
 under `strips/` are that app's per-device outputs. When you add an iPad or Play

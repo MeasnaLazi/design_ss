@@ -1,30 +1,36 @@
-import { useEffect, useState } from 'react'
-import { FileCode2, FilePlus2, FolderOpen, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
 
+import { DEVICE_TARGETS, type DeviceTarget } from '../editor/devices'
 import { blankStripTemplate } from '../editor/schema'
-import { createStrip, listStrips } from '../lib/api'
+import { createStrip, listStrips, loadStripFolder, StripExistsError, type FolderFile } from '../lib/api'
 import { useEditorStore } from '../store/useEditorStore'
 
-function formatWhen(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+/**
+ * Landing screen: one row of device targets, and a way to bring a folder in.
+ *
+ * The four targets are always shown, present or not — they are the fixed set of
+ * things a strip can be, so the row is a map of the project rather than a list
+ * of files. A target that exists opens; a target that does not is created. That
+ * is why there is no separate "new strip" control: the empty slot *is* the
+ * control, and a strip's identity is its device, which the row already states.
+ *
+ * There is deliberately no history list either. Every file is called
+ * `strip.html`, so a timestamped list of them said less than four words.
+ */
 
 /**
- * Landing screen: strips found under `strips/` and `composer/test/`.
- * Once a strip is open the shell replaces this with the editor; the TopBar ×
- * comes back here.
+ * Files a strip folder does not need, dropped before upload.
+ *
+ * `rendered/` is regenerable output and by far the largest thing in the folder;
+ * dotfiles are the OS's business, not the strip's.
  */
-/**
- * Export presets offered when creating a strip. Panel size is the store's exact
- * export size — `render.mjs` screenshots panels at their authored dimensions, so
- * getting this right at creation avoids a resize later.
- */
-const PRESETS = [
-  { id: 'appstore_iphone_portrait', label: 'App Store · iPhone 6.7" portrait', width: 1290, height: 2796 },
-  { id: 'appstore_ipad_portrait', label: 'App Store · iPad 12.9" portrait', width: 2048, height: 2732 },
-  { id: 'play_phone_portrait', label: 'Play Store · phone portrait', width: 1080, height: 1920 },
-]
+function keepForUpload(rel: string): boolean {
+  if (!rel) return false
+  const parts = rel.split('/')
+  if (parts.some((seg) => seg.startsWith('.'))) return false
+  return parts[0] !== 'rendered'
+}
 
 export function FilePicker(): React.ReactElement {
   const files = useEditorStore((s) => s.files)
@@ -32,32 +38,34 @@ export function FilePicker(): React.ReactElement {
   const setFiles = useEditorStore((s) => s.setFiles)
   const openFile = useEditorStore((s) => s.openFile)
 
-  const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
-  const [presetId, setPresetId] = useState(PRESETS[0].id)
+  // Which device folders are on disk, and where their strip lives. A folder may
+  // hold a document under any .html name, so the path comes from the listing
+  // rather than being assumed to be strip.html.
+  const present = new Map<string, string>()
+  for (const f of files) if (f.dir === 'strips') present.set(f.name, f.path)
+  const fixtures = files.filter((f) => f.dir !== 'strips')
+
+  // Create
+  const [creatingFor, setCreatingFor] = useState<DeviceTarget | null>(null)
   const [panelCount, setPanelCount] = useState(5)
   const [createError, setCreateError] = useState<string | null>(null)
 
-  const create = async (): Promise<void> => {
-    const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0]
-    const slug = name.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
-    if (!slug) {
-      setCreateError('Give the strip a name.')
-      return
-    }
-    // A strip is a folder: strips/<name>/strip.html, with images/ and
-    // rendered/ landing beside it as they are created.
-    const path = `strips/${slug}/strip.html`
-    try {
-      await createStrip(path, blankStripTemplate(slug, panelCount, preset.width, preset.height))
-      setCreating(false)
-      setName('')
-      setCreateError(null)
-      openFile(path)
-    } catch (e: unknown) {
-      setCreateError(e instanceof Error ? e.message : String(e))
-    }
-  }
+  // Load
+  const folderInput = useRef<HTMLInputElement>(null)
+  const [loadOpen, setLoadOpen] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<{ folder: string; stage: string } | null>(null)
+  const [staged, setStaged] = useState<FolderFile[]>([])
+
+  // `webkitdirectory` turns a file input into a folder picker. It is not in
+  // React's attribute types, so it goes on after mount rather than through JSX.
+  useEffect(() => {
+    const el = folderInput.current
+    if (!el) return
+    el.setAttribute('webkitdirectory', '')
+    el.setAttribute('directory', '')
+  }, [])
 
   const refresh = (): void => {
     listStrips()
@@ -79,109 +87,268 @@ export function FilePicker(): React.ReactElement {
     }
   }, [setFiles])
 
+  const pickTarget = (target: DeviceTarget): void => {
+    const existing = present.get(target.folder)
+    if (existing) {
+      openFile(existing)
+      return
+    }
+    setCreateError(null)
+    setLoadOpen(false)
+    setCreatingFor((cur) => (cur?.folder === target.folder ? null : target))
+  }
+
+  const create = async (target: DeviceTarget): Promise<void> => {
+    const path = `strips/${target.folder}/strip.html`
+    try {
+      await createStrip(path, blankStripTemplate(target.folder, panelCount, target.width, target.height))
+      setCreateError(null)
+      openFile(path)
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const commit = async (picked: FolderFile[], opts: { replace?: boolean; stage?: string }): Promise<void> => {
+    setLoadError(null)
+    setBusy(opts.stage ? 'Replacing…' : 'Copying…')
+    try {
+      const result = await loadStripFolder(picked, {
+        ...opts,
+        onProgress: (done, total) => setBusy(`Copying ${done}/${total}…`),
+      })
+      setConfirm(null)
+      openFile(result.path)
+    } catch (e: unknown) {
+      if (e instanceof StripExistsError) {
+        setConfirm({ folder: e.folder, stage: e.stage })
+      } else {
+        setLoadError(e instanceof Error ? e.message : String(e))
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const onFolderPicked = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setConfirm(null)
+    setLoadError(null)
+    const chosen = Array.from(e.target.files ?? [])
+    e.target.value = '' // so picking the same folder twice fires again
+
+    // webkitRelativePath is `<chosen folder>/…`; the folder's own name is not
+    // used for anything — the device decides where this lands — so the leading
+    // segment comes off here.
+    const picked: FolderFile[] = []
+    for (const file of chosen) {
+      const rel = (file.webkitRelativePath || file.name).split('/').slice(1).join('/')
+      if (keepForUpload(rel)) picked.push({ rel, file })
+    }
+
+    if (!picked.some((f) => f.rel === 'strip.html')) {
+      setLoadError('No strip.html at the top of that folder. Pick the folder that contains it, not its parent.')
+      return
+    }
+    setStaged(picked)
+    void commit(picked, {})
+  }
+
   return (
     <div className="flex h-full items-center justify-center p-8">
-      <div className="w-full max-w-lg">
-        <div className="mb-5 flex items-start gap-3">
+      <div className="w-full max-w-xl">
+        <div className="mb-6 flex items-start gap-3">
           <FolderOpen size={22} className="mt-0.5 shrink-0 text-sky-400" />
           <div className="flex-1">
-            <h1 className="text-lg font-semibold text-zinc-100">Open a strip</h1>
+            <h1 className="text-lg font-semibold text-zinc-100">Strips</h1>
             <p className="text-sm leading-snug text-zinc-500">
-              The HTML file is the source of truth — what you edit here is what <code>render.mjs</code> exports.
+              A strip is a folder — <code>strip.html</code> with its screenshots and images beside it. One folder per
+              device target; the HTML is the source of truth, so what you edit here is what <code>render.mjs</code>{' '}
+              exports.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreating((v) => !v)}
-            title="New strip"
-            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-          >
-            <FilePlus2 size={14} />
-          </button>
+        </div>
+
+        {/* --- targets ---------------------------------------------------- */}
+        <div className="mb-1.5 flex items-center gap-2 px-0.5">
+          <span className="text-[11px] uppercase tracking-wide text-zinc-600">Targets</span>
+          <span className="flex-1 text-[11px] text-zinc-600">open one, or create the blank</span>
           <button
             type="button"
             onClick={refresh}
-            title="Refresh list"
-            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+            title="Refresh"
+            className="rounded p-1 text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
           </button>
         </div>
 
-        {creating && (
-          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
-            <label className="mb-2 block">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Name</span>
-              <input
-                value={name}
-                autoFocus
-                placeholder="my-app-strip"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && void create()}
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 focus:border-sky-500 focus:outline-none"
-              />
-            </label>
-            <label className="mb-2 block">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Preset</span>
-              <select
-                value={presetId}
-                onChange={(e) => setPresetId(e.target.value)}
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
+        <div className="mb-3 grid grid-cols-4 gap-2">
+          {DEVICE_TARGETS.map((t) => {
+            const exists = present.has(t.folder)
+            const active = creatingFor?.folder === t.folder
+            return (
+              <button
+                key={t.folder}
+                type="button"
+                onClick={() => pickTarget(t)}
+                title={`${t.label} · ${t.width}×${t.height}`}
+                className={`rounded-lg border px-2 py-2 text-left transition-colors ${
+                  exists
+                    ? 'border-zinc-700 bg-zinc-900 hover:border-sky-500/60'
+                    : active
+                      ? 'border-sky-500/60 bg-zinc-900/60'
+                      : 'border-dashed border-zinc-800 bg-transparent hover:border-zinc-600'
+                }`}
               >
-                {PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label} · {p.width}×{p.height}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-[11px] uppercase tracking-wide text-zinc-500">Panels</span>
+                <span
+                  className={`flex items-center gap-1 text-sm font-medium ${
+                    exists ? 'text-zinc-100' : 'text-zinc-500'
+                  }`}
+                >
+                  {!exists && <Plus size={12} className="shrink-0" />}
+                  {t.folder}
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-tight text-zinc-600">
+                  {t.width}×{t.height}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {creatingFor && (
+          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
+            <p className="mb-2 text-[12px] leading-snug text-zinc-400">
+              A blank, schema-conformant strip at{' '}
+              <code className="text-zinc-300">strips/{creatingFor.folder}/</code> — {creatingFor.label},{' '}
+              {creatingFor.width}×{creatingFor.height}.
+            </p>
+            <label className="mb-2 flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-zinc-500">Panels</span>
               <input
                 type="number"
                 min={1}
                 max={10}
+                autoFocus
                 value={panelCount}
                 onChange={(e) => setPanelCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                className="w-20 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
+                className="w-16 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
               />
             </label>
+            <p className="mb-3 text-[11px] leading-snug text-zinc-500">
+              A design run from <code className="text-zinc-400">input/</code> replaces this folder outright, so copy it
+              elsewhere if you want to keep what you make here.
+            </p>
             {createError && <p className="mb-2 text-xs text-rose-300">{createError}</p>}
             <button
               type="button"
-              onClick={() => void create()}
+              onClick={() => void create(creatingFor)}
               className="rounded bg-sky-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-sky-400"
             >
-              Create in strips/
+              Create strips/{creatingFor.folder}/
             </button>
           </div>
         )}
 
-        <ul className="flex flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-2">
-          {files.map((f) => (
-            <li key={f.path}>
+        {/* --- load ------------------------------------------------------- */}
+        <button
+          type="button"
+          onClick={() => {
+            setCreatingFor(null)
+            setLoadOpen((v) => !v)
+          }}
+          className={`mb-3 w-full rounded-lg border p-3 text-left transition-colors ${
+            loadOpen
+              ? 'border-sky-500/60 bg-zinc-900'
+              : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700 hover:bg-zinc-800/40'
+          }`}
+        >
+          <span className="mb-1 flex items-center gap-2 text-sm font-medium text-zinc-100">
+            <FolderInput size={15} className="text-sky-400" />
+            Load strip
+          </span>
+          <span className="block text-[12px] leading-snug text-zinc-500">
+            Copy a strip folder in from anywhere on disk. Its panel size decides which target it lands in, and it is
+            checked against the schema before it replaces anything.
+          </span>
+        </button>
+
+        {loadOpen && (
+          <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
+            <p className="mb-3 text-[12px] leading-snug text-zinc-400">
+              Pick the folder that <em>contains</em> <code className="text-zinc-300">strip.html</code>. Panels at
+              1290×2796 go to <code className="text-zinc-300">strips/iphone/</code>, 2048×2732 to{' '}
+              <code className="text-zinc-300">strips/ipad/</code>. A size matching no target is refused rather than
+              guessed. <code className="text-zinc-300">rendered/</code> is skipped — it regenerates.
+            </p>
+
+            <input ref={folderInput} type="file" multiple className="hidden" onChange={onFolderPicked} />
+
+            {confirm ? (
+              <div className="rounded border border-amber-500/40 bg-amber-500/5 p-2.5">
+                <p className="mb-2 text-xs leading-snug text-amber-200">
+                  <code>{confirm.folder}</code> already holds a strip. Replacing it deletes what is there — it is not in
+                  git, so nothing brings it back.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void commit(staged, { replace: true, stage: confirm.stage })}
+                    className="rounded bg-amber-400 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    Replace {confirm.folder}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirm(null)}
+                    className="rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={() => openFile(f.path)}
-                className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-zinc-300 transition-colors hover:bg-zinc-800"
+                disabled={busy !== null}
+                onClick={() => folderInput.current?.click()}
+                className="rounded bg-sky-500 px-2.5 py-1 text-xs font-medium text-zinc-950 hover:bg-sky-400 disabled:opacity-50"
               >
-                <FileCode2 size={15} className="mt-0.5 shrink-0 opacity-70" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{f.name}</span>
-                  <span className="block truncate text-[11px] text-zinc-500">
-                    {f.dir} · {formatWhen(f.mtime)} · {(f.size / 1024).toFixed(1)} kB
-                  </span>
-                </span>
+                {busy ?? 'Choose folder…'}
               </button>
-            </li>
-          ))}
-          {filesLoaded && files.length === 0 && (
-            <li className="px-2 py-6 text-center text-sm text-zinc-500">
-              No strips found in <code className="text-zinc-400">strips/</code> or{' '}
-              <code className="text-zinc-400">composer/test/</code>.
-            </li>
-          )}
-        </ul>
+            )}
+
+            {loadError && <p className="mt-2 whitespace-pre-wrap text-xs text-rose-300">{loadError}</p>}
+          </div>
+        )}
+
+        {/* --- fixtures --------------------------------------------------- */}
+        {fixtures.length > 0 && (
+          <div className="flex items-center gap-2 px-0.5">
+            <span className="text-[11px] uppercase tracking-wide text-zinc-600">Fixtures</span>
+            <div className="flex flex-1 flex-wrap gap-1.5">
+              {fixtures.map((f) => (
+                <button
+                  key={f.path}
+                  type="button"
+                  onClick={() => openFile(f.path)}
+                  title={f.path}
+                  className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {filesLoaded && present.size === 0 && (
+          <p className="px-0.5 text-[11px] text-zinc-600">
+            No strips yet. Create one above, or run the <code>strip-design</code> skill against{' '}
+            <code>input/</code>.
+          </p>
+        )}
       </div>
     </div>
   )

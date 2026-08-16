@@ -29,9 +29,13 @@ import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import nodeFs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+
+import { deviceForSize, panelSizeFromHtml } from './src/editor/devices'
 
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
@@ -54,6 +58,24 @@ const STRIP_DIRS = ['strips', 'composer/test'] as const
 const STATIC_PREFIXES = ['/strips/', '/datasource/', '/composer/'] as const
 
 const API_PREFIX = '/__api/strip-editor/'
+
+/**
+ * Limits on a folder load. Generous, because a real strip folder carries five
+ * or more full-resolution captures; present so a mis-picked folder (a home
+ * directory, a node_modules) fails fast instead of filling the disk.
+ */
+const MAX_LOAD_FILES = 400
+const MAX_LOAD_BYTES = 300 * 1024 * 1024
+
+/** Staging for an in-flight folder load, outside the repo. */
+const LOAD_STAGE_ROOT = path.join(os.tmpdir(), 'strip-editor-load')
+
+/**
+ * Running totals per open stage, so the limits above apply to the *folder* and
+ * not merely to each file in it. Without this a thousand small files pass every
+ * individual check and still fill the disk.
+ */
+const loadStages = new Map<string, { files: number; bytes: number }>()
 
 /**
  * Device screen captures for the open strip: `strips/<name>/screenshots/`.
@@ -222,6 +244,9 @@ async function listStrips(): Promise<Array<{ path: string; name: string; dir: st
       // A strip folder: strips/<name>/strip.html. The *folder* names the strip,
       // so that is what the picker shows — every file would otherwise be called
       // "strip.html" and the list would be unreadable.
+      // Dot-directories are bookkeeping, not strips — `.load-backup-*` is one
+      // of ours, kept beside the target only for as long as a load is in doubt.
+      if (entry.name.startsWith('.')) continue
       if (entry.isDirectory()) {
         let inner: Dirent[]
         try {
@@ -488,6 +513,60 @@ function watchStrip(abs: string, req: IncomingMessage, res: ServerResponse): voi
  * ships through, run as a child process rather than reimplemented, so the
  * editor can never disagree with it about what an export looks like.
  */
+/**
+ * A relative path inside a staged upload, or `null` if it is not one.
+ *
+ * Rejects rather than sanitises. `../../etc/passwd` reduced to `passwd` would
+ * be written somewhere the client never named, and reporting that as a
+ * successful upload is worse than refusing it.
+ */
+function safeStageRel(raw: string | null): string | null {
+  if (!raw) return null
+  const rel = raw.replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!rel || rel.length > 400) return null
+  const parts = rel.split('/')
+  if (parts.some((seg) => !seg || seg === '.' || seg === '..' || seg.startsWith('.'))) return null
+  return parts.join('/')
+}
+
+function stageDir(id: string | null): string | null {
+  if (!id || !/^[a-f0-9]{16}$/.test(id)) return null
+  return path.join(LOAD_STAGE_ROOT, id)
+}
+
+/**
+ * Run the real structural checker against a strip that is already in place.
+ *
+ * `check-schema.mjs` is the validation — the same program the export and CI
+ * use. Writing a second checker here would measure something subtly different
+ * from what ships, which is the exact disagreement this editor exists to
+ * remove.
+ *
+ * It runs *after* the move, not before, and that ordering is deliberate: a
+ * strip references its captures as `/strips/<device>/screenshots/…`, so those
+ * paths only resolve once the folder is where it claims to be. Checking a
+ * staged copy would report every screenshot as missing.
+ */
+function checkSchema(relPath: string): Promise<{ ok: boolean; output: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(REPO_ROOT, 'composer', 'check-schema.mjs'), relPath], {
+      cwd: REPO_ROOT,
+    })
+    let out = ''
+    child.stdout.on('data', (d: Buffer) => (out += d.toString()))
+    child.stderr.on('data', (d: Buffer) => (out += d.toString()))
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 30_000)
+    child.on('error', (e) => {
+      clearTimeout(timeout)
+      resolve({ ok: false, output: `could not start check-schema.mjs: ${e.message}` })
+    })
+    child.on('close', (code) => {
+      clearTimeout(timeout)
+      resolve({ ok: code === 0, output: out.trim() })
+    })
+  })
+}
+
 async function runExport(abs: string): Promise<Record<string, unknown>> {
   const rel = toRepoRel(abs)
   // Renders land beside the strip they came from — strips/<name>/rendered/ —
@@ -650,6 +729,141 @@ export function editorApiPlugin(): Plugin {
         const stat = await fs.stat(abs)
         console.info(`[strip-editor] created ${toRepoRel(abs)}`)
         sendJson(res, 200, { ok: true, path: toRepoRel(abs), mtime: stat.mtime.toISOString() })
+        return
+      }
+
+      // --- POST /__api/strip-editor/load-begin -----------------------------
+      // A folder load arrives file by file (a browser cannot hand over a path,
+      // only contents), so it is staged outside the repo and committed as one
+      // unit. Nothing under strips/ changes until commit.
+      if (route === 'load-begin' && req.method === 'POST') {
+        const id = crypto.randomBytes(8).toString('hex')
+        await fs.mkdir(path.join(LOAD_STAGE_ROOT, id), { recursive: true })
+        loadStages.set(id, { files: 0, bytes: 0 })
+        sendJson(res, 200, { ok: true, stage: id })
+        return
+      }
+
+      // --- POST /__api/strip-editor/load-file?stage=&path= -----------------
+      if (route === 'load-file' && req.method === 'POST') {
+        const dir = stageDir(url.searchParams.get('stage'))
+        const rel = safeStageRel(url.searchParams.get('path'))
+        if (!dir || !rel) {
+          sendJson(res, 400, { ok: false, error: 'bad_stage_path' })
+          return
+        }
+        try {
+          await fs.access(dir)
+        } catch {
+          sendJson(res, 409, { ok: false, error: 'stage_expired' })
+          return
+        }
+        const tally = loadStages.get(path.basename(dir)) ?? { files: 0, bytes: 0 }
+        if (tally.files + 1 > MAX_LOAD_FILES) {
+          sendJson(res, 413, { ok: false, error: 'too_many_files', limit: MAX_LOAD_FILES })
+          return
+        }
+        const data = await receiveUpload(req, res)
+        if (!data) return // receiveUpload already answered
+        if (tally.bytes + data.length > MAX_LOAD_BYTES) {
+          sendJson(res, 413, { ok: false, error: 'folder_too_large', limit: MAX_LOAD_BYTES })
+          return
+        }
+        loadStages.set(path.basename(dir), { files: tally.files + 1, bytes: tally.bytes + data.length })
+        const dest = path.join(dir, rel)
+        await fs.mkdir(path.dirname(dest), { recursive: true })
+        await fs.writeFile(dest, data)
+        sendJson(res, 200, { ok: true, path: rel, bytes: data.length })
+        return
+      }
+
+      // --- POST /__api/strip-editor/load-commit?stage=[&replace=1] ---------
+      if (route === 'load-commit' && req.method === 'POST') {
+        const dir = stageDir(url.searchParams.get('stage'))
+        if (!dir) {
+          sendJson(res, 400, { ok: false, error: 'bad_stage' })
+          return
+        }
+        const cleanup = async (): Promise<void> => {
+          loadStages.delete(path.basename(dir))
+          await fs.rm(dir, { recursive: true, force: true })
+        }
+
+        let html: string
+        try {
+          html = await fs.readFile(path.join(dir, 'strip.html'), 'utf8')
+        } catch {
+          await cleanup()
+          sendJson(res, 422, { ok: false, error: 'no_strip_html' })
+          return
+        }
+
+        // The strip states its own device target, in its panel size. Deriving
+        // it here rather than asking means a folder cannot be filed under a
+        // device it was never built for.
+        const size = panelSizeFromHtml(html)
+        if (!size) {
+          await cleanup()
+          sendJson(res, 422, { ok: false, error: 'no_panel_size' })
+          return
+        }
+        const device = deviceForSize(size.width, size.height)
+        if (!device) {
+          await cleanup()
+          sendJson(res, 422, { ok: false, error: 'unknown_size', width: size.width, height: size.height })
+          return
+        }
+
+        const targetRel = `strips/${device.folder}`
+        const target = path.join(REPO_ROOT, targetRel)
+        let exists = true
+        try {
+          await fs.access(target)
+        } catch {
+          exists = false
+        }
+        if (exists && url.searchParams.get('replace') !== '1') {
+          // Do not clean up: the client is about to confirm and commit again.
+          sendJson(res, 409, { ok: false, error: 'exists', device: device.folder, path: `${targetRel}/` })
+          return
+        }
+
+        // Move the existing folder aside rather than deleting it, so a strip
+        // that fails the check can be put back exactly as it was. The dot
+        // prefix keeps it out of the strip list while it sits there.
+        const backup = exists ? path.join(REPO_ROOT, 'strips', `.load-backup-${device.folder}-${Date.now()}`) : null
+        if (backup) await fs.rename(target, backup)
+
+        try {
+          // cp, not rename: the stage lives in the OS temp dir, which is often
+          // a different filesystem, and rename across devices fails.
+          await fs.cp(dir, target, { recursive: true })
+          await cleanup()
+        } catch (e: unknown) {
+          await fs.rm(target, { recursive: true, force: true })
+          if (backup) await fs.rename(backup, target)
+          await cleanup()
+          sendJson(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) })
+          return
+        }
+
+        const stripRel = `${targetRel}/strip.html`
+        const check = await checkSchema(stripRel)
+        if (!check.ok) {
+          await fs.rm(target, { recursive: true, force: true })
+          if (backup) await fs.rename(backup, target)
+          sendJson(res, 422, { ok: false, error: 'check_failed', device: device.folder, output: check.output })
+          return
+        }
+
+        if (backup) await fs.rm(backup, { recursive: true, force: true })
+        sendJson(res, 200, {
+          ok: true,
+          path: stripRel,
+          device: device.folder,
+          label: device.label,
+          replaced: exists,
+        })
         return
       }
 

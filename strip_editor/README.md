@@ -17,8 +17,12 @@ step and nothing is converted.
 
 ## What it does
 
-**Open** any strip under `strips/` or `composer/test/`, or create a blank
-one (name, export preset, panel count). The document loads in a same-origin
+The landing screen is a row of the four device targets — `iphone`, `ipad`,
+`phone`, `tablet` — shown whether or not they exist. **Open** one that does;
+**create** a blank strip in one that does not (it asks only for a panel count);
+or **load** a strip folder in from anywhere on disk. There is no separate "new
+strip" control because the empty slot is the control: a strip's identity is its
+device, and the row already states it. The document loads in a same-origin
 iframe served at its repo path, so `/strips/…` and `/composer/…` resolve
 exactly as they do under `render.mjs` — including the device frames, which live
 in `composer/device-frames/`.
@@ -317,6 +321,9 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `PUT /__api/strip-editor/file?path=&expectMtime=` | ✅ atomic write, 409 on stale mtime |
 | `GET /__api/strip-editor/watch?path=` (SSE) | ✅ directory watch, debounced, mtime-carrying |
 | `POST /__api/strip-editor/export?path=` | ✅ spawns `render.mjs`, returns a JSON summary |
+| `POST /__api/strip-editor/load-begin` | ✅ opens a staging dir in the OS temp dir |
+| `POST /__api/strip-editor/load-file?stage=&path=` | ✅ one file into the stage; rejects `..`, absolute and dot paths |
+| `POST /__api/strip-editor/load-commit?stage=[&replace=1]` | ✅ derive device, move into place, `check-schema`, roll back on failure |
 | `POST /__api/strip-editor/validate?path=` | dropped — see P6 above |
 | `GET\|POST /__api/strip-editor/screenshots` | P4 |
 | `GET\|POST /__api/strip-editor/images` | ✅ |
@@ -326,6 +333,33 @@ editor just loads that runtime as-is rather than reimplementing it.
 
 Every path is jailed to the repo root; strip reads are further restricted to
 `.html` files under `strips/` (one level deep — `strips/<name>/strip.html`) and `composer/test/`.
+
+### Loading a folder
+
+A browser cannot hand the page a filesystem path, only file contents, so a load
+is always a **copy**: `webkitdirectory` gives the picked folder's files, the
+client drops `rendered/` and dotfiles, and each surviving file is posted into a
+staging directory outside the repo. Nothing under `strips/` changes until
+commit.
+
+**The device is measured, not asked.** `load-commit` reads the panel size out of
+the staged `strip.html` (`panelSizeFromHtml` in `src/editor/devices.ts`) and
+matches it against `DEVICE_TARGETS` — 1290×2796 is `strips/iphone/`. A size
+matching no target is refused with the measurement, because a strip filed under
+the wrong device exports at the wrong size and nothing notices until App Store
+Connect rejects it.
+
+`src/editor/devices.ts` is imported by **both** the UI and this plugin on
+purpose. Create writes a panel size from a device; load reads a device from a
+panel size. `test/device-targets.test.mjs` asserts that round trip for every
+target, against the real template and the real parser.
+
+Commit order is: move the existing folder aside → copy the stage into place →
+run `check-schema.mjs` **on the real path** → restore the backup if it fails.
+The check runs after the move because a strip references its captures as
+`/strips/<device>/screenshots/…`, so those paths only resolve once the folder is
+where it claims to be; checking a staged copy would report every screenshot
+missing.
 
 ## Known gaps
 

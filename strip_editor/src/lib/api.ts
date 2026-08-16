@@ -93,7 +93,15 @@ export async function createStrip(path: string, html: string): Promise<{ path: s
   })
   const body = (await res.json()) as { ok?: boolean; error?: string; path: string; mtime: string }
   if (!res.ok || body.ok === false) {
-    throw new Error(body.error === 'already_exists' ? 'A strip with that name already exists.' : (body.error ?? 'create failed'))
+    // Folders are named for the device target, so there are only a handful of
+    // possible names and a collision is routine rather than exotic. Name the
+    // folder and say what to do about it.
+    const folder = path.replace(/\/strip\.html$/, '/')
+    throw new Error(
+      body.error === 'already_exists'
+        ? `${folder} already exists — open it below, or delete the folder first.`
+        : (body.error ?? 'create failed'),
+    )
   }
   return { path: body.path, mtime: body.mtime }
 }
@@ -241,4 +249,125 @@ export function watchStrip(path: string, onEvent: (event: WatchEvent) => void): 
  */
 export function stripDocumentUrl(path: string, bust: number): string {
   return `${API_PREFIX}/raw?path=${encodeURIComponent(path)}&t=${bust}`
+}
+
+/**
+ * The target folder already holds a strip, and the caller has not said to
+ * replace it. Carries the stage so the confirmed retry does not re-upload:
+ * the files are already on the server, only the decision was missing.
+ */
+export class StripExistsError extends Error {
+  device: string
+  folder: string
+  stage: string
+
+  constructor(device: string, folder: string, stage: string) {
+    super(`${folder} already holds a strip`)
+    this.name = 'StripExistsError'
+    this.device = device
+    this.folder = folder
+    this.stage = stage
+  }
+}
+
+/** A file from a picked folder, with its path relative to that folder's root. */
+export interface FolderFile {
+  rel: string
+  file: File
+}
+
+export interface LoadResult {
+  path: string
+  device: string
+  label: string
+  replaced: boolean
+}
+
+/**
+ * Copy a strip folder from disk into `strips/<device>/`.
+ *
+ * The browser cannot hand over a filesystem path, only file contents, so this
+ * is always a copy: stage every file server-side, then commit the folder as one
+ * unit. Nothing under `strips/` changes until the commit, and the commit is
+ * atomic in the way that matters — if the schema check fails, whatever was
+ * there before is put back.
+ *
+ * Which device folder it lands in is not asked, it is measured: the server
+ * reads the strip's panel size and matches it to a target.
+ *
+ * @param stage reuse an existing stage instead of uploading again — the retry
+ *   path after {@link StripExistsError}.
+ */
+export async function loadStripFolder(
+  files: FolderFile[],
+  opts: { replace?: boolean; stage?: string; onProgress?: (done: number, total: number) => void } = {},
+): Promise<LoadResult> {
+  let stage = opts.stage
+  if (!stage) {
+    const begun = await fetch(`${API_PREFIX}/load-begin`, { method: 'POST' })
+    const body = (await begun.json()) as { ok?: boolean; stage?: string; error?: string }
+    if (!begun.ok || !body.stage) throw new Error(body.error ?? 'could not start the load')
+    stage = body.stage
+
+    let done = 0
+    for (const { rel, file } of files) {
+      const res = await fetch(`${API_PREFIX}/load-file?stage=${stage}&path=${encodeURIComponent(rel)}`, {
+        method: 'POST',
+        body: file,
+      })
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(`${rel}: ${err.error ?? `upload failed (${res.status})`}`)
+      }
+      opts.onProgress?.(++done, files.length)
+    }
+  }
+
+  const q = `stage=${stage}${opts.replace ? '&replace=1' : ''}`
+  const res = await fetch(`${API_PREFIX}/load-commit?${q}`, { method: 'POST' })
+  const body = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    path?: string
+    device?: string
+    label?: string
+    replaced?: boolean
+    width?: number
+    height?: number
+    output?: string
+  }
+
+  if (res.status === 409 && body.error === 'exists') {
+    throw new StripExistsError(body.device ?? '', body.path ?? '', stage)
+  }
+  if (!res.ok || body.ok === false) {
+    throw new Error(loadErrorMessage(body))
+  }
+  return {
+    path: body.path ?? '',
+    device: body.device ?? '',
+    label: body.label ?? '',
+    replaced: body.replaced ?? false,
+  }
+}
+
+/** Turn a commit failure into something that says what to do about it. */
+function loadErrorMessage(body: { error?: string; width?: number; height?: number; output?: string }): string {
+  switch (body.error) {
+    case 'no_strip_html':
+      return 'No strip.html at the top of that folder. Pick the folder that contains it, not its parent.'
+    case 'no_panel_size':
+      return 'Could not read a panel size from that strip. Panels need a CSS width and height in px on a .panel rule.'
+    case 'unknown_size':
+      return `Panels are ${body.width}×${body.height}, which matches no device target. Nothing was changed.`
+    case 'check_failed':
+      return `The strip failed check-schema, so the previous folder was put back:\n${body.output ?? ''}`
+    case 'too_many_files':
+    case 'folder_too_large':
+      return 'That folder is far larger than a strip. Check you picked the strip folder itself.'
+    case 'stage_expired':
+      return 'The upload expired. Pick the folder again.'
+    default:
+      return body.error ?? 'the load failed'
+  }
 }

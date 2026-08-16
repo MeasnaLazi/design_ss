@@ -11,6 +11,10 @@ strips/**
 strip_editor/node_modules/
 strip_editor/package-lock.json
 
+# Vite's production bundle. This project runs as a dev server; `npm run build`
+# exists to prove the app still compiles, and its output is not shipped.
+strip_editor/dist/
+
 # macOS Finder droppings.
 .DS_Store
 

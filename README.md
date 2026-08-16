@@ -15,7 +15,7 @@ Design by Claude! 🤖 ~ 17 minutes <br><br>
 
 The **[`strip_editor/`](strip_editor/)** (port 4714) opens a strip HTML file directly — no import step, no conversion, no second representation. It reads the file, edits it visually, and saves it back in place.
 
-- **Store-sized panels** — Panels are authored at the exact export size of the target preset (e.g. 1290×2796 for iPhone portrait). **New strip** scaffolds a blank, schema-conformant document.
+- **Store-sized panels** — Panels are authored at the exact export size of the target preset (e.g. 1290×2796 for iPhone portrait). **New strip** picks a device target and a panel count, then scaffolds a blank, schema-conformant document at `strips/<device>/strip.html` — the folder and the panel size both follow from the device, so there is no name to invent.
 - **Four layer kinds** — text, device, image, decor. Select, move, resize and restyle any of them; the layer tree is built from the `data-layer` attributes in the file.
 - **Device mockups** — SVG frame packs, each with one or more poses; real app screenshots are warped into the screen opening by homography and clipped to the pose's screen mask. What is available is whatever `composer/device-frames/` contains — see its [README](composer/device-frames/README.md).
 - **Agent-aware** — When something else writes the file, the editor reloads and puts itself in read-only agent mode, with a lease that lapses shortly after the last write. So an agent running the `strip-design` skill can design while you watch. See [The design skill](#the-design-skill).
@@ -113,7 +113,11 @@ npm install
 npm run dev
 ```
 
-Open a strip at **http://localhost:4714/?strip=strips/&lt;device&gt;/strip.html**, or use **New strip** to create a blank one. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
+Open a strip at **http://localhost:4714/?strip=strips/&lt;device&gt;/strip.html**, or use the landing screen. It shows the four device targets — `iphone`, `ipad`, `phone`, `tablet` — whether or not they exist: click one that does to open it, one that does not to create a blank strip there, or **Load strip** to copy a strip folder in from anywhere on disk. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
+
+**Load measures rather than asks.** A folder's panel size decides where it lands — 1290×2796 goes to `strips/iphone/` — and the strip is run through `check-schema.mjs` once it is in place; if it fails, whatever was there before is put back.
+
+Creating never overwrites: if `strips/iphone/` already exists the editor says so and leaves it alone. Loading over it asks first. A **design run does** replace it without asking, though — a strip you build by hand here is not protected from the next run of the skill, so copy the folder elsewhere if it is worth keeping.
 
 ### 2. Composer (HTML renderer)
 
