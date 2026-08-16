@@ -147,8 +147,32 @@ async function buildDevice(el) {
     `clip-path:path('${clipPathDFor(frame, quad, svgText)}');`
 
   const shotSrc = el.dataset.screenshot
+
+  // A screenshot that will not load fills the screen with the fallback colour
+  // instead of aborting the build.
+  //
+  // It used to throw, and because the frame artwork is appended *after* this
+  // block, the throw discarded the whole mockup — one missing capture and the
+  // device vanished, frame and all. That is at its worst while an agent designs
+  // with the editor open: the markup naming a capture is written before the
+  // capture is copied into place, every write reloads the canvas, and the user
+  // watches empty panels until the copy happens.
+  //
+  // **The error is still recorded.** Degrading is about pixels, not about
+  // silence: `noteError` feeds `window.__composerErrors`, `render.mjs` aborts
+  // the export when that array is non-empty, and `check-schema.mjs` catches the
+  // same thing from source text. A missing capture must never ship as a
+  // deliberate-looking blank screen.
+  let img = null
   if (shotSrc) {
-    const img = await loadImage(shotSrc)
+    try {
+      img = await loadImage(shotSrc)
+    } catch (err) {
+      noteError(el, err)
+    }
+  }
+
+  if (img) {
     const w = img.naturalWidth
     const h = img.naturalHeight
     const fit = el.dataset.fit ?? 'cover'
@@ -183,15 +207,23 @@ async function buildDevice(el) {
   el.appendChild(stage)
 }
 
+/**
+ * Record a build failure without deciding whether it is fatal.
+ *
+ * Two callers with different intents share it: {@link initDevices} catches what
+ * stopped a device being built at all, and the screenshot load catches what
+ * merely spoiled its screen. Both must reach `window.__composerErrors`, because
+ * that array is what `render.mjs` checks before it will export anything.
+ */
+function noteError(el, err) {
+  console.error('[composer]', err)
+  el.style.outline = '4px solid red'
+  window.__composerErrors = [...(window.__composerErrors ?? []), String(err)]
+}
+
 export async function initDevices() {
   const els = [...document.querySelectorAll('[data-device]')]
-  await Promise.all(els.map((el) =>
-    buildDevice(el).catch((err) => {
-      console.error('[composer]', err)
-      el.style.outline = '4px solid red'
-      window.__composerErrors = [...(window.__composerErrors ?? []), String(err)]
-    }),
-  ))
+  await Promise.all(els.map((el) => buildDevice(el).catch((err) => noteError(el, err))))
   await document.fonts.ready
   window.__composerReady = true
 }

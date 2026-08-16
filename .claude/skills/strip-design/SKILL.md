@@ -282,7 +282,11 @@ Nothing needs to be running. Rendering and review are entirely offline.
    panels and what each one claims are inputs to the set rhythm, not decorations
    applied afterwards.
 3. **Choose the concept, and say it** — see below.
-4. **Edit** the HTML.
+4. **Put the assets in place, then edit** the HTML. Copy the captures you will
+   use into `strips/<device>/screenshots/` and write any artwork into
+   `strips/<device>/images/` *before* writing markup that names them — each
+   write reloads the editor, and a reference to a file that is not there yet
+   renders as a broken device while the user watches.
 5. **Check the structure** — no browser, so it costs nothing and catches the
    mistakes that would otherwise waste a render:
 
