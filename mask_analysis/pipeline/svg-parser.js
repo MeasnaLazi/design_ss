@@ -30,8 +30,13 @@ export function parseSVG(svgText) {
   if (!screenPath) {
     throw new Error('No element with id="screen" found in SVG.');
   }
-  if (screenPath.tagName.toLowerCase() !== 'path') {
-    console.warn('[svg-parser] #screen element is not a <path>; proceeding anyway.');
+  const screenTag = screenPath.tagName.toLowerCase();
+  if (screenTag === 'rect') {
+    // Downstream sampling only reads the `d` attribute, so synthesize an
+    // equivalent path (rounded corners included) and stash it there.
+    screenPath.setAttribute('d', rectToPathD(screenPath));
+  } else if (screenTag !== 'path') {
+    console.warn('[svg-parser] #screen element is not a <path> or <rect>; proceeding anyway.');
   }
 
   // Resolve accumulated transform from root → screenPath
@@ -41,6 +46,48 @@ export function parseSVG(svgText) {
   const viewBox = parseViewBox(svgElement);
 
   return { svgElement, screenPath, worldMatrix, viewBox };
+}
+
+/**
+ * Build a path `d` string equivalent to a `<rect>` (honoring `rx`/`ry`),
+ * clockwise from top-left, so it samples like any other #screen path.
+ * Rounded corners use cubic Béziers rather than arcs — sampleScreenPath()
+ * only samples arc endpoints, not the curve itself.
+ *
+ * @param {SVGRectElement} rect
+ * @returns {string}
+ */
+function rectToPathD(rect) {
+  const x = parseFloat(rect.getAttribute('x')) || 0;
+  const y = parseFloat(rect.getAttribute('y')) || 0;
+  const width = parseFloat(rect.getAttribute('width')) || 0;
+  const height = parseFloat(rect.getAttribute('height')) || 0;
+
+  const rxAttr = rect.getAttribute('rx');
+  const ryAttr = rect.getAttribute('ry');
+  let rx = rxAttr !== null ? parseFloat(rxAttr) : (ryAttr !== null ? parseFloat(ryAttr) : 0);
+  let ry = ryAttr !== null ? parseFloat(ryAttr) : rx;
+  rx = Math.min(rx, width / 2);
+  ry = Math.min(ry, height / 2);
+
+  if (!(rx > 0) || !(ry > 0)) {
+    return `M${x},${y} L${x + width},${y} L${x + width},${y + height} L${x},${y + height} Z`;
+  }
+
+  const k = 0.5522847498; // cubic-Bézier circle approximation constant
+  const rxK = rx * k, ryK = ry * k;
+  return [
+    `M${x + rx},${y}`,
+    `L${x + width - rx},${y}`,
+    `C${x + width - rx + rxK},${y} ${x + width},${y + ry - ryK} ${x + width},${y + ry}`,
+    `L${x + width},${y + height - ry}`,
+    `C${x + width},${y + height - ry + ryK} ${x + width - rx + rxK},${y + height} ${x + width - rx},${y + height}`,
+    `L${x + rx},${y + height}`,
+    `C${x + rx - rxK},${y + height} ${x},${y + height - ry + ryK} ${x},${y + height - ry}`,
+    `L${x},${y + ry}`,
+    `C${x},${y + ry - ryK} ${x + rx - rxK},${y} ${x + rx},${y}`,
+    'Z',
+  ].join(' ');
 }
 
 /**

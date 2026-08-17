@@ -647,8 +647,6 @@ ${JSON.stringify({
           cornersForRender,
           outputCanvas,
         );
-        outputCanvas.style.width = `${viewBox.width}px`;
-        outputCanvas.style.height = `${viewBox.height}px`;
         outSection.classList.remove('hidden');
         const dataUrl = outputCanvas.toDataURL('image/png');
         downloadLink.href = dataUrl;

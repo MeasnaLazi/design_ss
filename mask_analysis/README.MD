@@ -18,7 +18,7 @@ Use it to validate screen geometry, export corner coordinates as JSON, and produ
 ### Requirements for your SVG
 
 - Root `<svg>` with a `viewBox` (or `width` / `height`).
-- A `<path>` (or element) with **`id="screen"`** — the screen region to fill.
+- A `<path>` or `<rect>` (rounded corners via `rx`/`ry` are honored) with **`id="screen"`** — the screen region to fill. Other shapes (`circle`, `ellipse`, `polygon`, …) are not converted and will sample as empty.
 - Optional: ancestor `transform` attributes (`matrix`, `translate`, `scale`, `rotate`, `skewX`, `skewY`) are applied when sampling the path.
 
 ## How to use
