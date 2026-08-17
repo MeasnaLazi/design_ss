@@ -10,10 +10,11 @@ import {
   listScreenshots,
   uploadScreenshot,
 } from '../lib/api'
+import { deviceForStripPath } from '../editor/devices'
 import { getElement } from '../editor/blockRegistry'
 import { useEditorStore } from '../store/useEditorStore'
 import type { BlockReadout } from '../editor/blockRegistry'
-import type { DevicePose, ScreenshotFile } from '../lib/api'
+import type { DevicePack, DevicePose, ScreenshotFile } from '../lib/api'
 
 /**
  * Device block controls.
@@ -203,13 +204,31 @@ function ScreenshotPicker({
 }
 
 export function DeviceControls({ r }: { r: BlockReadout }): React.ReactElement | null {
-  const [packs, setPacks] = useState<string[]>([])
+  const [packs, setPacks] = useState<DevicePack[]>([])
   const [busy, setBusy] = useState(false)
   const [rebuildError, setRebuildError] = useState<string | null>(null)
+  const filePath = useEditorStore((s) => s.filePath)
 
   useEffect(() => {
     listDevicePacks().then(setPacks).catch(() => setPacks([]))
   }, [])
+
+  // Offer the mockups that belong to the strip being edited: a pack's `type` in
+  // index.json is a `strips/` folder name, so an iPad strip lists iPad packs.
+  //
+  // The mismatch this prevents is not cosmetic. Screen quads differ by aspect —
+  // the iPhone front pose is 0.463 — and `data-fit="cover"` crops the capture to
+  // fit, so an iPad screenshot (0.750) in an iPhone frame silently loses 38% of
+  // its width.
+  //
+  // **Falling back to every pack when nothing matches is the important half.**
+  // A `phone` or `tablet` strip has no pack of its own today, and a select with
+  // no options is a dead end: you could not even see what the block is set to,
+  // let alone change it.
+  const target = filePath ? deviceForStripPath(filePath) : null
+  const matching = target ? packs.filter((p) => p.type === target.folder) : []
+  const offered = matching.length > 0 ? matching : packs
+  const showingAll = matching.length === 0 && packs.length > 0 && target !== null
 
   const el = getElement(r.node.id)
   if (!r.device || !el) return null
@@ -235,14 +254,26 @@ export function DeviceControls({ r }: { r: BlockReadout }): React.ReactElement |
             onChange={(e) => void setAttr('data-pack', e.target.value)}
             className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-100"
           >
-            {packs.length === 0 && <option value={d.pack ?? ''}>{d.pack ?? 'unknown'}</option>}
-            {packs.map((p) => (
-              <option key={p} value={p}>
-                {p}
+            {offered.length === 0 && <option value={d.pack ?? ''}>{d.pack ?? 'unknown'}</option>}
+            {/* The current pack always stays selectable, even when it is not one
+                the strip's target would offer — otherwise opening a strip whose
+                pack was filtered out would silently show a different one. */}
+            {d.pack && !offered.some((p) => p.id === d.pack) && (
+              <option value={d.pack}>{d.pack} (not a {target?.short ?? 'matching'} pack)</option>
+            )}
+            {offered.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name ? `${p.id} — ${p.name}` : p.id}
               </option>
             ))}
           </select>
         </Row>
+        {showingAll && (
+          <p className="mt-1.5 text-[11px] leading-snug text-zinc-500">
+            No {target?.short} pack exists yet, so every pack is listed. A mockup from another device will crop this
+            panel&rsquo;s captures to its own screen aspect.
+          </p>
+        )}
         {!d.built && (
           <p className="mt-1.5 flex items-start gap-1.5 rounded bg-amber-950/60 px-2 py-1.5 text-[11px] leading-snug text-amber-300">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />

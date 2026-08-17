@@ -63,7 +63,15 @@ export const KIND_COLOR: Record<NodeKind, string> = {
  * Positions are given by the caller so a new block lands somewhere visible in
  * the target panel rather than at its origin under existing content.
  */
-export type InsertSpec = { kind: LayerKind; role?: TextRole; left: number; top: number; screenshot?: string }
+export type InsertSpec = {
+  kind: LayerKind
+  role?: TextRole
+  left: number
+  top: number
+  screenshot?: string
+  /** Frame pack for a device block. Defaults to the one pack that has always shipped. */
+  pack?: string
+}
 
 /**
  * Stand-in source for a newly inserted image block.
@@ -98,7 +106,7 @@ export function blockTemplate(spec: InsertSpec): string {
     case 'device': {
       const shot = spec.screenshot ? ` data-screenshot="${spec.screenshot}"` : ''
       return (
-        `<div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"` +
+        `<div data-layer="device" data-device data-pack="${spec.pack ?? 'iphone_12_pro'}" data-pose="front"` +
         `${shot} data-screen-fallback="#0c0c0a" style="${at} width:900px;"></div>`
       )
     }

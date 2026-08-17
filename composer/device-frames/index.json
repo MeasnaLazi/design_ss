@@ -4,6 +4,11 @@
       "name": "iPhone 12 Pro",
       "type": "iphone",
       "path": "/device-frames/iphone_12_pro/frame.json"
+    },
+    {
+      "name": "iPad 13 Pro",
+      "type": "ipad",
+      "path": "/device-frames/ipad_13_pro/frame.json"
     }
   ]
 }

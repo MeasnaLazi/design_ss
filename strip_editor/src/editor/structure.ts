@@ -96,7 +96,7 @@ export type StructureResult = { nodeId: string | null; error?: string }
 export async function insertBlock(
   panelId: string,
   kind: InsertSpec['kind'],
-  options: { role?: InsertSpec['role']; screenshot?: string } = {},
+  options: { role?: InsertSpec['role']; screenshot?: string; pack?: string } = {},
 ): Promise<StructureResult> {
   const panel = getElement(panelId)
   if (!panel) return { nodeId: null, error: 'panel not found' }
@@ -106,6 +106,7 @@ export async function insertBlock(
     kind,
     role: options.role,
     screenshot: options.screenshot,
+    pack: options.pack,
     left: Math.round(rect.width * 0.12),
     top: Math.round(rect.height * 0.4),
   }

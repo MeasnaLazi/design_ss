@@ -178,12 +178,24 @@ export async function listDevicePoses(pack: string): Promise<DevicePose[]> {
   return json.frames
 }
 
-export async function listDevicePacks(): Promise<string[]> {
+/**
+ * A frame pack as the catalogue describes it.
+ *
+ * `type` is the contract that lets the editor offer the right mockups for the
+ * strip being edited: **it must equal a folder name under `strips/`** —
+ * `iphone`, `ipad`, `phone`, `tablet`. A pack typed anything else still works,
+ * it simply never matches a strip and so is only reachable as a fallback.
+ */
+export type DevicePack = { id: string; name: string; type: string }
+
+export async function listDevicePacks(): Promise<DevicePack[]> {
   const res = await fetch(`${FRAMES_ROOT}/device-frames/index.json`)
   if (!res.ok) return []
-  const json = (await res.json()) as { devices: Array<{ path: string }> }
-  // `path` looks like /device-frames/<pack>/frame.json — the pack id is the folder.
-  return json.devices.map((d) => d.path.split('/').filter(Boolean)[1]).filter(Boolean)
+  const json = (await res.json()) as { devices: Array<{ path: string; name?: string; type?: string }> }
+  return json.devices
+    // `path` looks like /device-frames/<pack>/frame.json — the pack id is the folder.
+    .map((d) => ({ id: d.path.split('/').filter(Boolean)[1], name: d.name ?? '', type: d.type ?? '' }))
+    .filter((d) => Boolean(d.id))
 }
 
 export function getMode(): Promise<EditorMode> {

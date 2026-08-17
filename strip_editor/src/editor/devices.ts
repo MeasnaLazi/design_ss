@@ -115,6 +115,24 @@ export function stripDisplayName(stripPath: string): string {
   return stripPath.split('/').pop() || stripPath
 }
 
+/**
+ * The frame pack a new device block on `folder`'s strip should use.
+ *
+ * Matching is by the pack's `type`, which the catalogue sets to a `strips/`
+ * folder name — that is the whole contract between `index.json` and this table.
+ *
+ * Falls back to the first pack in the catalogue rather than nothing: a block
+ * with an unknown `data-pack` does not build at all, so *some* mockup beats a
+ * device-shaped hole, and the inspector says plainly when the pack does not
+ * match the strip.
+ *
+ * @param packs the catalogue, as `listDevicePacks()` returns it.
+ * @returns a pack id, or `null` when the catalogue is empty.
+ */
+export function packForTarget(packs: ReadonlyArray<{ id: string; type: string }>, folder: string): string | null {
+  return packs.find((p) => p.type === folder)?.id ?? packs[0]?.id ?? null
+}
+
 export function deviceForPreset(preset: string): DeviceTarget | null {
   return DEVICE_TARGETS.find((d) => d.preset === preset) ?? null
 }

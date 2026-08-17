@@ -6,7 +6,9 @@
  * positional ids would shift, but `indexStrip` reuses the id each element
  * already carries, so pending edits keyed by id keep pointing at the same block.
  */
+import { deviceForStripPath, packForTarget } from './devices'
 import { docRectOf } from './blockRegistry'
+import { listDevicePacks } from '../lib/api'
 import { duplicateBlock, insertBlock, removeBlock, reorderBlock } from './structure'
 import { getStageIframe, getStageScroller } from './stageRef'
 import { reindexLive } from './reindex'
@@ -57,10 +59,29 @@ export function targetPanelId(): string | null {
   return firstPanel?.id ?? null
 }
 
+/**
+ * The pack a device block inserted into *this* strip should start on.
+ *
+ * Asked at insert time rather than baked into the template, because the answer
+ * depends on which strip is open: an iPad strip wants an iPad mockup, and a
+ * hard-coded `iphone_12_pro` was right only while that was the only pack.
+ */
+async function packForThisStrip(): Promise<string | undefined> {
+  const { filePath } = useEditorStore.getState()
+  const target = filePath ? deviceForStripPath(filePath) : null
+  if (!target) return undefined
+  try {
+    return packForTarget(await listDevicePacks(), target.folder) ?? undefined
+  } catch {
+    return undefined // catalogue unreachable; the template's own default stands
+  }
+}
+
 export async function addBlock(kind: InsertSpec['kind'], role?: InsertSpec['role']): Promise<void> {
   const panelId = targetPanelId()
   if (!panelId) return
-  const { nodeId, error } = await insertBlock(panelId, kind, { role })
+  const pack = kind === 'device' ? await packForThisStrip() : undefined
+  const { nodeId, error } = await insertBlock(panelId, kind, { role, pack })
   reindexLive()
   if (nodeId) {
     useEditorStore.getState().select(nodeId)

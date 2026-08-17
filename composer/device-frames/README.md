@@ -29,6 +29,24 @@ from `frame.json`, so what it offers is always current.
 
 A pack may ship a single pose. That is a normal state, not an incomplete one.
 
+### `type` is a contract, not a label
+
+`index.json` gives every pack a `type`, and it **must be the name of a folder
+under `strips/`** — `iphone`, `ipad`, `phone`, `tablet`.
+
+That is how the editor offers the right mockups for the strip being edited: open
+an iPad strip and the pack select lists iPad packs. A pack typed anything else
+still renders perfectly well, it simply never matches a strip, so it appears
+only as a fallback when nothing else does.
+
+The mismatch this exists to prevent is not cosmetic. Screen quads differ by
+aspect — the `iphone_12_pro` `front` pose is 0.463 — and `data-fit="cover"`
+crops the capture to fit, so an iPad screenshot at 0.750 dropped into an iPhone
+frame silently loses **38% of its width**.
+
+`strip_editor/test/device-targets.test.mjs` asserts that every pack in the
+catalogue types itself as a real target and that the folder it names exists.
+
 ### Which file owns which fact
 
 | Fact | Source of truth |

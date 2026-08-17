@@ -14,7 +14,7 @@
  * Run: node test/device-targets.test.mjs   (from strip_editor/)
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import assert from 'node:assert/strict'
 import path from 'node:path'
@@ -49,6 +49,7 @@ const {
   deviceForSize,
   deviceForFolder,
   deviceForStripPath,
+  packForTarget,
   panelSizeFromHtml,
   retargetStripAssets,
   stripDisplayName,
@@ -199,6 +200,43 @@ check('a fixture falls back to its filename, never a wrong device', () => {
 check('an unknown strips/ folder is not claimed by a device', () => {
   assert.equal(deviceForStripPath('strips/bio/strip.html'), null)
   assert.equal(stripDisplayName('strips/bio/strip.html'), 'strip.html')
+})
+
+// --- frame packs ------------------------------------------------------------
+
+check('the shipped catalogue types every pack as a real device target', () => {
+  const index = JSON.parse(readFileSync(path.join(REPO, 'composer/device-frames/index.json'), 'utf8'))
+  for (const d of index.devices) {
+    assert.ok(
+      deviceForFolder(d.type),
+      `pack "${d.name}" has type "${d.type}", which is not a strips/ folder — it will never match a strip`,
+    )
+  }
+})
+
+check('every pack in the catalogue exists on disk', () => {
+  const index = JSON.parse(readFileSync(path.join(REPO, 'composer/device-frames/index.json'), 'utf8'))
+  for (const d of index.devices) {
+    const id = d.path.split('/').filter(Boolean)[1]
+    const frameJson = path.join(REPO, 'composer/device-frames', id, 'frame.json')
+    assert.ok(existsSync(frameJson), `catalogue lists "${id}" but ${id}/frame.json is missing`)
+  }
+})
+
+check('a pack is chosen by type, not by position', () => {
+  const packs = [
+    { id: 'iphone_12_pro', type: 'iphone' },
+    { id: 'ipad_13_pro', type: 'ipad' },
+  ]
+  assert.equal(packForTarget(packs, 'ipad'), 'ipad_13_pro')
+  assert.equal(packForTarget(packs, 'iphone'), 'iphone_12_pro')
+})
+
+check('an unmatched target falls back to a pack rather than nothing', () => {
+  const packs = [{ id: 'iphone_12_pro', type: 'iphone' }]
+  // A device block with no pack does not build at all, so some mockup beats none.
+  assert.equal(packForTarget(packs, 'tablet'), 'iphone_12_pro')
+  assert.equal(packForTarget([], 'iphone'), null)
 })
 
 rmSync(out, { recursive: true, force: true })
