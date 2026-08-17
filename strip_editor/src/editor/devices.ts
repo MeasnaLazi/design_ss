@@ -23,7 +23,15 @@ export interface DeviceTarget {
   readonly preset: string
   /** The folder under `strips/`. */
   readonly folder: string
+  /** Full name, for pickers where the store and size matter. */
   readonly label: string
+  /**
+   * The device, cased as its maker writes it, for places already carrying the
+   * context — a title bar, a breadcrumb. `strips/ipad/strip.html` says nothing
+   * a person needs while they are looking at the strip; `iPad` says the part
+   * they do.
+   */
+  readonly short: string
   readonly width: number
   readonly height: number
 }
@@ -32,6 +40,7 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
   {
     preset: 'appstore_iphone_portrait',
     folder: 'iphone',
+    short: 'iPhone',
     label: 'App Store · iPhone 6.7" portrait',
     width: 1290,
     height: 2796,
@@ -39,6 +48,7 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
   {
     preset: 'appstore_ipad_portrait',
     folder: 'ipad',
+    short: 'iPad',
     label: 'App Store · iPad 12.9" portrait',
     width: 2048,
     height: 2732,
@@ -46,6 +56,7 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
   {
     preset: 'play_phone_portrait',
     folder: 'phone',
+    short: 'Phone',
     label: 'Play Store · phone portrait',
     width: 1080,
     height: 1920,
@@ -53,6 +64,7 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
   {
     preset: 'play_tablet_portrait',
     folder: 'tablet',
+    short: 'Tablet',
     label: 'Play Store · 10" tablet portrait',
     width: 1600,
     height: 2560,
@@ -76,6 +88,33 @@ export function deviceForFolder(folder: string): DeviceTarget | null {
   return DEVICE_TARGETS.find((d) => d.folder === folder) ?? null
 }
 
+/**
+ * The target a repo-relative strip path belongs to, or `null`.
+ *
+ * `strips/ipad/strip.html` → the iPad target. Anything else — a flat fixture
+ * under `composer/test/`, a folder that is not a known target — is `null`, and
+ * the caller should fall back to something derived from the path rather than
+ * claim a device the file never named.
+ */
+export function deviceForStripPath(stripPath: string): DeviceTarget | null {
+  const parts = stripPath.replace(/^\/+/, '').split('/')
+  if (parts.length < 2 || parts[0] !== 'strips') return null
+  return deviceForFolder(parts[1])
+}
+
+/**
+ * What to call an open strip in the title bar.
+ *
+ * The device when the path names one, the filename otherwise. Never the full
+ * path: it is four segments of which three never change, and the one that does
+ * is already the answer.
+ */
+export function stripDisplayName(stripPath: string): string {
+  const device = deviceForStripPath(stripPath)
+  if (device) return device.short
+  return stripPath.split('/').pop() || stripPath
+}
+
 export function deviceForPreset(preset: string): DeviceTarget | null {
   return DEVICE_TARGETS.find((d) => d.preset === preset) ?? null
 }
@@ -91,22 +130,6 @@ export function deviceForSize(width: number, height: number): DeviceTarget | nul
   return DEVICE_TARGETS.find((d) => d.width === width && d.height === height) ?? null
 }
 
-/**
- * The panel size a strip document declares, read from its source text.
- *
- * A strip states its device target in exactly one place — the CSS `width` and
- * `height` on its `.panel` rule — so that rule is what identifies the strip when
- * it arrives from outside the repo. Later rules win, as they do in CSS.
- *
- * This is a text scan, not a browser, and it therefore only sees panel size
- * expressed the way the schema writes it: pixel `width`/`height` in a rule whose
- * selector names `.panel`. A strip that sizes its panels some other way — inline
- * styles, a different class, a custom property — reads as `null`, and the right
- * response to `null` is to refuse and say what was looked for. Guessing a device
- * for a strip we could not measure is how a file ends up in the wrong folder.
- *
- * @returns the measured size, or `null` if the document does not state one.
- */
 /**
  * Point every `/strips/…/` reference in a document at `folder`.
  *
@@ -138,6 +161,22 @@ export function retargetStripAssets(html: string, folder: string): { html: strin
   return { html: next, changed }
 }
 
+/**
+ * The panel size a strip document declares, read from its source text.
+ *
+ * A strip states its device target in exactly one place — the CSS `width` and
+ * `height` on its `.panel` rule — so that rule is what identifies the strip when
+ * it arrives from outside the repo. Later rules win, as they do in CSS.
+ *
+ * This is a text scan, not a browser, and it therefore only sees panel size
+ * expressed the way the schema writes it: pixel `width`/`height` in a rule whose
+ * selector names `.panel`. A strip that sizes its panels some other way — inline
+ * styles, a different class, a custom property — reads as `null`, and the right
+ * response to `null` is to refuse and say what was looked for. Guessing a device
+ * for a strip we could not measure is how a file ends up in the wrong folder.
+ *
+ * @returns the measured size, or `null` if the document does not state one.
+ */
 export function panelSizeFromHtml(html: string): { width: number; height: number } | null {
   let width: number | null = null
   let height: number | null = null

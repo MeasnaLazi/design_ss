@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Frame, ImageDown, Keyboard, Loader2, Maximize2, Minus, Plus, Redo2, RotateCw, Save, Undo2, WifiOff, X } from 'lucide-react'
+import { Frame, Home, ImageDown, Keyboard, Loader2, Maximize2, Minus, Plus, Redo2, RotateCw, Save, Undo2, WifiOff, X } from 'lucide-react'
 
 import { AddMenu } from './AddMenu'
+import { stripDisplayName } from '../editor/devices'
 import { ZOOM_STEPS, useEditorStore } from '../store/useEditorStore'
 import { canRedo, canUndo, isDirty, useHistoryStore } from '../store/useHistoryStore'
 import { redo, redoLabel, undo, undoLabel } from '../editor/undoRedo'
@@ -157,8 +158,22 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3">
+      <IconButton onClick={() => confirmDiscard(closeFile)} title="All strips">
+        <Home size={15} />
+      </IconButton>
       <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-sm font-medium text-zinc-200">{filePath ?? 'Strip Editor'}</span>
+        {/*
+          The device, not the path. `strips/ipad/strip.html` is four segments of
+          which three are the same on every strip; the one that differs is the
+          device, and that is the whole of what the title has to say. The full
+          path stays in the tooltip for when it is actually wanted.
+        */}
+        <span
+          title={filePath ?? undefined}
+          className="truncate text-sm font-medium text-zinc-200"
+        >
+          {filePath ? stripDisplayName(filePath) : 'Strip Editor'}
+        </span>
         {geometry && (
           <span className="shrink-0 text-xs text-zinc-500">
             {geometry.panels.length} panels · {nodes.filter((n) => n.kind !== 'panel').length} layers · {geometry.width}×

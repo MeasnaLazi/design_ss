@@ -44,9 +44,15 @@ try {
   if (!e.stdout?.toString().includes('error TS')) throw e
 }
 
-const { DEVICE_TARGETS, deviceForSize, deviceForFolder, panelSizeFromHtml, retargetStripAssets } = await import(
-  path.join(out, 'devices.js')
-)
+const {
+  DEVICE_TARGETS,
+  deviceForSize,
+  deviceForFolder,
+  deviceForStripPath,
+  panelSizeFromHtml,
+  retargetStripAssets,
+  stripDisplayName,
+} = await import(path.join(out, 'devices.js'))
 const { blankStripTemplate } = await import(path.join(out, 'schema.js'))
 
 let failures = 0
@@ -169,6 +175,30 @@ check('every device target is a valid retarget destination', () => {
     assert.equal(r.changed, 1)
     assert.ok(r.html.includes(`/strips/${t.folder}/screenshots/a.png`))
   }
+})
+
+// --- the title-bar name -----------------------------------------------------
+
+check('a strip path resolves to its device', () => {
+  for (const t of DEVICE_TARGETS) {
+    assert.equal(deviceForStripPath(`strips/${t.folder}/strip.html`)?.folder, t.folder)
+    assert.equal(stripDisplayName(`strips/${t.folder}/strip.html`), t.short)
+  }
+})
+
+check('every target has a distinct display name', () => {
+  const shorts = DEVICE_TARGETS.map((d) => d.short)
+  assert.equal(new Set(shorts).size, shorts.length, 'two targets would show the same title')
+})
+
+check('a fixture falls back to its filename, never a wrong device', () => {
+  assert.equal(deviceForStripPath('composer/test/bio-strip.html'), null)
+  assert.equal(stripDisplayName('composer/test/bio-strip.html'), 'bio-strip.html')
+})
+
+check('an unknown strips/ folder is not claimed by a device', () => {
+  assert.equal(deviceForStripPath('strips/bio/strip.html'), null)
+  assert.equal(stripDisplayName('strips/bio/strip.html'), 'strip.html')
 })
 
 rmSync(out, { recursive: true, force: true })
