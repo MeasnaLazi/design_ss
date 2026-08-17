@@ -1,0 +1,19 @@
+{
+  "frames": [
+    {
+      "name": "front",
+      "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
+      "framePath": "/device-frames/ipad_13_pro/frame/front.svg",
+      "homography": false,
+      "viewWidth": 2048.4,
+      "viewHeight": 2732.3,
+      "layoutScale": 0.75,
+      "corners": {
+        "TL": [107.1, 111.3],
+        "TR": [2133.8, 111.1],
+        "BR": [2134.2, 2821.8],
+        "BL": [107.2, 2820.8]
+      }
+    }
+  ]
+}
