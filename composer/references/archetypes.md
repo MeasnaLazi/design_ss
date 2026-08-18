@@ -86,7 +86,11 @@ opinions below.
   that.
   ([Sensor Tower](https://sensortower.com/blog/case-study-how-a-slash-b-testing-can-improve-your-apps-conversion-rates))
 - **Top-stacked short headlines tend to outperform bottom captions.** This is a
-  finding on Axis 4, which otherwise treats placement as a free choice.
+  finding on Axis 4, which otherwise treats placement as a free choice. (Uncited
+  — repeated across ASO writing rather than tied to one study; hold it a shade
+  looser than the numbered claims above. Bottom captions also risk being cropped
+  in some store placements, which may explain the pattern better than reading
+  order does.)
 - **Outcome-driven headlines beat feature-driven ones** — "Save an hour every
   day" over "Smart scheduling engine".
 - Screenshot optimisation overall is reported at **20–35% conversion lift**.
@@ -261,6 +265,15 @@ same frame square and centred.
   strips have become standard for anything with a dark mode, and showing dark
   mode is close to expected now.
 
+**CONVENTION · the store page behind the panels.** The panels sit on a page that
+is white or near-black depending on the viewer's theme, and you do not get to
+pick which. A pure-white `flat` panel dissolves into the light store page — no
+edge, no object, just floating type — and a near-black one does the same in dark
+mode. Either commit to a ground that separates from both, or keep the
+composition contained enough that the panel still reads when its own edges
+vanish. Check the render against both a white and a near-black surround, not
+against the editor's neutral grey.
+
 ## Axis 7 · Palette strategy
 
 - Brand colour + neutral ground + dark ink — the default
@@ -430,6 +443,38 @@ Frequently forgotten, and it changes a strip more than decor does.
   thumbnail size. (Check store rules: it must still represent the actual app.)
 - Content chosen for the panel's claim rather than whatever was on screen — a
   capture showing a *full* week of data argues better than an empty state
+- Populated with plausible content — human names, believable entries, sensible
+  numbers. "Test test" and lorem in a shipped panel say nobody looked.
+- Status-bar hygiene — full signal, full battery, a clean time (Apple's own
+  marketing uses 9:41). A 3% battery at 2:47am is a story the panel did not
+  mean to tell.
+
+## Axis 10 · Social proof
+
+The axis this file forgot. A strip argues; proof closes. A rating, a quote or an
+award is the one block on the panel the viewer knows the developer did not write
+about themselves — which is why it converts, and why inventing one is punished.
+
+- **RULE-adjacent** — proof must be real: a rating the app actually holds, a
+  review that actually exists, an award actually received. Fabricated praise is
+  a review risk on top of a trust risk. And the
+  [App Store Marketing Guidelines](https://developer.apple.com/app-store/marketing/guidelines/)
+  govern Apple imagery — no App Store badges, Apple logos or Apple UI drawn into
+  a panel.
+- **Forms, cheapest first** — star row with the number ("4.8 ★") · user count
+  ("Join 200k journalers") · one short review quote, attributed the way stores
+  attribute them ("— App Store review") · laurel or award mark · "Featured by"
+  only when true.
+- **OPINION · dose and placement** — one proof element per set is the
+  professional dose. It belongs on panel 3 or 4, after the argument has been
+  made; panel 0's job is fixed by the CONVENTION section above, and a rating
+  cannot do that job. The exception that works: a small rating badge tucked
+  under panel 0's headline, because it does not compete for the same read.
+- A quote is a headline-mechanics problem (Axis 5): keep it under ~12 words, cut
+  the ramble with an ellipsis, and set it smaller than a claim would be — proof
+  supports, it does not shout.
+- **"No" is a legitimate answer** — a new app with no ratings should not fake
+  the register of one that has them. Say the axis was considered and declined.
 
 ## Store constraints worth designing around
 
@@ -437,7 +482,13 @@ The hard ones are in **RULE** above. These are the practical consequences.
 
 - **CONVENTION** — Everything must survive **thumbnail size**. This is the real
   reason headlines are short and type is enormous; it follows directly from
-  Apple's point about the first three appearing in search results.
+  Apple's point about the first three appearing in search results. Make it a
+  check, not a hope: view the render scaled to **~150px wide**. If the headline
+  is not readable there, it is not readable where most installs are decided.
+- **CONVENTION** — **Safe margins.** Store placements crop and round-corner-mask
+  panels in ways that vary by surface. Keep text and anything load-bearing about
+  **100px off every edge** at 1290 wide. Backgrounds and decor may bleed; words
+  may not.
 - **OPINION** — **Localisation**: if the strip will be translated, leave text
   blocks around 30% growing room. German and Finnish will find your tightest
   line. The 30% is a rule of thumb, not a measurement.
@@ -482,6 +533,10 @@ These recur, and every one of them is a decision someone made:
 - Screenshots of empty states
 - Decor competing with the device for the same focal point
 - A panel with two things claiming to be the subject
+- Social proof the app does not have — an invented quote, a rounded-up rating,
+  a laurel from nowhere. A review risk, not a taste risk (Axis 10).
+- A flat background that matches the store page behind it, so the panel's edges
+  vanish and the type floats on the store's own white (Axis 6, the store page)
 
 ## Failures seen here
 
@@ -507,6 +562,22 @@ Three causes, worth separating:
 
 Fixed by sizing the device to 950px (1.23×) and cropping 7% and 2%.
 
+## Growing MEASURED
+
+The MEASURED tier is empty because nothing has been tested, not because nothing
+is testable. When a strip ships, the first test is already known:
+
+1. **Test panel 0 first** — concept before caption, caption before anything
+   else. It is ~70% of the audience; no other panel can repay a test faster.
+2. **One variable per test.** A variant that changes the archetype *and* the
+   headline produces a winner and no knowledge.
+3. The native tools are App Store **Product Page Optimization** and Play Store
+   **listing experiments**; the deciding metric is conversion,
+   impressions → installs. Let a test run to significance, not to impatience.
+4. When a result lands, write it into this file tagged **MEASURED**, with the
+   date and the lift. One measured line outranks every OPINION above it — that
+   is the whole point of the tag system.
+
 ## Choosing, per run
 
 1. Read the app: summary, tone, category, the screenshots themselves.
@@ -517,7 +588,8 @@ Fixed by sizing the device to 950px (1.23×) and cropping 7% and 2%.
 4. Pick the remaining axes independently. Say what you picked, in one line, so
    the choice is visible and can be rejected before anything is built. **Name
    the decor family** (abstract or representational) — it is the axis this repo
-   has never once chosen deliberately.
+   has never once chosen deliberately. **Say whether the set carries social
+   proof** (Axis 10) — "no" is a fine answer, but it has to be an answer.
 5. Do not repeat the previous run's archetype, and change at least two
    **structural** axes — rhythm, device treatment, type placement, screenshot
    treatment, decor. A pinned palette cannot be one of them; mood can.
