@@ -8,14 +8,14 @@ anywhere below, because they are combinations, not entries.
 
 1. Choose a **panel archetype** (structure) and a **set rhythm** (how the five
    panels relate). Those two decide the design.
-2. Choose the remaining axes — device treatment, type placement, background,
-   palette, decor — **independently**. Do not adopt the bundle some other strip
-   happened to use.
+2. Choose the remaining axes — device treatment, type placement, typeface,
+   background, palette, decor — **independently**. Do not adopt the bundle some
+   other strip happened to use.
 3. Combinations absent from this file are allowed and encouraged. If none of the
    archetypes suits the app, **invent one and add it here** with a name.
 4. A run must differ from the previous run in **the archetype and at least two
    of the structural axes** — set rhythm, device treatment, type placement,
-   screenshot treatment, decor. Variety is a decision, not a hope.
+   typeface, screenshot treatment, decor. Variety is a decision, not a hope.
 
    **Palette does not count.** When `app.md` pins `theme`, the palette is
    brand, not a choice — a run that "varied" by rewording the same two hexes has
@@ -476,6 +476,74 @@ about themselves — which is why it converts, and why inventing one is punished
 - **"No" is a legitimate answer** — a new app with no ratings should not fake
   the register of one that has them. Say the axis was considered and declined.
 
+## Axis 11 · Typeface
+
+The title is the largest object on the panel — 104–128px against a 1290px width
+— so the face carries more of the design than the palette does.
+
+This is the one axis with a **default**: a strip that names no face gets
+`blankStripTemplate`'s Georgia title over an `-apple-system` body. That is
+inheritance, not a decision, and it looks identical to a decision in the render.
+Name the pairing.
+
+### The library
+
+Self-hosted woff2 in `composer/fonts/`, referenced root-relatively. **Never a
+web font** (`strip-schema.md` § 5, and `check-schema.mjs` now fails the build on
+one), and never a bare host font name for a face the design *chose* — Georgia
+and `-apple-system` resolve off whatever machine renders, so they are fallbacks,
+not decisions. `composer/fonts/README.md` has the mechanics; below is what each
+face is *for*.
+
+| Face | Weights here | What it is for |
+| --- | --- | --- |
+| **EB Garamond** | 400, 400 italic | Old-style serif. Literary, unhurried, slightly austere. Reading apps, journals, anything arguing for depth. No bold — see the README. |
+| **Lora** | 400, 700 | Contemporary serif with more contrast and a sturdier bold. The serif to pick when the title needs weight. |
+| **Inter** | 400, 600, 700 | Neutral grotesque, designed for screens. The default body and caption face; a competent title face when set at 700 and tracked tight. |
+| **Poppins** | 400, 700 | Geometric sans, circular and friendly. Consumer, wellness, anything cheerful. Wide — long headlines run out of panel. |
+| **Space Grotesk** | 400, 700 | Grotesque with deliberate quirks in the g, a and k. Tech, tools, indie. Reads as designed rather than defaulted. |
+| **IBM Plex Mono** | 400, 600 | Mono. Not a title face — a kicker, label or caption face, and an instant genre signal for a developer tool. |
+
+### Pairings, which is the real unit
+
+Three text roles (`title`, `subtitle`, `caption`) means the choice is a pairing,
+not a font. **OPINION**, all of it:
+
+- **EB Garamond 400 + Inter** — editorial. The title is quiet and large; the
+  interface voice underneath it is neutral. Best when the app is about words.
+- **Lora 700 + Inter** — the same register with a title that can shout. Safest
+  serif/sans pairing here.
+- **Poppins 700 + Inter** — warm and consumer. Watch the width: Poppins at 104px
+  fits roughly three words to a line, not five.
+- **Space Grotesk 700 + Inter** — contemporary and a little sharp. The pairing
+  that reads least like a template.
+- **Inter 700 + Inter 400** — one family, contrast carried entirely by weight
+  and size. Underrated: a great many professional strips are exactly this, and
+  it never looks borrowed.
+- **· + IBM Plex Mono for captions** — a modifier on any of the above, not a
+  pairing of its own. One mono kicker per panel; a mono *subtitle* is a wall.
+
+### Guardrails
+
+- **CONVENTION · thumbnail first.** The strip is judged at ~150px wide (see
+  Store constraints below). Anything hairline, extra-light, or high-contrast at
+  display size dissolves there. Nothing in this library is a hairline face, and
+  that is deliberate — do not add one without checking it scaled down.
+- **One display face per set.** Two decorative faces plus a body face is three,
+  and three is where strips start looking like a font specimen.
+- **The body role stays neutral.** Character belongs in the title. A subtitle in
+  Space Grotesk and a title in Poppins fight each other at every size.
+- **No faux anything.** Declare a real `@font-face` for every weight used. Ask
+  for 700 with only a 400 file loaded and the browser synthesises a bold, which
+  at 118px looks exactly like the mistake it is. Same for italic.
+- **OPINION · tracking follows size.** Type cut for text loses its fit at display
+  size: at 100px+, `letter-spacing: -1px` to `-3px` on a title is usually right,
+  and ALL CAPS kickers want positive tracking (Axis 5 already says this — it
+  applies harder once the face is a choice).
+- The face is not the palette's problem. A pinned `theme` in `app.md` does not
+  pin the type, so this axis stays free even on the most constrained brief —
+  same property that makes mood useful in Axis 7.
+
 ## Store constraints worth designing around
 
 The hard ones are in **RULE** above. These are the practical consequences.
@@ -588,8 +656,11 @@ is testable. When a strip ships, the first test is already known:
 4. Pick the remaining axes independently. Say what you picked, in one line, so
    the choice is visible and can be rejected before anything is built. **Name
    the decor family** (abstract or representational) — it is the axis this repo
-   has never once chosen deliberately. **Say whether the set carries social
+   has never once chosen deliberately. **Name the type pairing** (Axis 11) —
+   naming it is what makes it a choice; say nothing and the strip silently
+   inherits the blank template's Georgia. **Say whether the set carries social
    proof** (Axis 10) — "no" is a fine answer, but it has to be an answer.
 5. Do not repeat the previous run's archetype, and change at least two
-   **structural** axes — rhythm, device treatment, type placement, screenshot
-   treatment, decor. A pinned palette cannot be one of them; mood can.
+   **structural** axes — rhythm, device treatment, type placement, typeface,
+   screenshot treatment, decor. A pinned palette cannot be one of them; mood
+   and typeface can.

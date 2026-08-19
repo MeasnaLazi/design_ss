@@ -307,14 +307,25 @@ export async function checkStrip(html, label) {
   }
 
   // --- assets -------------------------------------------------------------
-  for (const m of html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)) {
-    const url = m[1]
+  // A document names a file in two places: an attribute, and CSS `url()`. Both
+  // are scanned, because `@font-face` lives only in the second one — the
+  // no-external-assets rule used to be enforced against `<link href>`, the form
+  // nobody writes, and not against `src: url(https://fonts.gstatic.com/…)`, the
+  // form a web font actually arrives in. The on-disk half matters as much: a
+  // mistyped local font path renders as the fallback face, and neither
+  // `document.fonts.ready` nor `window.__composerErrors` says a word about it,
+  // so the export succeeds and the wrong typeface ships.
+  const asset = async (url, where) => {
     if (/^(https?:)?\/\//i.test(url)) {
-      E(`external network asset "${url}" — everything must resolve from the repo`)
-      continue
+      E(`external network asset "${url}"${where} — everything must resolve from the repo`)
+      return
     }
-    if (!url.startsWith('/')) continue
-    if (!(await exists(url))) E(`asset not found on disk: ${url}`)
+    if (!url.startsWith('/')) return
+    if (!(await exists(url))) E(`asset not found on disk: ${url}${where}`)
+  }
+  for (const m of html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)) await asset(m[1], '')
+  for (const m of html.matchAll(/\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]*))\s*\)/g)) {
+    await asset(m[1] ?? m[2] ?? m[3] ?? '', ' in CSS url()')
   }
   for (const m of html.matchAll(/\bdata-screenshot\s*=\s*"([^"]+)"/g)) {
     if (!(await exists(m[1]))) E(`data-screenshot not found on disk: ${m[1]}`)

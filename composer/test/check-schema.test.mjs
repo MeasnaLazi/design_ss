@@ -187,6 +187,54 @@ await check('group is a valid data-layer kind', wrap(`${TEXT}\n${GROUP('')}`), {
   noErrors: ['unknown data-layer kind'],
 })
 
+// --- assets named from CSS, not from an attribute ---------------------------
+// `@font-face` is the reason this exists: a font is named in `src: url(…)` and
+// nowhere else, so the src=/href= scan never saw it. An external font URL used
+// to pass the no-network rule, and a mistyped local one used to pass the
+// on-disk check — both of which ship as a silent fallback to the system serif.
+const styled = (css) => `<!doctype html><html><head>
+<style>${css}</style>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head><body><div class="strip">
+  <section class="panel" data-panel="0">${TEXT}</section>
+</div></body></html>`
+
+await check(
+  'a web font in @font-face is an external asset',
+  styled("@font-face { font-family: 'X'; src: url('https://fonts.gstatic.com/s/x.woff2') format('woff2'); }"),
+  { errors: ['external network asset', 'in CSS url()'] },
+)
+
+await check(
+  'a protocol-relative CSS url is external too',
+  styled('.panel { background-image: url(//cdn.example.com/bg.png); }'),
+  { errors: ['external network asset'] },
+)
+
+await check(
+  'a local font path that is not on disk is an error',
+  styled("@font-face { font-family: 'X'; src: url('/composer/fonts/inter/Inter-Nope.woff2'); }"),
+  { errors: ['asset not found on disk', 'in CSS url()'] },
+)
+
+await check(
+  'a local font path that IS on disk passes',
+  styled("@font-face { font-family: 'Inter'; src: url('/composer/fonts/inter/Inter-Regular.woff2') format('woff2'); }"),
+  { noErrors: ['Inter-Regular.woff2', 'external network asset'] },
+)
+
+await check(
+  'an SVG fragment reference is not an asset path',
+  styled('.panel { fill: url(#gradient); }'),
+  { noErrors: ['#gradient', 'external network asset'] },
+)
+
+await check(
+  'a data: URL in CSS is not an external asset',
+  styled(".panel { background-image: url('data:image/svg+xml;base64,PHN2Zy8+'); }"),
+  { noErrors: ['external network asset', 'data:image'] },
+)
+
 // --- multiple panels are attributed correctly -------------------------------
 const twoPanels = `<!doctype html><html><head>
 <script type="module" src="/composer/device-frames.mjs"></script>
