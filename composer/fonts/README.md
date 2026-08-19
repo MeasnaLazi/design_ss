@@ -44,19 +44,60 @@ a shipped strip in the wrong face — run it before rendering.
 
 ## Using a face in a strip
 
-Declare it in the strip's `<style>`, then use the family name. Nothing else
-loads it; there is no manifest and no build step.
+**Declare the whole library, use two.** Every strip carries the same block —
+thirteen `@font-face` rules and six `:root` vars — and each text role points at
+one var. This is the canonical text; `blankStripTemplate` emits it verbatim, and
+a designed strip should copy it rather than hand-rolling a subset.
 
 ```css
-@font-face {
-  font-family: 'Lora';
-  src: url('/composer/fonts/lora/Lora-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-[data-role="title"] { font-family: 'Lora', Georgia, serif; font-weight: 400; }
+  /* Type library — composer/fonts/. All declared, fetched only when used. */
+  @font-face { font-family: 'EB Garamond'; src: url('/composer/fonts/eb-garamond/EBGaramond-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'EB Garamond'; src: url('/composer/fonts/eb-garamond/EBGaramond-Italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+  @font-face { font-family: 'Lora'; src: url('/composer/fonts/lora/Lora-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Lora'; src: url('/composer/fonts/lora/Lora-Bold.woff2') format('woff2'); font-weight: 700; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('/composer/fonts/inter/Inter-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('/composer/fonts/inter/Inter-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: block; }
+  @font-face { font-family: 'Inter'; src: url('/composer/fonts/inter/Inter-Bold.woff2') format('woff2'); font-weight: 700; font-display: block; }
+  @font-face { font-family: 'Poppins'; src: url('/composer/fonts/poppins/Poppins-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Poppins'; src: url('/composer/fonts/poppins/Poppins-Bold.woff2') format('woff2'); font-weight: 700; font-display: block; }
+  @font-face { font-family: 'Space Grotesk'; src: url('/composer/fonts/space-grotesk/SpaceGrotesk-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Space Grotesk'; src: url('/composer/fonts/space-grotesk/SpaceGrotesk-Bold.woff2') format('woff2'); font-weight: 700; font-display: block; }
+  @font-face { font-family: 'IBM Plex Mono'; src: url('/composer/fonts/ibm-plex-mono/IBMPlexMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'IBM Plex Mono'; src: url('/composer/fonts/ibm-plex-mono/IBMPlexMono-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: block; }
+
+  :root {
+    --garamond: 'EB Garamond', Georgia, serif;
+    --lora:     'Lora', Georgia, serif;
+    --inter:    'Inter', -apple-system, system-ui, sans-serif;
+    --poppins:  'Poppins', -apple-system, sans-serif;
+    --grotesk:  'Space Grotesk', -apple-system, sans-serif;
+    --plexmono: 'IBM Plex Mono', Menlo, monospace;
+  }
+
+  [data-role="title"]    { font-family: var(--lora); font-weight: 700; }
+  [data-role="subtitle"] { font-family: var(--inter); font-weight: 400; }
 ```
+
+### Why declare all thirteen
+
+**Declaring a face costs nothing until something uses it.** A browser fetches a
+font file only when a rule matches text in that family. Measured in Chromium
+against these exact files: 13 rules declared, 11 stayed `unloaded`, 2 files went
+over the wire. So the whole library can sit in every strip and the strip still
+pays for exactly the faces it sets.
+
+What that buys is the **editor**. `TextControls.useStripFontVars` scans `:root`
+for custom properties whose value looks like a font stack and offers each in the
+family dropdown — so six vars means six families selectable in the inspector,
+switchable with an inline `font-family` change alone. The alternative would be
+the editor writing `@font-face` into `<head>` on the fly, which `serializeStrip`
+deliberately cannot do: it preserves every byte outside the regions it edits,
+`<head>` included.
+
+The fallback in each var is not decoration. It is what that heuristic matches on
+(`/serif|sans|mono|system-ui|Georgia|Helvetica/i`) — a var reading
+`--display: 'Lora'` alone is silently dropped from the dropdown — and it is what
+the panel sets type in if the woff2 ever fails to arrive.
 
 Three things that are not optional:
 

@@ -489,11 +489,22 @@ Name the pairing.
 ### The library
 
 Self-hosted woff2 in `composer/fonts/`, referenced root-relatively. **Never a
-web font** (`strip-schema.md` § 5, and `check-schema.mjs` now fails the build on
+web font** (`strip-schema.md` § 5, and `check-schema.mjs` fails the build on
 one), and never a bare host font name for a face the design *chose* — Georgia
 and `-apple-system` resolve off whatever machine renders, so they are fallbacks,
-not decisions. `composer/fonts/README.md` has the mechanics; below is what each
-face is *for*.
+not decisions.
+
+**Every strip declares the whole library and uses two of it.** The canonical
+block — thirteen `@font-face` rules and six `:root` vars — is in
+`composer/fonts/README.md`; copy it verbatim and point each text role at a var.
+Declaring a face nothing uses costs nothing (the browser fetches on first use,
+measured: 13 declared, 2 fetched), and declaring all of them is what puts all
+six families in the editor's family dropdown, where a human can change the
+typeface without touching CSS. Choosing here means choosing *which var each role
+points at*, not which files to declare.
+
+Below is what each face is *for*; the README has the mechanics and the weights
+each one actually ships.
 
 | Face | Weights here | What it is for |
 | --- | --- | --- |
