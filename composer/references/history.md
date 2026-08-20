@@ -34,3 +34,9 @@ avoid, choose freely. It does not mean the repo has no habits: check
 `strips/<device>/strip.html` for what the last surviving strip actually did.
 
 ---
+
+2026-08-18 · iphone · continuous-canvas · type-over-device · framed/bottom-crop, alternating bleed + ±5° tilt · above · warm ink ramp L→R, ember mood · EB Garamond 400 + Inter (Plex Mono folio) · representational (leaf watermark echoing the app icon)
+
+2026-08-19 · iphone · hero-plus-support, supports alternate sides · full-bleed-screen hero + floating-card supports · bare/no-frame on P0, framed flat-front side-crop 17–24% no tilt on P1–4 · split (title top, subtitle bottom); hero type on a bone band · bone #f4f1ea→#e6e1d6 + ink #14161a, hero inverted, overcast mood · Space Grotesk 700 + Inter 400 · abstract (hairline rule under each title, one oversized ink ring cropped by a panel edge)
+
+2026-08-19 · iphone · alternating (crop direction and type side flip panel to panel) · type-over-device ⇄ device-over-type · framed flat-front, no tilt; P0/2/4 inset 1180px cropped ~24% at the bottom, P1/3 wide 1320px bleeding both side edges and cropped 32–38% at the top · type above the device on P0/2/4, below it on P1/3, single left rail at 100px · forest-ink #0e1a15 ground + bone #f2ece1 + one amber #d98b4a accent, spotlight mood (glow cored on the edge where the device meets empty ground) · Lora 700 120px + Inter 400 · representational (one 170px mark per panel matching that panel's claim: page, waveform, route line, sparkle, nib) · social proof: declined, no real ratings yet

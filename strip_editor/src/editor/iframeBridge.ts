@@ -6,8 +6,8 @@
  * asynchronously (fetch frame.json → fetch pose SVG → decode screenshot →
  * homography warp) and only then sets `window.__composerReady`. Fonts settle
  * separately via `document.fonts.ready`. Reading geometry before both are done
- * yields wrong numbers — the exact class of bug that made the canvas editor
- * fight itself. Nothing in the editor may measure or mutate until
+ * yields wrong numbers, and a wrong number read once propagates into every
+ * edit made after it. Nothing in the editor may measure or mutate until
  * {@link waitForStripReady} resolves.
  */
 

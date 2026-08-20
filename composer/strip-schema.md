@@ -264,11 +264,13 @@ Read it rather than exploring it — the shape is fixed:
 
 ```jsonc
 {
-  "version": 2,
+  "version": 1,
   "strip":  { "width": 6450, "height": 2796, "gap": 0, "panels": 5 },
   "panels": [
     {
       "index": 0, "width": 1290, "height": 2796,
+      // How much of the panel the blocks occupy — measured, defined below.
+      "coverage": 0.805, "longest_empty_col": 30, "longest_empty_row": 0,
       "layers": [                      // NOT "blocks"
         {
           "id": "text_0_1", "kind": "text", "z": 1,
@@ -282,8 +284,9 @@ Read it rather than exploring it — the shape is fixed:
         }
         // device: pack, pose, screenshot, fit, screen_fallback, blank_screen
         // image:  src, natural_width, natural_height
-        // decor:  children
-        // group:   children — and each child is listed as a layer in its own right
+        // decor:  children — a COUNT of direct child elements, not a list
+        // group:  children — same count, and each child is listed as a layer
+        //         in its own right, at the top level of this array
       ]
     }
   ],
@@ -297,6 +300,26 @@ Read it rather than exploring it — the shape is fixed:
 `severity` is `error` or `warning`. Every layer kind carries the same `id`,
 `kind`, `z`, `x`, `y`, `width`, `height` and `outside`; the extra fields listed
 above are per kind.
+
+#### Emptiness
+
+Three per-panel numbers, so nobody has to derive them:
+
+| Field | Is |
+| --- | --- |
+| `coverage` | The **union** of every layer box, clipped to the panel, over panel area. `0`–`1`, three decimals. |
+| `longest_empty_col` | Widest vertical band, in px, that **no** layer touches at any height. |
+| `longest_empty_row` | Tallest horizontal band, in px, that no layer touches at any width. |
+
+Union, not sum — a group and its children are both layers and their boxes
+overlap, so summing would exceed the panel. Clipped first, so a device cropped at
+the panel edge contributes only the part that reaches the export. Computed on a
+**10px grid**, which is ±1 cell of slop per edge.
+
+An empty *column* is invisible to any row-by-row look, which is why both axes are
+reported. Neither number is a problem and neither is flagged: "too empty"
+depends on whether the panel was meant to be dense, which is a design judgement.
+`.claude/skills/strip-design/SKILL.md` holds the thresholds.
 
 A **non-zero exit** means a device failed to build: a missing pack, an unknown
 pose, or a screenshot that did not load. Those never produce a partial render.

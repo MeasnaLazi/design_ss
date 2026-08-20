@@ -159,8 +159,9 @@ async function main() {
     // them fell off the panel.
     //
     // Coordinates are panel-relative and **top-left**, matching the CSS the
-    // editor writes and the schema documents. (v1 stored device x/y as the
-    // block centre, a canvas convention whose only consumer was the importer.)
+    // editor writes and the schema documents — for every kind of block, with no
+    // exception, so a number read in the inspector is the number the exporter
+    // measured.
     const snapshot = await page.evaluate((panelSelector) => {
       const toHex = (rgb) => {
         const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
@@ -266,17 +267,74 @@ async function main() {
         }
 
         layers.sort((a, b) => a.z - b.z)
+
+        // --- emptiness, measured once and reported --------------------------
+        // The design skill asks every run for "the union area as a fraction of
+        // panel area" and the widest empty band. That is arithmetic on rects
+        // this function already holds, so deriving it in a throwaway script per
+        // run produced a number whose *definition* drifted between runs and
+        // could never be compared. It is reported here instead, computed one
+        // way, from the same `layers` records the file publishes.
+        //
+        // **Union, not sum.** A group and its children are both layers and
+        // their boxes overlap; summing would exceed the panel. Every rect is
+        // clipped to the panel first, so overhang — the standard device crop —
+        // contributes only the part that survives to the export.
+        //
+        // Quantised to a 10px grid: ±1 cell of slop per edge, and a 1290×2796
+        // panel costs 129×280 cells. Deliberately no threshold and no flag —
+        // "too empty" depends on whether the panel was *meant* to be dense,
+        // which is taste, and this file reports geometry.
+        const CELL = 10
+        const cols = Math.max(1, Math.ceil(pr.width / CELL))
+        const rows = Math.max(1, Math.ceil(pr.height / CELL))
+        const grid = new Uint8Array(cols * rows)
+        for (const l of layers) {
+          const x0 = Math.max(0, Math.floor(l.x / CELL))
+          const y0 = Math.max(0, Math.floor(l.y / CELL))
+          const x1 = Math.min(cols, Math.ceil((l.x + l.width) / CELL))
+          const y1 = Math.min(rows, Math.ceil((l.y + l.height) / CELL))
+          for (let y = y0; y < y1; y++) {
+            for (let x = x0; x < x1; x++) grid[y * cols + x] = 1
+          }
+        }
+        let filled = 0
+        for (let i = 0; i < grid.length; i++) filled += grid[i]
+
+        // Longest run of consecutive lines no layer touches at all, in px. A
+        // *column* band is invisible to any row-by-row look, which is why both
+        // axes are reported.
+        const longestRun = (n, empty) => {
+          let best = 0
+          let run = 0
+          for (let i = 0; i < n; i++) {
+            if (empty(i)) { run += 1; if (run > best) best = run } else run = 0
+          }
+          return best * CELL
+        }
+        const colEmpty = (x) => {
+          for (let y = 0; y < rows; y++) if (grid[y * cols + x]) return false
+          return true
+        }
+        const rowEmpty = (y) => {
+          for (let x = 0; x < cols; x++) if (grid[y * cols + x]) return false
+          return true
+        }
+
         panels.push({
           index: pi,
           width: Math.round(pr.width),
           height: Math.round(pr.height),
+          coverage: Math.round((filled / (cols * rows)) * 1000) / 1000,
+          longest_empty_col: longestRun(cols, colEmpty),
+          longest_empty_row: longestRun(rows, rowEmpty),
           layers,
         })
       })
 
       const strip = document.querySelector('.strip')
       return {
-        version: 2,
+        version: 1,
         strip: {
           width: Math.ceil(document.documentElement.scrollWidth),
           height: Math.ceil(document.documentElement.scrollHeight),
@@ -287,6 +345,7 @@ async function main() {
         problems,
       }
     }, args.panelSelector)
+
     const dataFile = path.join(outDir, 'strip-data.json')
     await fs.writeFile(dataFile, JSON.stringify(snapshot, null, 2))
 

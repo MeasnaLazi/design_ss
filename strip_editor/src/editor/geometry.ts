@@ -217,7 +217,7 @@ export function boxToDeclarations(ctx: GestureContext, box: Rect): Declaration[]
  * ## Why this does not contradict "never auto-correct layout"
  *
  * That rule is about the editor quietly moving a legal position behind the
- * author's back — the canvas editor's safe-zone clamp. Snapping is the opposite:
+ * author's back. Snapping is the opposite:
  * it happens only inside a gesture the human is actively making, shows a guide
  * for exactly what it did, and is suppressed by holding a modifier. It also
  * cannot reach a deliberately cropped block bleeding off the panel, because that

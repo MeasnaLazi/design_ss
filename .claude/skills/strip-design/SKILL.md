@@ -12,7 +12,7 @@ description: >-
 # Designing a screenshot strip
 
 A **strip** is a folder. `strip.html` holds every panel of a screenshot set and
-is the single source of truth — no canvas, no importer, no second
+is the single source of truth.
 representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
 the same browser engine, from the same file.
 

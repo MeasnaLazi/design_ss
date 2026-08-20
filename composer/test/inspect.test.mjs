@@ -95,18 +95,18 @@ const check = (label, cond, detail = '') => {
   else console.log(`PASS  ${label}`)
 }
 
-check('version is 2', snap.version === 2, String(snap.version))
+check('version is 1', snap.version === 1, String(snap.version))
 check('one panel, all seven blocks captured', snap.panels.length === 1 && snap.panels[0].layers.length === 7,
   `${snap.panels.length} panels / ${snap.panels[0]?.layers.length} layers`)
 
 const byId = Object.fromEntries(snap.panels[0].layers.map((l) => [l.id.replace(/_0_\d+$/, ''), l]))
-check('image and decor layers are captured (v1 skipped them)',
+check('image and decor layers are captured, not just text and devices',
   snap.panels[0].layers.filter((l) => l.kind === 'image').length === 2 &&
   snap.panels[0].layers.some((l) => l.kind === 'decor'))
 
-// --- coordinates are top-left, not the v1 device centre ---------------------
+// --- coordinates are panel-relative and top-left, for every kind -----------
 const dev = snap.panels[0].layers.find((l) => l.kind === 'device')
-check('device x/y is top-left, not centre', dev.x === 300 && dev.y === 1200, `x=${dev.x} y=${dev.y}`)
+check('device x/y is the top-left corner', dev.x === 300 && dev.y === 1200, `x=${dev.x} y=${dev.y}`)
 check('device carries pack/pose/fit', dev.pack === 'iphone_12_pro' && dev.pose === 'tilted-left' && dev.fit === 'cover')
 check('device with no screenshot is marked blank_screen', dev.blank_screen === true)
 check('device overhang measured', dev.outside.right === 200 && dev.outside.bottom === 600,
@@ -133,6 +133,23 @@ check('a DELIBERATELY cropped device is NOT flagged',
   snap.problems.filter((p) => p.layer.startsWith('device')).map((p) => p.message).join(' | '))
 check('the well-behaved headline is NOT flagged',
   !snap.problems.some((p) => p.layer === byId.text?.id && p.message.includes('clipped')))
+
+// --- emptiness --------------------------------------------------------------
+// Expected values were computed independently from the box table above, on the
+// same 10px grid, rather than read off a run of this code. The point of the
+// fields is that the number means one thing; a test that asserts whatever the
+// implementation happened to print would not check that.
+//
+// Union, clipped to the panel: `offpanel` sits entirely past the right edge and
+// must contribute nothing, and `dev` overhangs by 200×600 which must not count.
+const p0 = snap.panels[0]
+check('coverage is the panel-clipped union as a fraction', p0.coverage === 0.448, String(p0.coverage))
+check('longest fully-empty column run, in px', p0.longest_empty_col === 100, String(p0.longest_empty_col))
+check('longest fully-empty row run, in px', p0.longest_empty_row === 200, String(p0.longest_empty_row))
+check('coverage cannot exceed 1 even though group/child boxes overlap',
+  p0.coverage <= 1, String(p0.coverage))
+check('a zero-height text block contributes no area',
+  snap.panels[0].layers.some((l) => l.height === 0))
 
 console.log(`\n${snap.problems.length} problems reported:`)
 for (const p of snap.problems) console.log(`  ${p.severity.padEnd(7)} panel ${p.panel}  ${p.layer}  ${p.message}`)

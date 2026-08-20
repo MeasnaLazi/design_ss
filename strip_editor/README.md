@@ -2,8 +2,7 @@
 
 Visual editor for **composer strip HTML**. The strip file is the single source of
 truth: the editor renders it in Chromium — the same engine `composer/render.mjs`
-exports with — so *what you edit is what ships*. No importer, no second
-rendering engine, nothing to keep in sync.
+exports with — so *what you edit is what ships*.
 
 ```bash
 cd strip_editor
@@ -115,12 +114,9 @@ screen size at 15% zoom.
 
 **Coordinates match the exporter, with no exception.** The inspector's
 panel-relative `left`/`top` is computed exactly as `render.mjs` computes it
-(`rect.left - panelRect.left`), for every kind of block. Device blocks used to
-differ — `strip-data.json` v1 stored device `x`/`y` as the block *centre*, a
-convention inherited from the canvas importer — which meant the one number an
-author was most likely to compare across the two tools was the one that
-disagreed. v2 dropped it when the importer went; top-left is what the CSS
-`left`/`top` actually means, so that is what both report.
+(`rect.left - panelRect.left`), for **every** kind of block — devices included.
+Top-left is what the CSS `left`/`top` actually means, so it is what both tools
+report, and a number read in one is the number measured by the other.
 
 **Saves splice text; they never re-serialize a document.** Two things are wrong
 with serializing a DOM back to the file. The live DOM has been mutated by
@@ -282,8 +278,7 @@ and leaves authored styles alone. Guessing would either bake one pose's
 
 **Snapping bends the "never auto-correct" rule, deliberately and visibly.** That
 rule is about the editor quietly moving a legal position behind the author's
-back — the canvas editor's safe-zone clamp. Snapping happens only inside a
-gesture the human is making, draws a guide showing exactly what it did, and is
+back. Snapping happens only inside a gesture the human is making, draws a guide showing exactly what it did, and is
 suppressed by holding ⌥. Its threshold is in **screen** pixels divided by zoom,
 not document pixels: six document pixels is under one screen pixel at fit-width
 (unhittable) and a twelve-pixel magnet at 200%. What should stay constant is the
@@ -303,7 +298,7 @@ same treatment.
 **Never auto-correct layout.** Blocks may deliberately overhang a panel
 (`overflow: hidden` crops them — that is the cropped-device look). The editor
 must not clamp positions, and layout policy belongs to the validator, not to
-event handlers. This is the lesson of the canvas editor's safe-zone clamp.
+event handlers.
 
 **Trust the SVG viewBox, not `frame.json`'s view size.** Some pack entries have
 stale `viewWidth`/`viewHeight` (`iphone_12_pro/tilted-front` claims 1282×1485;
