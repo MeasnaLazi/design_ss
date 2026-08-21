@@ -1,0 +1,19 @@
+{
+  "frames": [
+    {
+      "name": "front",
+      "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
+      "framePath": "/device-frames/galaxy_tab/frame/front.svg",
+      "homography": false,
+      "viewWidth": 1848.0,
+      "viewHeight": 2960.0,
+      "layoutScale": 0.624,
+      "corners": {
+        "TL": [68.0, 59.0],
+        "TR": [1916.0, 59.0],
+        "BR": [1916.0, 3019.0],
+        "BL": [68.0, 3019.0]
+      }
+    }
+  ]
+}
