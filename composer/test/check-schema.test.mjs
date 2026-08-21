@@ -235,6 +235,67 @@ await check(
   { noErrors: ['external network asset', 'data:image'] },
 )
 
+// --- frame packs against the catalogue --------------------------------------
+// These only became reachable when the run started *choosing* a pack. While a
+// human picked from the editor's type-filtered dropdown, none of them could
+// happen; now a wrong choice would render, export, and say nothing.
+const withDevice = (pack, extra = '') => `<!doctype html><html><head>
+<script type="module" src="/composer/device-frames.mjs"></script>
+</head><body><div class="strip">
+  <section class="panel" data-panel="0">
+    ${TEXT}
+    <div data-layer="device" data-device data-pack="${pack}" data-pose="front"
+         style="position:absolute; left:0; top:0; width:900px;"></div>${extra}
+  </section>
+</div></body></html>`
+
+await check(
+  'a pack that is not in the catalogue is caught',
+  withDevice('iphone_99_pro'),
+  { errors: ['unknown frame pack "iphone_99_pro"'] },
+)
+
+await check(
+  'a real pack passes',
+  withDevice('iphone_12_pro'),
+  { noErrors: ['unknown frame pack'] },
+)
+
+await check(
+  'two different packs in one strip is an error',
+  withDevice('iphone_12_pro', `
+    <div data-layer="device" data-device data-pack="iphone_15_pro" data-pose="front"
+         style="position:absolute; left:0; top:900px; width:900px;"></div>`),
+  { errors: ['a strip uses one frame pack'] },
+)
+
+await check(
+  'the same pack twice is fine',
+  withDevice('iphone_12_pro', `
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="front"
+         style="position:absolute; left:0; top:900px; width:900px;"></div>`),
+  { noErrors: ['a strip uses one frame pack'] },
+)
+
+// The type check keys off the strips/<folder>/ path in the label, so it needs
+// checkStrip directly — check() passes the test's name as the label.
+{
+  const res = await checkStrip(withDevice('ipad_13_pro'), 'strips/iphone/strip.html')
+  const joined = res.errors.join(' | ')
+  if (!joined.includes('is type "ipad" but this strip is in strips/iphone/')) {
+    failures += 1
+    console.log('FAIL  the type mismatch is reported when the label is a strips/ path')
+    console.log(`        actual: ${joined || '(none)'}`)
+  } else console.log('PASS  the type mismatch is reported when the label is a strips/ path')
+}
+{
+  const res = await checkStrip(withDevice('ipad_13_pro'), 'blankStripTemplate')
+  if (res.errors.some((e) => e.includes('but this strip is in'))) {
+    failures += 1
+    console.log('FAIL  a non-path label must not have a target guessed for it')
+  } else console.log('PASS  a non-path label has no target guessed for it')
+}
+
 // --- multiple panels are attributed correctly -------------------------------
 const twoPanels = `<!doctype html><html><head>
 <script type="module" src="/composer/device-frames.mjs"></script>

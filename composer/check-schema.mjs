@@ -306,6 +306,59 @@ export async function checkStrip(html, label) {
     )
   }
 
+  // --- frame packs --------------------------------------------------------
+  // Three things about `data-pack` that only the catalogue can answer. They
+  // matter more now that a run *chooses* the pack rather than copying whichever
+  // id it saw in an example: a wrong choice used to be impossible because a
+  // human picked from a dropdown the editor had already filtered by type.
+  //
+  // The type check is the load-bearing one. `device-frames/README.md` records
+  // what it costs to get wrong: screen quads differ by aspect, `data-fit="cover"`
+  // crops the capture to fit, and an iPad screenshot at 0.750 dropped into an
+  // iPhone frame "silently loses 38% of its width". Silently — it renders, it
+  // exports, and nothing says a word.
+  const packs = [...html.matchAll(/\bdata-pack\s*=\s*"([^"]*)"/g)].map((m) => m[1])
+  if (packs.length > 0) {
+    let catalogue = null
+    try {
+      const raw = await fs.readFile(path.join(REPO_ROOT, 'composer/device-frames/index.json'), 'utf8')
+      catalogue = (JSON.parse(raw).devices ?? [])
+        .map((d) => ({ id: String(d.path ?? '').split('/').filter(Boolean)[1], type: d.type ?? '' }))
+        .filter((d) => Boolean(d.id))
+    } catch {
+      W('composer/device-frames/index.json is unreadable; frame packs were not checked')
+    }
+    if (catalogue) {
+      const known = new Map(catalogue.map((p) => [p.id, p.type]))
+      for (const id of new Set(packs)) {
+        if (!known.has(id)) {
+          E(`unknown frame pack "${id}" — the catalogue has: ${[...known.keys()].join(', ')}`)
+        }
+      }
+      // One body per strip. Two different phones across panels of one set reads
+      // as a mistake rather than as rhythm, and the run picks once.
+      const distinct = [...new Set(packs)]
+      if (distinct.length > 1) {
+        E(`a strip uses one frame pack; found ${distinct.length}: ${distinct.join(', ')}`)
+      }
+      // A pack's type must equal the strips/ folder the document lives in. Only
+      // checkable when the label is that path — the templates are checked by
+      // name, and guessing a target for them would invent an error.
+      const folder = /(?:^|[\\/])strips[\\/]([^\\/]+)[\\/]/.exec(label ?? '')?.[1]
+      if (folder) {
+        for (const id of distinct) {
+          const type = known.get(id)
+          if (type !== undefined && type !== folder) {
+            E(
+              `frame pack "${id}" is type "${type}" but this strip is in strips/${folder}/ — ` +
+                `the capture is cropped to the frame's screen quad, so a mismatched pack silently loses part of it`,
+            )
+          }
+        }
+      }
+    }
+  }
+
   // --- assets -------------------------------------------------------------
   // A document names a file in two places: an attribute, and CSS `url()`. Both
   // are scanned, because `@font-face` lives only in the second one — the

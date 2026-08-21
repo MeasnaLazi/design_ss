@@ -172,6 +172,44 @@ hope it bleeds; it cannot.
 
 ## Axis 3 · Device treatment
 
+### Which frame pack
+
+The body itself is a choice, and it is the one axis picked by a script rather
+than by you.
+
+1. **`app.md` pins it** — a `frame:` bullet under `## About`. Use it verbatim.
+2. **`## Request` names a body** — *"use the newer iPhone"*. Map it to a pack id
+   and confirm that id exists in `composer/device-frames/index.json` with a
+   `type` matching the target. If a bullet says something different, the bullet
+   wins, and say you noticed.
+3. **Neither** — run it:
+
+   ```bash
+   node composer/pick-frame.mjs iphone        # the target folder; prints one id
+   node composer/pick-frame.mjs iphone --list # every pack for that target
+   ```
+
+**Do not choose this one yourself.** Asked to pick at random you will return the
+same pack every run — the id you last saw in an example — which is exactly how
+this repo shipped `iphone_12_pro` in every strip while two packs existed. The
+script has `Math.random()`; you do not.
+
+The pick is **random with replacement and is not logged**. Two packs of a type
+means a repeat about half the time, and three identical runs in a row is
+unremarkable rather than a bug. It gets no slot in the concept line and no entry
+in `history.md` — deliberately, because the no-repeat rule would turn a random
+choice into a forced alternation. Say which pack you used in your message back;
+that is where it is visible.
+
+**One pack per strip.** Call the script once. Two different phone bodies across
+panels of one set reads as a mistake, not as rhythm — `check-schema` errors on
+it, along with a pack that is not in the catalogue and a pack whose `type` does
+not match the strip's folder.
+
+Pose is a separate question and still comes from that pack's `frame.json`, which
+*is* the list of poses that exist.
+
+
 - **Framing** — framed in a device shell · bare screenshot with rounded corners ·
   bare and full-bleed · no device at all
 - **Crop** — none (whole device visible) · bottom (20–50% off) · side · top
