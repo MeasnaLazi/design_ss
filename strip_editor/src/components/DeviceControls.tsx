@@ -222,7 +222,7 @@ export function DeviceControls({ r }: { r: BlockReadout }): React.ReactElement |
   // its width.
   //
   // **Falling back to every pack when nothing matches is the important half.**
-  // A `phone` or `tablet` strip has no pack of its own today, and a select with
+  // A `phone` or tablet strip has no pack of its own today, and a select with
   // no options is a dead end: you could not even see what the block is set to,
   // let alone change it.
   const target = filePath ? deviceForStripPath(filePath) : null

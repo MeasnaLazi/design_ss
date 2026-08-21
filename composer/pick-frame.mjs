@@ -14,8 +14,8 @@
 //   node composer/pick-frame.mjs <target>            one pack id, chosen at random
 //   node composer/pick-frame.mjs <target> --list     every pack for that target
 //
-// `<target>` is a folder name under strips/ — iphone, ipad, phone, tablet —
-// which is also what a pack's `type` declares in the catalogue.
+// `<target>` is a folder name under strips/ — iphone, ipad, phone, tablet_7,
+// tablet_10 — which is also what a pack's `type` declares in the catalogue.
 //
 // Exit 0 and the id on stdout. Exit 1 with a message on stderr when the target
 // has no packs, so a missing pack is loud rather than a silent fallback to

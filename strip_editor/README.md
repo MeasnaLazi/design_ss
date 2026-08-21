@@ -17,7 +17,8 @@ step and nothing is converted.
 ## What it does
 
 The landing screen is a row of the four device targets — `iphone`, `ipad`,
-`phone`, `tablet` — shown whether or not they exist. **Open** one that does;
+`phone`, `tablet_7`, `tablet_10` — shown whether or not they exist. **Open** one
+that does;
 **create** a blank strip in one that does not (it asks only for a panel count);
 or **load** a strip folder in from anywhere on disk. There is no separate "new
 strip" control because the empty slot is the control: a strip's identity is its

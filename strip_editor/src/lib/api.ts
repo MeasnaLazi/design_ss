@@ -183,7 +183,8 @@ export async function listDevicePoses(pack: string): Promise<DevicePose[]> {
  *
  * `type` is the contract that lets the editor offer the right mockups for the
  * strip being edited: **it must equal a folder name under `strips/`** —
- * `iphone`, `ipad`, `phone`, `tablet`. A pack typed anything else still works,
+ * `iphone`, `ipad`, `phone`, `tablet_7`, `tablet_10`. A pack typed anything
+ * else still works,
  * it simply never matches a strip and so is only reachable as a fallback.
  */
 export type DevicePack = { id: string; name: string; type: string }

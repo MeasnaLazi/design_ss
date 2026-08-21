@@ -40,7 +40,7 @@ check('the id comes from the folder in `path`', parsed[0].id === 'iphone_12_pro'
 check('an entry with no path is dropped rather than becoming undefined', parsed.length === 3, String(parsed.length))
 check('filtering by target is exact', packsForTarget(parsed, 'iphone').length === 2)
 check('a target with no packs gives an empty set, not a fallback',
-  packsForTarget(parsed, 'tablet').length === 0)
+  packsForTarget(parsed, 'tablet_10').length === 0)
 
 // --- the real catalogue -----------------------------------------------------
 const real = await readCatalogue()

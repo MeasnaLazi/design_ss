@@ -32,7 +32,7 @@ A pack may ship a single pose. That is a normal state, not an incomplete one.
 ### `type` is a contract, not a label
 
 `index.json` gives every pack a `type`, and it **must be the name of a folder
-under `strips/`** — `iphone`, `ipad`, `phone`, `tablet`.
+under `strips/`** — `iphone`, `ipad`, `phone`, `tablet_7`, `tablet_10`.
 
 That is how the editor offers the right mockups for the strip being edited: open
 an iPad strip and the pack select lists iPad packs. A pack typed anything else

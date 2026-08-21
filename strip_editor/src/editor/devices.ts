@@ -62,9 +62,17 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
     height: 1920,
   },
   {
-    preset: 'play_tablet_portrait',
-    folder: 'tablet',
-    short: 'Tablet',
+    preset: 'play_tablet_7_portrait',
+    folder: 'tablet_7',
+    short: 'Tablet 7"',
+    label: 'Play Store · 7" tablet portrait',
+    width: 1200,
+    height: 1920,
+  },
+  {
+    preset: 'play_tablet_10_portrait',
+    folder: 'tablet_10',
+    short: 'Tablet 10"',
     label: 'Play Store · 10" tablet portrait',
     width: 1600,
     height: 2560,
@@ -77,11 +85,14 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
  *
  * Apple publishes exact export sizes and rejects anything else, so `iphone` and
  * `ipad` are specifications. Google publishes a *range* — 320–3840px per side,
- * at most 2:1 — and no canonical resolution, so `phone` and `tablet` are house
- * choices that sit comfortably inside that range, not requirements. Change them
- * if a project wants different ones; the only hard constraint this file imposes
- * is that no two targets share a size, since the size is how a loaded strip is
- * identified.
+ * at most 2:1 — and no canonical resolution, so `phone`, `tablet_7` and
+ * `tablet_10` are house choices that sit comfortably inside that range, not
+ * requirements. Play asks for phone, 7" tablet and 10" tablet slots separately,
+ * which is why there are two tablets; both sit at 0.625 and differ only in size.
+ * Change them if a project wants different ones; the only hard constraint this
+ * file imposes is that no two targets share a size, since the size is how a
+ * loaded strip is identified. `phone` and `tablet_7` share a *height* — 1920 —
+ * and are told apart by width, so keep both numbers in mind when editing one.
  */
 
 export function deviceForFolder(folder: string): DeviceTarget | null {

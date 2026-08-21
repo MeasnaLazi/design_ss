@@ -36,7 +36,7 @@ The repo is intended for **local development**: run the Vite dev server, open a 
 | [`composer/`](composer/) | **HTML-first strip composer** — strips are authored as HTML/CSS ([`strip-schema.md`](composer/strip-schema.md)); `render.mjs` exports store-size PNGs + a `strip-data.json` snapshot (measured geometry + `problems`) via Playwright; `check-schema.mjs` checks structure from source text, no browser. |
 | [`.claude/skills/`](.claude/skills/) | **The skill** — [`strip-design`](.claude/skills/strip-design/SKILL.md), the one agent-facing entry point. No agents, no helper scripts. |
 | [`input/`](input/) | **The brief.** `app.md` at the root (app name, summary, tone, theme, and — optionally — the copy for each panel), plus one folder per device target holding that target's captures: `input/iphone/`, `input/ipad/`. The design run starts here and refuses to start without it. Give it only a description and it drafts the panel copy, writing it back into `app.md`. |
-| [`strips/`](strips/) | **The strips.** One folder per device target (`iphone`, later `ipad` / `phone` / `tablet`): `strip.html`, `images/`, `screenshots/`, and a gitignored `rendered/`. Everything a design references lives with it — move the folder and it still renders. |
+| [`strips/`](strips/) | **The strips.** One folder per device target (`iphone`, later `ipad` / `phone` / `tablet_7` / `tablet_10`): `strip.html`, `images/`, `screenshots/`, and a gitignored `rendered/`. Everything a design references lives with it — move the folder and it still renders. |
 | [`mask_analysis/`](mask_analysis/) | **Standalone** browser tool to analyze SVG device-frame screen masks and composite screenshots with OpenCV.js (no npm build). |
 
 ## Architecture
@@ -71,7 +71,8 @@ input/                          strips/
 ```
 
 **`input/` mirrors `strips/`** — one folder per device target, the same name on
-both ends: `iphone`, `ipad`, `phone`, `tablet`. The folder is the only thing
+both ends: `iphone`, `ipad`, `phone`, `tablet_7`, `tablet_10`. The folder is the
+only thing
 that says which target a run is for, so there is no preset key to keep in step
 with it.
 
@@ -123,7 +124,7 @@ npm install
 npm run dev
 ```
 
-Open a strip at **http://localhost:4714/?strip=strips/&lt;device&gt;/strip.html**, or use the landing screen. It shows the four device targets — `iphone`, `ipad`, `phone`, `tablet` — whether or not they exist: click one that does to open it, one that does not to create a blank strip there, or **Load strip** to copy a strip folder in from anywhere on disk. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
+Open a strip at **http://localhost:4714/?strip=strips/&lt;device&gt;/strip.html**, or use the landing screen. It shows the five device targets — `iphone`, `ipad`, `phone`, `tablet_7`, `tablet_10` — whether or not they exist: click one that does to open it, one that does not to create a blank strip there, or **Load strip** to copy a strip folder in from anywhere on disk. The editor reads and writes that file in place, and reloads it when anything else — you, or an agent — writes to it.
 
 **Load measures rather than asks.** A folder's panel size decides where it lands — 1290×2796 goes to `strips/iphone/` — and the strip is run through `check-schema.mjs` once it is in place; if it fails, whatever was there before is put back.
 

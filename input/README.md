@@ -30,8 +30,8 @@ input/
 
 **The device folders mirror the output.** `input/iphone/` designs into
 `strips/iphone/`, `input/ipad/` into `strips/ipad/`. The four names are
-`iphone`, `ipad`, `phone` and `tablet`, and the folder is the *only* thing that
-says which target a run is for — there is no `preset` key to keep in sync with
+`iphone`, `ipad`, `phone`, `tablet_7` and `tablet_10`, and the folder is the
+*only* thing that says which target a run is for — there is no `preset` key to keep in sync with
 it, and nothing to disagree.
 
 **Captures are per device because they genuinely differ.** An iPad screenshot is
@@ -153,7 +153,8 @@ Everything below is optional.
 | `iphone` | 1290×2796 | App Store |
 | `ipad` | 2048×2732 | App Store |
 | `phone` | 1080×1920 | Play |
-| `tablet` | 1600×2560 | Play |
+| `tablet_7` | 1200×1920 | Play |
+| `tablet_10` | 1600×2560 | Play |
 
 `input/<device>/` in, `strips/<device>/` out, the same name on both ends.
 **There is no `preset` key.** The folder is the declaration; a name written in

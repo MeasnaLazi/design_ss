@@ -235,7 +235,7 @@ check('a pack is chosen by type, not by position', () => {
 check('an unmatched target falls back to a pack rather than nothing', () => {
   const packs = [{ id: 'iphone_12_pro', type: 'iphone' }]
   // A device block with no pack does not build at all, so some mockup beats none.
-  assert.equal(packForTarget(packs, 'tablet'), 'iphone_12_pro')
+  assert.equal(packForTarget(packs, 'tablet_10'), 'iphone_12_pro')
   assert.equal(packForTarget([], 'iphone'), null)
 })
 
