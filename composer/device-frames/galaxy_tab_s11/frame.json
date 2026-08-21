@@ -3,7 +3,7 @@
     {
       "name": "front",
       "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
-      "framePath": "/device-frames/galaxy_tab/frame/front.svg",
+      "framePath": "/device-frames/galaxy_tab_s11/frame/front.svg",
       "homography": false,
       "viewWidth": 1848.0,
       "viewHeight": 2960.0,

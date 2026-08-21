@@ -16,9 +16,14 @@
       "path": "/device-frames/ipad_13_pro/frame.json"
     },
     {
-      "name": "Galaxy Tab",
+      "name": "Galaxy Tab S11",
       "type": "tablet_10",
-      "path": "/device-frames/galaxy_tab/frame.json"
+      "path": "/device-frames/galaxy_tab_s11/frame.json"
+    },
+    {
+      "name": "Galaxy Tab A",
+      "type": "tablet_7",
+      "path": "/device-frames/galaxy_tab_a/frame.json"
     }
   ]
 }
