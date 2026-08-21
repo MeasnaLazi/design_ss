@@ -1,0 +1,18 @@
+{
+  "frames": [
+    {
+      "name": "front",
+      "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
+      "framePath": "/device-frames/iphone_15_pro/frame/front.svg",
+      "homography": false,
+      "viewWidth": 1665.79,
+      "viewHeight": 3457.71,
+      "corners": {
+        "TL": [46.27, 23],
+        "TR": [1619.48, 23],
+        "BR": [1619.48, 3426.78],
+        "BL": [46.27, 3426.78]
+      }
+    }
+  ]
+}
