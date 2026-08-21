@@ -14,7 +14,7 @@ first and **will not start without it**.
 ```
 input/
   README.md           this file — the only thing here you did not write
-  app.md              the app: name, summary, tone, theme, panel copy
+  app.md              the app: name, summary, request, pinned values, panel copy
   *icon*.png          your app icon — optional, but see below
 
   iphone/             one folder per device target — the captures for it
@@ -74,13 +74,22 @@ horizontal rule is the format the agent reads.
 ````markdown
 # Bio Journal
 
+## Summary
+
+A private journal that turns everyday moments into a story worth keeping.
+For people who want to write a little, not a lot.
+
+## Request
+
+Premium and quiet — it should feel like a paper notebook, not a productivity
+app. Show the dark mode on at least one panel, and use the newer iPhone body.
+
 ## About
 
-- summary: A private journal that turns everyday moments into a story worth
-  keeping. For people who want to write a little, not a lot.
 - category: lifestyle / journal
 - tone: warm and literary
 - theme: #f5f1ee / #0c0c0a
+- frame: iphone_15_pro
 - store: appstore
 - panels: 5
 
@@ -118,10 +127,24 @@ horizontal rule is the format the agent reads.
 
 ---
 
-### The heading
+### What is required
 
-The `# ` heading is the app's name. It is used in the design — as a brand chip,
-a watermark, a wordmark — but it does **not** name any folder.
+Two things, plus captures:
+
+| | |
+| --- | --- |
+| the `# ` heading | the app's name |
+| `## Summary` | what the app does and who it is for, in a sentence or two |
+| `input/<device>/` | a folder with at least one capture in it |
+
+The `# ` heading is used in the design — as a brand chip, a watermark, a
+wordmark — but it does **not** name any folder.
+
+`## Summary` is prose rather than a bullet because it is usually two sentences
+and because everything else is derived from it: leave out `tone`, `theme` or
+`frame` and this is what the agent reads to decide them.
+
+Everything below is optional.
 
 ### The device targets
 
@@ -161,20 +184,57 @@ works on one is not a layout on the other. What carries across is the concept �
 same copy, same palette, same archetype — laid out again for the new
 proportion.
 
+### `## Request`
+
+Optional, and **prose** — the place for anything that is an intention rather
+than a value. *"Premium and quiet."* *"Don't make it look like a productivity
+app."* *"Use the newer iPhone body."* *"Show the dark mode somewhere."*
+
+There is no `tone:` value that holds "should feel like a paper notebook, not a
+productivity app", and forcing it into one loses most of it. Write it the way
+you would say it.
+
+**The agent reads this and never edits it.** It is yours. Drafted panel copy is
+written back below, into `## Panel N` — never into here.
+
+### Request versus About: which goes where
+
+They divide by the *kind* of statement, so each fact has exactly one home:
+
+| | |
+| --- | --- |
+| **a value** → `## About` bullet | `theme: #f5f1ee / #0c0c0a`, `panels: 5`, `frame: iphone_15_pro` |
+| **an intention** → `## Request` prose | "premium and quiet", "not a productivity app", "use the newer body" |
+
+If both mention the same thing — a `frame:` bullet and "use the newer body" in
+the prose — **the bullet wins.** Someone typed an exact value on purpose; prose
+about the same thing is the older thought.
+
+Anything neither states, the agent works out from the summary, the request and
+the captures, and **says what it inferred** in its first line back to you.
+
+Those inferences are logged in `composer/references/history.md`, not written
+back here. That is deliberate: `app.md` is the brief and should hold what *you*
+decided, while a design choice written into the brief would be pinned forever —
+the second run would read it as yours and never vary it again.
+
 ### `## About`
+
+Optional. Every key here is a pinned value; leave any of them out.
 
 | Key | Meaning |
 | --- | --- |
-| `summary` | What the app does and who it is for. One or two sentences. |
 | `category` | e.g. lifestyle / journal, productivity, finance |
 | `tone` | e.g. warm and literary · clinical and precise · playful |
 | `theme` | `background / ink`, plus an accent if you have one. Add a second pair after `·` for an inverted variant — see below. |
 | `mood` | Optional. `midnight`, `ember`, `golden hour`, `dawn`, `overcast`, `parchment`, `neon`, `clinical`, `deep water`, `spotlight`. Atmosphere rather than colour; the agent picks one if you leave it out. |
+| `frame` | Optional. A device frame pack id — the folder name under `composer/device-frames/`, e.g. `iphone_15_pro`. Must be a pack whose `type` matches the target being designed. Left out, the agent picks one: the capture dimensions usually identify the device, and where they do not it takes one the last run did not use. |
 | `store` | `appstore` or `play` |
 | `panels` | Optional. How many panels to design, **5–10**. Only consulted for panels you did *not* write — see below. |
 
 `tone` and `theme` steer type and palette. Leave either out and the agent infers
-it from the summary and tells you what it inferred.
+it from the summary, the request and the captures, and tells you what it
+inferred.
 
 **Two palettes, one brand.** A pinned `theme` keeps every strip on-brand across
 iPhone, iPad and Play — which is what you want, and it also means the palette
@@ -201,16 +261,17 @@ A minimal `app.md` is legal:
 ````markdown
 # Bio Journal
 
-## About
+## Summary
 
-- summary: A private journal that turns everyday moments into a story worth
-  keeping. For people who want to write a little, not a lot.
-- tone: warm and literary
-- panels: 6
+A private journal that turns everyday moments into a story worth keeping.
+For people who want to write a little, not a lot.
 ````
 
+That is the whole gate: a name, a summary, and a device folder with captures in
+it. `## Request`, `## About` and the panels are all optional.
+
 **Drafted copy is written back into this file**, below your `## About`, marked
-with a comment:
+with a comment. Copy is the only thing written back:
 
 ```markdown
 <!-- drafted by strip-design 2026-08-16 -->
