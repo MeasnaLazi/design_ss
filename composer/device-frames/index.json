@@ -16,6 +16,11 @@
       "path": "/device-frames/ipad_13_pro/frame.json"
     },
     {
+      "name": "Nexus 6P",
+      "type": "phone",
+      "path": "/device-frames/nexus_6p/frame.json"
+    },
+    {
       "name": "Galaxy Tab S11",
       "type": "tablet_10",
       "path": "/device-frames/galaxy_tab_s11/frame.json"

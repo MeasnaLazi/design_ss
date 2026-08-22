@@ -1,0 +1,19 @@
+{
+  "frames": [
+    {
+      "name": "front",
+      "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
+      "framePath": "/device-frames/nexus_6p/frame/front.svg",
+      "homography": false,
+      "clipCornerRadiusPx": 0,
+      "viewWidth": 1565,
+      "viewHeight": 3198,
+      "corners": {
+        "TL": [58.62, 328.88],
+        "TR": [1497.5, 328.88],
+        "BR": [1497.5, 2888.66],
+        "BL": [58.62, 2888.66]
+      }
+    }
+  ]
+}
