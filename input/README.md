@@ -47,6 +47,28 @@ Give the same screen the same filename in every folder — `welcome.PNG` in both
 not change between devices. Copying them per target would only give them room
 to drift.
 
+**One design across every target: `follows:`.** By default each target is
+designed from scratch, and five runs produce five cousins rather than one
+family. Put this in `request:` and the run repeats the named target's concept —
+same rhythm, archetype, palette, typeface and decor — re-composed for this
+canvas:
+
+```
+request:
+  follows: iphone
+```
+
+Design one target first, then design the rest with `follows:` naming it. A
+phone target (`iphone` or `phone`) is usually the right one to design first:
+it is the tightest canvas, and copy that fits there fits everywhere, while copy
+drafted against iPad's width may not fit iPhone at all — and the copy is shared.
+
+What follows is the *concept*, never the geometry: type sizes, positions and
+device widths are decided again for each canvas, and the frame pack is forced to
+change because a pack's type must match its `strips/` folder. Changing the
+source strip later does **not** update the others; ask for that explicitly, and
+know that it replaces them rather than patching them.
+
 **The icon earns its place.** It is the densest statement of your visual
 identity you own, and the only brand asset the store shows *beside* the strip.
 Three uses: colours read off it beat colours inferred from your `summary`, so it

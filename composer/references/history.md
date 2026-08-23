@@ -1,7 +1,12 @@
 # Run history
 
-One line per design run, appended at the end of the run. The point is the
-**last** line: a run reads it and must not repeat that concept.
+One line per concept, appended at the end of the run that chose it. The point is
+the **last** line: a run reads it and must not repeat that concept.
+
+Per *concept*, not per run: a follow-run (`follows:` in `app.md`) repeats a
+concept rather than choosing one, and appends nothing. Otherwise porting one
+design to four other targets would write four more lines saying the same thing,
+and bury the concept the next run is supposed to vary from.
 
 This lives here rather than in the strip folder because a run *replaces*
 `strips/<device>/` wholesale — anything recorded inside it is gone the moment
