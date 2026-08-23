@@ -8,7 +8,8 @@
 //
 // Usage:
 //   node composer/check-schema.mjs <file.html> [more.html ...]
-//   node composer/check-schema.mjs --all        # every strip in the repo
+//   node composer/check-schema.mjs --all        # every strip in the repo, and the frame packs
+//   node composer/check-schema.mjs --packs      # just the frame-pack geometry
 //   node composer/check-schema.mjs --skeleton   # the example inside strip-schema.md
 //
 // Exit 0 when clean, 1 when any file has an error. Warnings never fail.
@@ -16,6 +17,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { screenOutline, containmentReport, enclosingQuad, isIdentityAffine } from './screen-geometry.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TEXT_ROLES = new Set(['title', 'subtitle', 'caption'])
@@ -387,6 +389,124 @@ export async function checkStrip(html, label) {
   return { label, errors: [...errors], warnings: [...warnings], isStrip: stripCount > 0 }
 }
 
+/**
+ * Frame-pack geometry: does each pose still satisfy the contract?
+ *
+ * Separate from {@link checkStrip} because it checks a *pack*, not a document —
+ * a broken pack is broken for every strip that uses it, and reporting it once
+ * per strip would bury it. `--all` runs this first so `npm run check` covers it.
+ *
+ * The contract, restated:
+ *
+ *   `frame.json.corners` is a warp target in viewBox space that must fully
+ *   contain the `#screen` aperture. The clip is always derived from the SVG.
+ *
+ * Only the first half needs checking — the second half is now structural, since
+ * `device-frames.mjs` has no way to clip with anything but the aperture. What it
+ * cannot check for itself is whether the numbers a human transcribed out of
+ * `mask_analysis` still describe the SVG sitting next to them. That is what
+ * drifts, and nothing used to notice.
+ */
+export async function checkPacks() {
+  const errors = []
+  const warnings = []
+  const rows = []
+  const E = (m) => errors.push(m)
+  const W = (m) => warnings.push(m)
+
+  const framesDir = path.join(REPO_ROOT, 'composer/device-frames')
+  let catalogue
+  try {
+    catalogue = JSON.parse(await fs.readFile(path.join(framesDir, 'index.json'), 'utf8')).devices ?? []
+  } catch (err) {
+    return { errors: [`composer/device-frames/index.json is unreadable: ${err.message}`], warnings, rows }
+  }
+
+  for (const dev of catalogue) {
+    const id = String(dev.path ?? '').split('/').filter(Boolean)[1]
+    if (!id) continue
+    let pack
+    try {
+      pack = JSON.parse(await fs.readFile(path.join(framesDir, id, 'frame.json'), 'utf8'))
+    } catch (err) {
+      E(`${id}: frame.json is unreadable: ${err.message}`)
+      continue
+    }
+    for (const frame of pack.frames ?? []) {
+      const where = `${id}/${frame.name}`
+      const rel = String(frame.framePath ?? '').replace(/^\/device-frames\//, '')
+      let svgText
+      try {
+        svgText = await fs.readFile(path.join(framesDir, rel), 'utf8')
+      } catch (err) {
+        E(`${where}: framePath does not resolve: ${frame.framePath}`)
+        continue
+      }
+
+      const geo = screenOutline(svgText)
+      if (!geo.points) {
+        // The old runtime answered this by inventing a rounded quad from the
+        // corners. Now it throws, so the check has to be an error too.
+        E(`${where}: ${geo.problems.join('; ')}`)
+        continue
+      }
+      const vb = geo.viewBox
+      if (vb.x !== 0 || vb.y !== 0) {
+        E(`${where}: viewBox starts at (${vb.x}, ${vb.y}); poses must be exported from the origin`)
+      }
+      if (!isIdentityAffine(geo.worldMatrix)) {
+        W(`${where}: #screen sits under a transform, so the clip ships as a sampled polygon rather than curves`)
+      }
+
+      // The stage size comes from the viewBox. A frame.json that disagrees is
+      // inert today and misleading tomorrow: it is the first number a person
+      // reads when they come to measure the next pack.
+      if (frame.viewWidth != null && Math.abs(frame.viewWidth - vb.width) > 0.5) {
+        E(`${where}: viewWidth ${frame.viewWidth} but the SVG viewBox is ${vb.width} wide (the viewBox wins)`)
+      }
+      if (frame.viewHeight != null && Math.abs(frame.viewHeight - vb.height) > 0.5) {
+        E(`${where}: viewHeight ${frame.viewHeight} but the SVG viewBox is ${vb.height} tall (the viewBox wins)`)
+      }
+
+      for (const dead of ['clipCornerRadiusPx', 'clipCornerRadiiPx']) {
+        if (frame[dead] != null) {
+          W(`${where}: "${dead}" is read by nothing since the clip comes from the aperture — safe to delete`)
+        }
+      }
+
+      const c = frame.corners
+      if (!c?.TL || !c?.TR || !c?.BR || !c?.BL) {
+        E(`${where}: frame.json needs corners TL, TR, BR, BL`)
+        continue
+      }
+      const quad = [c.TL, c.TR, c.BR, c.BL]
+      const report = containmentReport(quad, geo.points)
+      if (!report.convex) {
+        E(`${where}: corners do not form a convex quad, so the warp is undefined`)
+      } else if (report.outsideCount > 0) {
+        const suggestion = enclosingQuad(geo.points, { outset: 1 })
+          .map((p) => `[${p.map((v) => Math.round(v * 100) / 100).join(', ')}]`)
+          .join(' ')
+        E(
+          `${where}: the #screen aperture escapes the corners quad by ${report.maxOutside.toFixed(2)} viewBox units ` +
+            `at ${report.outsideCount}/${geo.points.length} sampled points (worst near ` +
+            `${report.worstPoint.map((v) => Math.round(v * 10) / 10).join(', ')}). The screenshot is warped onto the ` +
+            `quad and clipped to the aperture, so the uncovered strip renders as panel background. ` +
+            `A quad that encloses it: ${suggestion}`,
+        )
+      }
+      rows.push({
+        where,
+        tag: geo.tag,
+        points: geo.points.length,
+        margin: -report.maxOutside,
+        ok: report.ok && errors.length === 0,
+      })
+    }
+  }
+  return { errors, warnings, rows }
+}
+
 /** The example inside strip-schema.md — the doc must not teach markup it forbids. */
 async function skeletonFromSchema() {
   const doc = await fs.readFile(path.join(REPO_ROOT, 'composer/strip-schema.md'), 'utf8')
@@ -441,7 +561,7 @@ async function findStrips() {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const args = process.argv.slice(2)
   if (args.length === 0) {
-    console.error('usage: node composer/check-schema.mjs <file.html> [...] | --all | --skeleton')
+    console.error('usage: node composer/check-schema.mjs <file.html> [...] | --all | --packs | --skeleton')
     process.exit(2)
   }
   
@@ -460,6 +580,23 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     for (const w of warnings) console.log(`        warn:  ${w}`)
   }
   
+  // Pack geometry is a property of the catalogue, not of any one strip, so it
+  // runs once — before the documents, because a strip that looks clean on top of
+  // a pack whose corners have drifted is a misleading kind of clean.
+  if (args[0] === '--all' || args[0] === '--packs') {
+    const { errors, warnings, rows } = await checkPacks()
+    for (const r of rows) {
+      console.log(
+        `${'PACK'}  ${r.where.padEnd(28)} <${r.tag}>  ${String(r.points).padStart(4)} pts  ` +
+          `margin ${r.margin >= 0 ? '+' : ''}${r.margin.toFixed(2)}u`,
+      )
+    }
+    for (const e of errors) console.log(`        error: ${e}`)
+    for (const w of warnings) console.log(`        warn:  ${w}`)
+    if (errors.length) failed += 1
+    if (args[0] === '--packs') process.exit(failed ? 1 : 0)
+  }
+
   if (args[0] === '--skeleton') {
     const html = await skeletonFromSchema()
     report(await checkStrip(html, 'composer/strip-schema.md § Skeleton'), { explicit: true })

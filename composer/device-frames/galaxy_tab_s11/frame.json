@@ -5,8 +5,8 @@
       "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
       "framePath": "/device-frames/galaxy_tab_s11/frame/front.svg",
       "homography": false,
-      "viewWidth": 1848.0,
-      "viewHeight": 2960.0,
+      "viewWidth": 1971.0,
+      "viewHeight": 3078.0,
       "layoutScale": 0.624,
       "corners": {
         "TL": [68.0, 59.0],

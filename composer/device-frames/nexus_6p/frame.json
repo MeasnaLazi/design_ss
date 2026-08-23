@@ -5,7 +5,6 @@
       "description": "Straight-on portrait view. Neutral and professional — best for showcasing UI content clearly.",
       "framePath": "/device-frames/nexus_6p/frame/front.svg",
       "homography": false,
-      "clipCornerRadiusPx": 0,
       "viewWidth": 1565,
       "viewHeight": 3198,
       "corners": {

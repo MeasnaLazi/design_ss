@@ -1,195 +1,77 @@
 /**
- * svg-parser.js — Step 1: Parse SVG and resolve #screen path with transforms.
+ * svg-parser.js — locate `#screen` in a pose SVG.
+ *
+ * This file used to *implement* that: its own DOMParser walk, its own
+ * rect-to-path conversion, its own ancestor-transform resolver. The shipping
+ * runtime (`composer/device-frames.mjs`) had a different implementation, and the
+ * two disagreed — most visibly about `<rect>`-based `#screen` elements, which
+ * this tool converted and the runtime did not see at all.
+ *
+ * So the implementation moved to `composer/screen-geometry.mjs` and both sides
+ * now call it. What is left here is an adapter: the shape `index.html` and
+ * `opencv-compositor.js` expect, built from the shared answer. Keeping the
+ * adapter (rather than importing the shared module everywhere) means the
+ * measuring tool's own error messages stay written for the person holding an SVG
+ * that will not load.
+ *
+ * NOTE ON SERVING: the import below reaches outside `mask_analysis/`, so the
+ * static server has to be rooted at the repo, not at this directory. See
+ * README.MD — `python3 -m http.server 8080` from the repo root, then open
+ * /mask_analysis/.
  */
+import {
+  screenGeometry,
+  sampleScreenPath,
+  applyAffine,
+  isIdentityAffine,
+} from '../../composer/screen-geometry.mjs';
+
+export { sampleScreenPath, applyAffine, isIdentityAffine };
 
 /**
- * Parse an SVG string and return the #screen path element along with
- * its fully-resolved world transform and the SVG root's viewBox.
+ * Parse an SVG string and return the `#screen` outline together with its
+ * resolved world transform and the SVG root's viewBox.
  *
  * @param {string} svgText
- * @returns {{ svgElement: SVGSVGElement, screenPath: SVGPathElement, worldMatrix: DOMMatrix, viewBox: DOMRect }}
- * @throws {Error} if #screen is not found or SVG is invalid
+ * @returns {{ screenPathD: string, tag: string, worldMatrix: number[], viewBox: {x,y,width,height} }}
+ * @throws {Error} if the SVG has no usable viewBox or no readable `#screen`
  */
 export function parseSVG(svgText) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const geo = screenGeometry(svgText);
 
-  // Check for parse errors
-  const parseError = doc.querySelector('parsererror');
-  if (parseError) {
-    throw new Error(`SVG parse error: ${parseError.textContent.trim()}`);
+  if (!geo.viewBox) {
+    throw new Error('SVG root has no viewBox (and no usable width/height).');
+  }
+  if (!geo.d) {
+    throw new Error(geo.problems.join('; ') || 'Could not read the #screen aperture.');
+  }
+  if (geo.viewBox.x !== 0 || geo.viewBox.y !== 0) {
+    // Worth refusing rather than quietly mis-measuring: the compositor
+    // rasterises from the origin, and `device-frames.mjs` positions its stage
+    // there too, so a shifted viewBox would put the screen in the wrong place in
+    // both — but only one of them would look wrong to you.
+    throw new Error(
+      `viewBox starts at (${geo.viewBox.x}, ${geo.viewBox.y}); poses must be exported from the origin.`,
+    );
   }
 
-  const svgElement = doc.documentElement;
-  if (svgElement.tagName.toLowerCase() !== 'svg') {
-    throw new Error('Root element is not <svg>.');
-  }
-
-  // Find #screen path
-  const screenPath = doc.getElementById('screen');
-  if (!screenPath) {
-    throw new Error('No element with id="screen" found in SVG.');
-  }
-  const screenTag = screenPath.tagName.toLowerCase();
-  if (screenTag === 'rect') {
-    // Downstream sampling only reads the `d` attribute, so synthesize an
-    // equivalent path (rounded corners included) and stash it there.
-    screenPath.setAttribute('d', rectToPathD(screenPath));
-  } else if (screenTag !== 'path') {
-    console.warn('[svg-parser] #screen element is not a <path> or <rect>; proceeding anyway.');
-  }
-
-  // Resolve accumulated transform from root → screenPath
-  const worldMatrix = resolveWorldTransform(screenPath, svgElement);
-
-  // Parse viewBox
-  const viewBox = parseViewBox(svgElement);
-
-  return { svgElement, screenPath, worldMatrix, viewBox };
+  return {
+    screenPathD: geo.d,
+    tag: geo.tag,
+    worldMatrix: geo.worldMatrix,
+    viewBox: geo.viewBox,
+  };
 }
 
 /**
- * Build a path `d` string equivalent to a `<rect>` (honoring `rx`/`ry`),
- * clockwise from top-left, so it samples like any other #screen path.
- * Rounded corners use cubic Béziers rather than arcs — sampleScreenPath()
- * only samples arc endpoints, not the curve itself.
+ * The `#screen` outline sampled into viewBox-space points.
  *
- * @param {SVGRectElement} rect
- * @returns {string}
+ * @param {{ screenPathD: string, worldMatrix: number[] }} parsed
+ * @returns {Array<[number, number]>}
  */
-function rectToPathD(rect) {
-  const x = parseFloat(rect.getAttribute('x')) || 0;
-  const y = parseFloat(rect.getAttribute('y')) || 0;
-  const width = parseFloat(rect.getAttribute('width')) || 0;
-  const height = parseFloat(rect.getAttribute('height')) || 0;
-
-  const rxAttr = rect.getAttribute('rx');
-  const ryAttr = rect.getAttribute('ry');
-  let rx = rxAttr !== null ? parseFloat(rxAttr) : (ryAttr !== null ? parseFloat(ryAttr) : 0);
-  let ry = ryAttr !== null ? parseFloat(ryAttr) : rx;
-  rx = Math.min(rx, width / 2);
-  ry = Math.min(ry, height / 2);
-
-  if (!(rx > 0) || !(ry > 0)) {
-    return `M${x},${y} L${x + width},${y} L${x + width},${y + height} L${x},${y + height} Z`;
-  }
-
-  const k = 0.5522847498; // cubic-Bézier circle approximation constant
-  const rxK = rx * k, ryK = ry * k;
-  return [
-    `M${x + rx},${y}`,
-    `L${x + width - rx},${y}`,
-    `C${x + width - rx + rxK},${y} ${x + width},${y + ry - ryK} ${x + width},${y + ry}`,
-    `L${x + width},${y + height - ry}`,
-    `C${x + width},${y + height - ry + ryK} ${x + width - rx + rxK},${y + height} ${x + width - rx},${y + height}`,
-    `L${x + rx},${y + height}`,
-    `C${x + rx - rxK},${y + height} ${x},${y + height - ry + ryK} ${x},${y + height - ry}`,
-    `L${x},${y + ry}`,
-    `C${x},${y + ry - ryK} ${x + rx - rxK},${y} ${x + rx},${y}`,
-    'Z',
-  ].join(' ');
-}
-
-/**
- * Walk ancestors from element → root, accumulating transforms into a DOMMatrix.
- * Transforms are applied outermost-first (pre-multiply from root down).
- *
- * @param {Element} element
- * @param {Element} root
- * @returns {DOMMatrix}
- */
-function resolveWorldTransform(element, root) {
-  const matrices = [];
-  let current = element;
-
-  while (current && current !== root.parentElement) {
-    const transform = current.getAttribute('transform');
-    if (transform) {
-      matrices.unshift(parseTransformAttribute(transform));
-    }
-    current = current.parentElement;
-  }
-
-  let result = new DOMMatrix(); // identity
-  for (const m of matrices) {
-    result = result.multiply(m);
-  }
-  return result;
-}
-
-/**
- * Parse an SVG transform attribute string into a DOMMatrix.
- * Handles: matrix(), translate(), scale(), rotate(), skewX(), skewY().
- *
- * @param {string} transformStr
- * @returns {DOMMatrix}
- */
-function parseTransformAttribute(transformStr) {
-  let result = new DOMMatrix();
-
-  // Split on transform-list boundaries
-  const re = /(\w+)\s*\(([^)]*)\)/g;
-  let match;
-
-  while ((match = re.exec(transformStr)) !== null) {
-    const fn = match[1].toLowerCase();
-    const args = match[2].trim().split(/[\s,]+/).map(Number);
-
-    let m;
-    switch (fn) {
-      case 'matrix':
-        // matrix(a b c d e f)
-        m = new DOMMatrix([args[0], args[1], args[2], args[3], args[4], args[5]]);
-        break;
-      case 'translate':
-        m = new DOMMatrix().translate(args[0], args[1] ?? 0);
-        break;
-      case 'scale':
-        m = new DOMMatrix().scale(args[0], args[1] ?? args[0]);
-        break;
-      case 'rotate': {
-        const angle = args[0];
-        const cx = args[1] ?? 0;
-        const cy = args[2] ?? 0;
-        m = new DOMMatrix()
-          .translate(cx, cy)
-          .rotate(angle)
-          .translate(-cx, -cy);
-        break;
-      }
-      case 'skewx':
-        m = new DOMMatrix([1, 0, Math.tan((args[0] * Math.PI) / 180), 1, 0, 0]);
-        break;
-      case 'skewy':
-        m = new DOMMatrix([1, Math.tan((args[0] * Math.PI) / 180), 0, 1, 0, 0]);
-        break;
-      default:
-        console.warn(`[svg-parser] Unknown transform function: ${fn}`);
-        continue;
-    }
-    result = result.multiply(m);
-  }
-
-  return result;
-}
-
-/**
- * Parse the viewBox attribute of the SVG root element.
- * Falls back to width/height attributes if viewBox is absent.
- *
- * @param {SVGSVGElement} svgElement
- * @returns {{ x: number, y: number, width: number, height: number }}
- */
-function parseViewBox(svgElement) {
-  const vb = svgElement.getAttribute('viewBox');
-  if (vb) {
-    const parts = vb.trim().split(/[\s,]+/).map(Number);
-    if (parts.length === 4 && parts.every(isFinite)) {
-      return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
-    }
-  }
-  // Fallback
-  const w = parseFloat(svgElement.getAttribute('width')) || 800;
-  const h = parseFloat(svgElement.getAttribute('height')) || 600;
-  return { x: 0, y: 0, width: w, height: h };
+export function outlinePoints(parsed) {
+  const local = sampleScreenPath(parsed.screenPathD);
+  return isIdentityAffine(parsed.worldMatrix)
+    ? local
+    : local.map((p) => applyAffine(parsed.worldMatrix, p));
 }

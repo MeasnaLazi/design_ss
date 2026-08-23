@@ -107,41 +107,10 @@ export function coverCropRect(w, h, targetAspect) {
   return { x: 0, y: (h - ch) / 2, w, h: ch }
 }
 
-/**
- * Rounded-quad SVG path `d` in viewBox coordinates. Direct port of
- * the editor's rounded-quad path builder so HTML
- * clipping matches canvas clipping exactly. Radii order: [tl, tr, br, bl].
+/*
+ * `roundedQuadPathD` used to live here: a rounded quad synthesised from
+ * `frame.json` corners, used as the screenshot clip whenever the pose SVG's
+ * `#screen` could not be read. It is gone on purpose. The clip now always comes
+ * from the aperture itself — see `screen-geometry.mjs` — so there is no second,
+ * unmeasured shape for the runtime to fall back to.
  */
-export function roundedQuadPathD(quad, radiiPx) {
-  const points = [quad.tl, quad.tr, quad.br, quad.bl]
-  if (radiiPx.every((r) => r <= 0)) {
-    return `M ${quad.tl[0]} ${quad.tl[1]} L ${quad.tr[0]} ${quad.tr[1]} L ${quad.br[0]} ${quad.br[1]} L ${quad.bl[0]} ${quad.bl[1]} Z`
-  }
-  const normalize = (x, y) => {
-    const len = Math.hypot(x, y)
-    return len < 1e-6 ? [0, 0] : [x / len, y / len]
-  }
-  const cornerData = points.map((corner, i) => {
-    const radiusPx = radiiPx[i]
-    const prev = points[(i + 3) % 4]
-    const next = points[(i + 1) % 4]
-    const toPrev = normalize(prev[0] - corner[0], prev[1] - corner[1])
-    const toNext = normalize(next[0] - corner[0], next[1] - corner[1])
-    const lenPrev = Math.hypot(prev[0] - corner[0], prev[1] - corner[1])
-    const lenNext = Math.hypot(next[0] - corner[0], next[1] - corner[1])
-    const localRadius = Math.min(radiusPx, lenPrev * 0.45, lenNext * 0.45)
-    const start = [corner[0] + toPrev[0] * localRadius, corner[1] + toPrev[1] * localRadius]
-    const end = [corner[0] + toNext[0] * localRadius, corner[1] + toNext[1] * localRadius]
-    return { corner, start, end }
-  })
-  const [first, ...rest] = cornerData
-  const segments = [`M ${first.end[0]} ${first.end[1]}`]
-  for (const c of rest) {
-    segments.push(`L ${c.start[0]} ${c.start[1]}`)
-    segments.push(`Q ${c.corner[0]} ${c.corner[1]} ${c.end[0]} ${c.end[1]}`)
-  }
-  segments.push(`L ${first.start[0]} ${first.start[1]}`)
-  segments.push(`Q ${first.corner[0]} ${first.corner[1]} ${first.end[0]} ${first.end[1]}`)
-  segments.push('Z')
-  return segments.join(' ')
-}

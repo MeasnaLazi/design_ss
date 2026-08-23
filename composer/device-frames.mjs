@@ -11,19 +11,27 @@
  *   data-fit="cover" (default) | "stretch"   — how the screenshot fills the screen quad
  *   data-screen-fallback="#rrggbb"            — screen fill when data-screenshot is omitted
  *
- * The runtime reads the pack's frame.json (`corners`, view size), warps the
- * screenshot onto the screen quad with a matrix3d homography, clips it with
- * the pose SVG's own `#screen` path (exact artwork match), and layers the
- * frame SVG on top. Sets `window.__composerReady = true` when all devices
- * (and images) are built, which render.mjs waits for.
+ * The runtime takes the warp quad from the pack's frame.json (`corners`) and
+ * everything else from the pose SVG: the viewBox is the stage, and `#screen` is
+ * the clip. It warps the screenshot onto the quad with a matrix3d homography,
+ * clips it to the aperture, and layers the frame SVG on top. Sets
+ * `window.__composerReady = true` when all devices (and images) are built, which
+ * render.mjs waits for.
+ *
+ * The contract between those two sources, enforced by `check-schema.mjs --packs`:
+ * **`corners` must fully contain the `#screen` aperture.** The quad only decides
+ * how the screenshot is stretched; the aperture decides what is visible. A quad
+ * that falls short leaves the panel background showing as a hairline along the
+ * screen edge — which is invisible in `mask_analysis`, where an exact mask does
+ * the cutting, and is why that tool and this runtime used to disagree.
  */
 import {
   matrix3dForQuad,
   quadFromFrameCorners,
   quadSize,
   coverCropRect,
-  roundedQuadPathD,
 } from './homography.mjs'
+import { screenClipPathD } from './screen-geometry.mjs'
 
 const CONFIG = typeof window !== 'undefined' && window.COMPOSER_CONFIG ? window.COMPOSER_CONFIG : {}
 /**
@@ -74,23 +82,43 @@ function loadImage(src) {
   })
 }
 
-/** Extract the `d` attribute of the `#screen` path from pose SVG markup. */
-export function extractScreenPathD(svgText) {
-  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml')
-  const path = doc.querySelector('#screen')
-  return path ? path.getAttribute('d') : null
-}
-
-function clipPathDFor(frame, quad, svgText) {
-  const d = svgText ? extractScreenPathD(svgText) : null
-  if (d) return d
-  // Fallback: rounded quad from frame.json radii (same as canvas iso path).
-  const r = frame.clipCornerRadiiPx
-  const uniform = frame.clipCornerRadiusPx ?? 30
-  const radii = r
-    ? [r.tl ?? uniform, r.tr ?? uniform, r.br ?? uniform, r.bl ?? uniform]
-    : [uniform, uniform, uniform, uniform]
-  return roundedQuadPathD(quad, radii)
+/**
+ * The clip for the screenshot layer: the pose SVG's own `#screen` outline.
+ *
+ * There is deliberately no fallback. There used to be one — a rounded quad built
+ * from `frame.json` corners with `clipCornerRadiusPx ?? 30` — and because the
+ * old extractor read `getAttribute('d')` it fired for every `<rect>`-based
+ * `#screen`, which is half the catalogue. The result was a runtime that clipped
+ * a shape nobody had measured: `galaxy_tab_s11`'s square aperture came out with
+ * 30-unit rounded corners, `ipad_13_pro`'s `rx="32"` was ignored in favour of
+ * 30, and `nexus_6p` had to carry `"clipCornerRadiusPx": 0` to suppress the
+ * behaviour. That 30 was inherited verbatim from the deleted canvas app, where
+ * it existed for isometric poses; no pack in this repo has one.
+ *
+ * A pack whose `#screen` cannot be read is an authoring error, and now says so:
+ * the throw is caught by {@link initDevices}, which red-outlines the block and
+ * records it in `window.__composerErrors` — which `render.mjs` refuses to export
+ * past. Guessing a shape is what made this invisible for so long.
+ */
+function readScreen(svgText, packId, pose) {
+  const screen = screenClipPathD(svgText)
+  const where = `pack "${packId}" pose "${pose}"`
+  if (!screen.d) {
+    throw new Error(`${where}: cannot read the #screen aperture — ${screen.problems.join('; ')}`)
+  }
+  const vb = screen.geo.viewBox
+  if (!vb) throw new Error(`${where}: the pose SVG has no usable viewBox`)
+  // The stage is a plain div at (0, 0), so aperture coordinates and stage
+  // coordinates only coincide while the viewBox starts at the origin. No pack
+  // in the catalogue has a shifted viewBox; saying so out loud costs one
+  // comparison and beats silently drawing the screen in the wrong place.
+  if (vb.x !== 0 || vb.y !== 0) {
+    throw new Error(
+      `${where}: viewBox starts at (${vb.x}, ${vb.y}); the runtime places the stage at the ` +
+        `origin, so a shifted viewBox would offset the screen. Re-export the pose from (0, 0).`,
+    )
+  }
+  return screen
 }
 
 async function buildDevice(el) {
@@ -104,14 +132,18 @@ async function buildDevice(el) {
 
   const svgText = await loadSvgText(frame.framePath)
 
-  // `corners` and the `#screen` path are authored in the SVG's own viewBox
-  // space. Trust the SVG viewBox as the stage size; frame.json viewWidth /
-  // viewHeight is only a fallback (some entries are stale, e.g.
-  // iphone_12_pro/tilted-front says 1282x1485 while the SVG is 785x1401).
-  const vb = svgText.match(/viewBox="([\d.\s-]+)"/)
-  const vbParts = vb ? vb[1].trim().split(/\s+/).map(Number) : null
-  const viewW = vbParts?.[2] ?? frame.viewWidth
-  const viewH = vbParts?.[3] ?? frame.viewHeight
+  // One read of the pose SVG answers both questions the runtime asks of it:
+  // where the stage is (the viewBox) and what shape the screen is (`#screen`).
+  //
+  // `corners` and the aperture are both authored in the SVG's own viewBox space.
+  // The SVG viewBox is the stage size, full stop — `frame.json` viewWidth /
+  // viewHeight is not consulted, because several entries disagree with it
+  // (galaxy_tab_s11 records the aperture, 1848x2960, where the viewBox is
+  // 1971x3078). `check-schema.mjs --packs` reports that disagreement rather than
+  // letting the runtime silently pick a winner.
+  const screen = readScreen(svgText, packId, pose)
+  const viewW = screen.geo.viewBox.width
+  const viewH = screen.geo.viewBox.height
   const quad = quadFromFrameCorners(frame.corners)
 
   // Container: author sets width; height follows the pose aspect ratio.
@@ -144,7 +176,7 @@ async function buildDevice(el) {
   // Screenshot layer, clipped by the pose's own screen path.
   const clipDiv = document.createElement('div')
   clipDiv.style.cssText = `position:absolute;left:0;top:0;width:${viewW}px;height:${viewH}px;` +
-    `clip-path:path('${clipPathDFor(frame, quad, svgText)}');`
+    `clip-path:path('${screen.d}');`
 
   const shotSrc = el.dataset.screenshot
 

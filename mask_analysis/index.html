@@ -65,6 +65,20 @@
   </style>
 </head>
 <body>
+  <div id="sharedModuleError" class="hidden" style="margin:1rem;padding:1rem 1.25rem;border:1px solid var(--error,#f87171);border-radius:8px;background:rgba(248,113,113,0.08);font-size:14px;line-height:1.6;">
+    <strong style="color:var(--error,#f87171);">Cannot reach <code>composer/screen-geometry.mjs</code>.</strong>
+    <p style="margin:0.5rem 0 0;">
+      This tool shares its screen-geometry code with the renderer, so that file sits
+      <em>outside</em> this folder. Your static server cannot see above its own root, so it is
+      returning 404 and the analysis code never loads &mdash; which is why uploading an SVG
+      appears to do nothing.
+    </p>
+    <p style="margin:0.5rem 0 0;">Serve from the <strong>repository root</strong> instead:</p>
+    <pre style="margin:0.5rem 0 0;padding:0.6rem 0.8rem;background:rgba(0,0,0,0.35);border-radius:6px;overflow-x:auto;">cd /path/to/apps_publisher
+python3 -m http.server 8080</pre>
+    <p style="margin:0.5rem 0 0;">then open <strong><a id="repoRootLink" href="#" style="color:inherit;">/mask_analysis/</a></strong>.</p>
+  </div>
+
   <div id="app">
     <header>
       <div class="badge">Sample · screen mask</div>
@@ -111,8 +125,20 @@
           <span class="dropzone" style="padding:10px 16px;margin:0;">Upload screenshot</span>
         </label>
         <button type="button" id="renderBtn" disabled>Render</button>
+        <label style="font-size:13px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px;">
+          Fit
+          <select id="fitSelect" style="font:inherit;">
+            <option value="cover" selected>cover (matches the renderer)</option>
+            <option value="stretch">stretch</option>
+          </select>
+        </label>
         <a id="downloadLink" class="hidden" href="#" download="mockup.png">↓ Download PNG</a>
       </div>
+      <p style="margin:0.75rem 0 0;font-size:13px;color:var(--text-muted);">
+        <strong>cover</strong> is what <code>device-frames.mjs</code> does by default, so it is the honest
+        preview. <strong>stretch</strong> distorts the capture to fill the quad — useful to see the quad
+        itself, but it hides an aspect-wrong quad, because a stretched image fills anything.
+      </p>
       <p id="renderFileLine" style="margin-top:0.75rem;font-size:13px;color:var(--text-muted);"></p>
     </section>
 
@@ -122,10 +148,36 @@
     </section>
   </div>
 
+  <script>
+    // The pipeline statically imports ../../composer/screen-geometry.mjs. When the
+    // static server is rooted at mask_analysis/ rather than at the repo, that
+    // import 404s and the whole module script is discarded before it can report
+    // anything: the page renders, the file input works, and selecting an SVG does
+    // nothing at all. Silent is the worst failure mode there is, so probe for it.
+    (function () {
+      var url = new URL('../composer/screen-geometry.mjs', location.href).href;
+      fetch(url, { method: 'GET' })
+        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); })
+        .catch(function () {
+          function show() {
+            var el = document.getElementById('sharedModuleError');
+            if (el) el.classList.remove('hidden');
+            var link = document.getElementById('repoRootLink');
+            if (link) link.href = new URL('../mask_analysis/', location.href).href;
+          }
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', show);
+          } else {
+            show();
+          }
+        });
+    })();
+  </script>
   <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencvScript"></script>
   <script type="module">
-    import { parseSVG } from './pipeline/svg-parser.js';
-    import { sampleScreenPath, compositeWithUserQuad } from './pipeline/opencv-compositor.js';
+    import { parseSVG, outlinePoints } from './pipeline/svg-parser.js';
+    import { compositeWithUserQuad } from './pipeline/opencv-compositor.js';
+    import { enclosingQuad } from '../composer/screen-geometry.mjs';
 
     const DEFAULT_ASPECT = 1290 / 2796;
 
@@ -299,12 +351,41 @@
       return best;
     }
 
+    /**
+     * Outset applied to the exported quad, in viewBox units.
+     *
+     * The quad is a warp target, not the visible edge — the aperture does the
+     * cutting in this tool and `clip-path` does it in the renderer. So it should
+     * err large: a quad a hair too big loses nothing (the overhang is clipped
+     * away), while a quad a hair too small leaves the panel background showing
+     * along the screen edge in the renderer, where there is no mask to save it.
+     */
+    const QUAD_OUTSET = 1;
+
+    /**
+     * The quad to export: the smallest rotated rectangle that *encloses* the
+     * aperture, plus {@link QUAD_OUTSET}.
+     *
+     * This used to be `diagonalExtremeQuad` — the four diagonal extremes of the
+     * sampled outline — which looks right and is systematically wrong. On a
+     * rounded corner the diagonal extreme lands on the arc, roughly 0.29·r
+     * inside the true corner, so the exported quad came out marginally smaller
+     * than the aperture it is supposed to cover. Nothing here could show you
+     * that: the mask cuts to the aperture either way. In the renderer the same
+     * numbers produce a hairline of panel background.
+     *
+     * `diagonalExtremeQuad` and friends are kept below as fallbacks for outlines
+     * too degenerate to hull.
+     */
     function computeRawQuad(worldPts) {
       try {
-        return diagonalExtremeQuad(worldPts);
+        return enclosingQuad(worldPts, { outset: QUAD_OUTSET });
       } catch {
-        try { return directionalQuad(worldPts); }
-        catch { return snapRectCornersToContour(worldPts); }
+        try { return diagonalExtremeQuad(worldPts); }
+        catch {
+          try { return directionalQuad(worldPts); }
+          catch { return snapRectCornersToContour(worldPts); }
+        }
       }
     }
 
@@ -322,12 +403,14 @@
     const fileLine = document.getElementById('fileLine');
     const renderFileLine = document.getElementById('renderFileLine');
     const downloadLink = document.getElementById('downloadLink');
+    const fitSelect = document.getElementById('fitSelect');
 
     let _cvReady = false;
     let svgText = null;
     let svgName = '';
-    let screenPath = null;
+    let screenPathD = null;
     let worldMatrix = null;
+    let screenTag = null;
     let viewBox = null;
     let worldPts = [];
     let rawQuad = null;
@@ -371,7 +454,7 @@
     initOpenCV();
 
     function updateButtons() {
-      const canRender = _cvReady && svgText && screenPath && screenshot && quadPts;
+      const canRender = _cvReady && svgText && screenPathD && screenshot && quadPts;
       renderBtn.disabled = !canRender;
     }
 
@@ -389,16 +472,12 @@
       svgText = text;
       svgName = name || 'mockup.svg';
       const parsed = parseSVG(text);
-      screenPath = parsed.screenPath;
+      screenPathD = parsed.screenPathD;
+      screenTag = parsed.tag;
       worldMatrix = parsed.worldMatrix;
       viewBox = parsed.viewBox;
 
-      const d = screenPath.getAttribute('d') || '';
-      const localPts = sampleScreenPath(d);
-      worldPts = localPts.map(([x, y]) => {
-        const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
-        return [pt.x, pt.y];
-      });
+      worldPts = outlinePoints(parsed);
 
       if (worldPts.length < 3) {
         setErr('Not enough samples from #screen path.');
@@ -503,7 +582,10 @@
   ${screenshot ? `${screenshotW} × ${screenshotH} (aspect ${m.shotAspect.toFixed(3)})` : `placeholder aspect ${DEFAULT_ASPECT.toFixed(3)} for corner labels`}
   ${screenshot ? (m.aspectDelta < 0.1 ? '✓ Good aspect match' : '⚠ Mismatch vs screen ' + m.trueAspect.toFixed(3)) : ''}
 
-<span class="cyan">═══ Quad JSON ═══</span>
+<span class="cyan">═══ frame.json \u2192 frames[].corners ═══</span>
+  Paste verbatim. The renderer warps the screenshot onto this quad and clips it
+  to the #screen aperture, so the quad must ENCLOSE the aperture${screenTag ? ` (a &lt;${screenTag}&gt; here)` : ''}.
+  Verify with: node composer/check-schema.mjs --packs
 ${JSON.stringify({
   TL: [Number(qtl[0].toFixed(2)), Number(qtl[1].toFixed(2))],
   TR: [Number(qtr[0].toFixed(2)), Number(qtr[1].toFixed(2))],
@@ -631,7 +713,7 @@ ${JSON.stringify({
 
     renderBtn.addEventListener('click', async () => {
       setErr('');
-      if (!_cvReady || !svgText || !screenPath || !screenshot || !quadPts || !viewBox) {
+      if (!_cvReady || !svgText || !screenPathD || !screenshot || !quadPts || !viewBox) {
         setErr('Need OpenCV, SVG, screenshot, and quad.');
         return;
       }
@@ -640,12 +722,13 @@ ${JSON.stringify({
         const cornersForRender = snapshotQuad(quadPts);
         await compositeWithUserQuad(
           svgText,
-          screenPath,
+          screenPathD,
           worldMatrix,
           viewBox,
           screenshot,
           cornersForRender,
           outputCanvas,
+          { fit: fitSelect.value },
         );
         outSection.classList.remove('hidden');
         const dataUrl = outputCanvas.toDataURL('image/png');

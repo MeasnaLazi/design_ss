@@ -6,7 +6,29 @@
  * screenshot into the masked area with the SVG device frame on top.
  *
  * Requires OpenCV.js to be loaded globally (window.cv).
+ *
+ * ## Why this agrees with the shipping renderer now
+ *
+ * Two things used to make this tool flatter its own numbers:
+ *
+ * 1. It sampled the aperture with a private copy of the path sampler. That copy
+ *    now lives in `composer/screen-geometry.mjs` and is shared with
+ *    `device-frames.mjs`, so both cut the same shape.
+ * 2. It *stretched* the screenshot onto the quad while the renderer
+ *    cover-crops. Stretching fills any quad you drag, which is precisely the
+ *    error a measuring instrument must not hide, so `fit` now defaults to
+ *    'cover' and uses the renderer's own `coverCropRect`.
+ *
+ * What still differs, deliberately: the mask. This composites
+ * `warped.copyTo(result, mask)` — an exact, binary, aliased cut — where the
+ * browser antialiases `clip-path: path()` against the panel behind it. Expect
+ * agreement to the pixel in the interior and a soft edge either side of the
+ * boundary in the browser.
  */
+import { sampleScreenPath, applyAffine, isIdentityAffine } from './svg-parser.js';
+import { coverCropRect } from '../../composer/homography.mjs';
+
+export { sampleScreenPath };
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -16,26 +38,19 @@
  * Composite a screenshot into an SVG device mockup's #screen region.
  *
  * @param {string}          svgText     – raw SVG markup
- * @param {SVGPathElement}  screenPath  – the #screen path element
- * @param {DOMMatrix}       worldMatrix – accumulated ancestor transforms
+ * @param {string}          screenPathD – the #screen outline as path data
+ * @param {number[]}        worldMatrix – accumulated ancestor transforms (2x3 affine)
  * @param {{ x,y,width,height }} viewBox – SVG viewBox
  * @param {HTMLImageElement} image      – the screenshot to insert
  * @param {HTMLCanvasElement} outputCanvas – canvas to draw the result onto
  * @returns {Promise<void>}
  */
-export async function compositeWithOpenCV(svgText, screenPath, worldMatrix, viewBox, image, outputCanvas) {
+export async function compositeWithOpenCV(svgText, screenPathD, worldMatrix, viewBox, image, outputCanvas, opts = {}) {
   const W = Math.round(viewBox.width);
   const H = Math.round(viewBox.height);
 
   // 1. Sample the full #screen path with Bézier math
-  const d = screenPath.getAttribute('d') || '';
-  const localPts = sampleScreenPath(d);
-
-  // Apply worldMatrix to get viewport-space polygon
-  const worldPts = localPts.map(([x, y]) => {
-    const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
-    return [Math.round(pt.x), Math.round(pt.y)];
-  });
+  const worldPts = toWorldPts(screenPathD, worldMatrix);
 
   console.log(`[opencv-compositor] Sampled ${worldPts.length} path points`);
 
@@ -54,7 +69,7 @@ export async function compositeWithOpenCV(svgText, screenPath, worldMatrix, view
   const screenshotCanvas = imageToCanvas(image);
   const screenshotMat = cv.imread(screenshotCanvas);
 
-  const result = composite(frameCanvas, screenshotMat, maskMat, enclosingQuad, W, H);
+  const result = composite(frameCanvas, screenshotMat, maskMat, enclosingQuad, W, H, opts.fit);
 
   // 6. Write to output canvas
   outputCanvas.width = W;
@@ -74,24 +89,18 @@ export async function compositeWithOpenCV(svgText, screenPath, worldMatrix, view
  * in viewBox space for the perspective warp instead of {@link findEnclosingQuad}.
  *
  * @param {string} svgText
- * @param {SVGPathElement} screenPath
- * @param {DOMMatrix} worldMatrix
+ * @param {string} screenPathD
+ * @param {number[]} worldMatrix
  * @param {{ width: number, height: number }} viewBox
  * @param {HTMLImageElement} image
  * @param {Array<[number,number]>} userQuad - [tl, tr, br, bl]
  * @param {HTMLCanvasElement} outputCanvas
  */
-export async function compositeWithUserQuad(svgText, screenPath, worldMatrix, viewBox, image, userQuad, outputCanvas) {
+export async function compositeWithUserQuad(svgText, screenPathD, worldMatrix, viewBox, image, userQuad, outputCanvas, opts = {}) {
   const W = Math.round(viewBox.width);
   const H = Math.round(viewBox.height);
 
-  const d = screenPath.getAttribute('d') || '';
-  const localPts = sampleScreenPath(d);
-
-  const worldPts = localPts.map(([x, y]) => {
-    const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
-    return [Math.round(pt.x), Math.round(pt.y)];
-  });
+  const worldPts = toWorldPts(screenPathD, worldMatrix);
 
   const frameCanvas = await renderSVGFrame(svgText, W, H);
   const { maskMat, bbox } = createScreenMask(worldPts, W, H);
@@ -101,7 +110,7 @@ export async function compositeWithUserQuad(svgText, screenPath, worldMatrix, vi
 
   const quad = userQuad.map(([x, y]) => [Number(x), Number(y)]);
 
-  const result = composite(frameCanvas, screenshotMat, maskMat, quad, W, H);
+  const result = composite(frameCanvas, screenshotMat, maskMat, quad, W, H, opts.fit);
 
   outputCanvas.width = W;
   outputCanvas.height = H;
@@ -117,21 +126,16 @@ export async function compositeWithUserQuad(svgText, screenPath, worldMatrix, vi
 /**
  * Create just the mask canvas for preview/debug purposes.
  *
- * @param {SVGPathElement} screenPath
- * @param {DOMMatrix}      worldMatrix
+ * @param {string} screenPathD
+ * @param {number[]}      worldMatrix
  * @param {{ width, height }} viewBox
  * @param {HTMLCanvasElement} maskCanvas
  */
-export function renderMask(screenPath, worldMatrix, viewBox, maskCanvas) {
+export function renderMask(screenPathD, worldMatrix, viewBox, maskCanvas) {
   const W = Math.round(viewBox.width);
   const H = Math.round(viewBox.height);
 
-  const d = screenPath.getAttribute('d') || '';
-  const localPts = sampleScreenPath(d);
-  const worldPts = localPts.map(([x, y]) => {
-    const pt = worldMatrix.transformPoint(new DOMPoint(x, y));
-    return [Math.round(pt.x), Math.round(pt.y)];
-  });
+  const worldPts = toWorldPts(screenPathD, worldMatrix);
 
   const { maskMat } = createScreenMask(worldPts, W, H);
   maskCanvas.width = W;
@@ -280,17 +284,42 @@ function findEnclosingQuad(worldPts, W, H) {
 // Compositing: perspective-warp screenshot into enclosing quad, mask, overlay
 // ---------------------------------------------------------------------------
 
-function composite(frameCanvas, screenshotMat, maskMat, quad, W, H) {
+/** Sample the aperture and push it through the ancestor transform, once. */
+function toWorldPts(screenPathD, worldMatrix) {
+  const local = sampleScreenPath(screenPathD || '');
+  const world = isIdentityAffine(worldMatrix)
+    ? local
+    : local.map((p) => applyAffine(worldMatrix, p));
+  return world.map(([x, y]) => [Math.round(x), Math.round(y)]);
+}
+
+/** Average edge lengths of a quad — the aspect the screenshot has to fill. */
+function quadAspect(quad) {
+  const [tl, tr, br, bl] = quad;
+  const d = (p, q) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const w = (d(tl, tr) + d(bl, br)) / 2;
+  const h = (d(tl, bl) + d(tr, br)) / 2;
+  return w / h;
+}
+
+function composite(frameCanvas, screenshotMat, maskMat, quad, W, H, fit = 'cover') {
   const [tl, tr, br, bl] = quad;
   const imgW = screenshotMat.cols;
   const imgH = screenshotMat.rows;
 
-  // Source: 4 corners of the screenshot
+  // Source: the region of the screenshot that gets mapped onto the quad.
+  //
+  // 'cover' is the default because it is `device-frames.mjs`'s default, and a
+  // measuring tool that quietly stretched where the renderer crops would report
+  // a quad as good when its aspect is wrong — stretching fills anything.
+  const r = fit === 'stretch'
+    ? { x: 0, y: 0, w: imgW, h: imgH }
+    : coverCropRect(imgW, imgH, quadAspect(quad));
   const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    0, 0,
-    imgW, 0,
-    imgW, imgH,
-    0, imgH
+    r.x, r.y,
+    r.x + r.w, r.y,
+    r.x + r.w, r.y + r.h,
+    r.x, r.y + r.h
   ]);
 
   // Destination: 4 corners of the enclosing rotated rectangle
@@ -340,90 +369,6 @@ function imageToCanvas(img) {
 }
 
 // ---------------------------------------------------------------------------
-// Full SVG path sampler — Bézier curves, all commands, largest sub-path
+// Path sampling lives in composer/screen-geometry.mjs, shared with the renderer.
+// It was duplicated here once; that is exactly how the two drifted apart.
 // ---------------------------------------------------------------------------
-
-/**
- * Sample all points along the #screen path.
- * Handles M, L, H, V, C, S, Q, T, A, Z (absolute + relative).
- * When multiple sub-paths exist, returns the largest by bounding area.
- *
- * @param {string} d - SVG path d attribute
- * @returns {Array<[number,number]>}
- */
-export function sampleScreenPath(d) {
-  const SAMPLES = 16;
-  const re = /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/g;
-  const tokens = []; let m;
-  while ((m = re.exec(d)) !== null) tokens.push(m[0]);
-
-  const subs = []; let pts = [];
-  let x = 0, y = 0, sx = 0, sy = 0, pcx = 0, pcy = 0, prev = '', i = 0;
-
-  while (i < tokens.length) {
-    let cmd = tokens[i];
-    if (!isNaN(parseFloat(cmd))) {
-      cmd = prev === 'M' ? 'L' : prev === 'm' ? 'l' : prev;
-    } else { i++; }
-
-    switch (cmd) {
-      case 'M': if (pts.length) subs.push(pts); x=+tokens[i];y=+tokens[i+1];i+=2;sx=x;sy=y;pts=[[x,y]]; break;
-      case 'm': if (pts.length) subs.push(pts); x+=+tokens[i];y+=+tokens[i+1];i+=2;sx=x;sy=y;pts=[[x,y]]; break;
-      case 'L': x=+tokens[i];y=+tokens[i+1];i+=2;pts.push([x,y]); break;
-      case 'l': x+=+tokens[i];y+=+tokens[i+1];i+=2;pts.push([x,y]); break;
-      case 'H': x=+tokens[i];i++;pts.push([x,y]); break;
-      case 'h': x+=+tokens[i];i++;pts.push([x,y]); break;
-      case 'V': y=+tokens[i];i++;pts.push([x,y]); break;
-      case 'v': y+=+tokens[i];i++;pts.push([x,y]); break;
-      case 'C': { const x1=+tokens[i],y1=+tokens[i+1],x2=+tokens[i+2],y2=+tokens[i+3],ex=+tokens[i+4],ey=+tokens[i+5]; i+=6;
-        cubicSample(pts,x,y,x1,y1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
-      case 'c': { const x1=x+ +tokens[i],y1=y+ +tokens[i+1],x2=x+ +tokens[i+2],y2=y+ +tokens[i+3],ex=x+ +tokens[i+4],ey=y+ +tokens[i+5]; i+=6;
-        cubicSample(pts,x,y,x1,y1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
-      case 'S': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=+tokens[i],y2=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
-        cubicSample(pts,x,y,cx1,cy1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
-      case 's': { const cx1=2*x-pcx,cy1=2*y-pcy,x2=x+ +tokens[i],y2=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
-        cubicSample(pts,x,y,cx1,cy1,x2,y2,ex,ey,SAMPLES); pcx=x2;pcy=y2;x=ex;y=ey; break; }
-      case 'Q': { const qx=+tokens[i],qy=+tokens[i+1],ex=+tokens[i+2],ey=+tokens[i+3]; i+=4;
-        quadSample(pts,x,y,qx,qy,ex,ey,SAMPLES); pcx=qx;pcy=qy;x=ex;y=ey; break; }
-      case 'q': { const qx=x+ +tokens[i],qy=y+ +tokens[i+1],ex=x+ +tokens[i+2],ey=y+ +tokens[i+3]; i+=4;
-        quadSample(pts,x,y,qx,qy,ex,ey,SAMPLES); pcx=qx;pcy=qy;x=ex;y=ey; break; }
-      case 'T': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=+tokens[i],ey=+tokens[i+1]; i+=2;
-        quadSample(pts,x,y,tcx,tcy,ex,ey,SAMPLES); pcx=tcx;pcy=tcy;x=ex;y=ey; break; }
-      case 't': { const tcx=2*x-pcx,tcy=2*y-pcy,ex=x+ +tokens[i],ey=y+ +tokens[i+1]; i+=2;
-        quadSample(pts,x,y,tcx,tcy,ex,ey,SAMPLES); pcx=tcx;pcy=tcy;x=ex;y=ey; break; }
-      case 'A': case 'a': {
-        const isRel = cmd==='a';
-        const ax=(isRel?x:0)+ +tokens[i+5], ay=(isRel?y:0)+ +tokens[i+6]; i+=7;
-        pts.push([ax,ay]); x=ax;y=ay; break;
-      }
-      case 'Z': case 'z': x=sx;y=sy; break;
-      default: i++;
-    }
-    if (!'CcSsQqTt'.includes(cmd)) { pcx=x;pcy=y; }
-    prev = cmd;
-  }
-  if (pts.length) subs.push(pts);
-
-  // Pick largest sub-path by bounding area
-  if (subs.length <= 1) return subs[0] || [];
-  let best = subs[0], bestA = -Infinity;
-  for (const sp of subs) {
-    let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
-    for (const [px,py] of sp) { mnx=Math.min(mnx,px);mny=Math.min(mny,py);mxx=Math.max(mxx,px);mxy=Math.max(mxy,py); }
-    const a=(mxx-mnx)*(mxy-mny);
-    if (a>bestA) { bestA=a; best=sp; }
-  }
-  return best;
-}
-
-function cubicSample(pts,x0,y0,x1,y1,x2,y2,x3,y3,n) {
-  for(let j=1;j<=n;j++){const t=j/n,mt=1-t;
-    pts.push([mt*mt*mt*x0+3*mt*mt*t*x1+3*mt*t*t*x2+t*t*t*x3,
-               mt*mt*mt*y0+3*mt*mt*t*y1+3*mt*t*t*y2+t*t*t*y3]);}
-}
-
-function quadSample(pts,x0,y0,x1,y1,x2,y2,n) {
-  for(let j=1;j<=n;j++){const t=j/n,mt=1-t;
-    pts.push([mt*mt*x0+2*mt*t*x1+t*t*x2,
-               mt*mt*y0+2*mt*t*y1+t*t*y2]);}
-}
