@@ -95,10 +95,11 @@ key — the folder *is* the declaration.
 
 | folder | panel size |
 | --- | --- |
-| `iphone` | 1290×2796 |
-| `ipad` | 2048×2732 |
-| `phone` | 1080×1920 |
-| `tablet` | 1600×2560 |
+| `iphone`    | 1290×2796 |
+| `ipad`      | 2048×2732 |
+| `phone`     | 1080×1920 |
+| `tablet_7`  | 1200×1920 |
+| `tablet_10` | 1600×2560 |
 
 Never design two targets in one run. The editor watches one file, so the others
 would change where the user cannot see them, and there would be nothing to judge

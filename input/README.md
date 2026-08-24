@@ -29,7 +29,7 @@ input/
 ```
 
 **The device folders mirror the output.** `input/iphone/` designs into
-`strips/iphone/`, `input/ipad/` into `strips/ipad/`. The four names are
+`strips/iphone/`, `input/ipad/` into `strips/ipad/`. The five names are
 `iphone`, `ipad`, `phone`, `tablet_7` and `tablet_10`, and the folder is the
 *only* thing that says which target a run is for — there is no `preset` key to keep in sync with
 it, and nothing to disagree.
