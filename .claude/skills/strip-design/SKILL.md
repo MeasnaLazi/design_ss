@@ -767,8 +767,8 @@ and which followed, so the whole run can be judged from the summary:
 
 ```
 strips/iphone/    root      6 panels   rendered clean
-strips/ipad/      follows   5 panels   rendered clean, 1 panel will optional
-strips/phone/     follows   6 panels   rendered clean
+strips/ipad/      follows   5 panels   rendered clean, 1 panel will optional if total screenshot images are 5
+strips/phone/     follows   6 panels   rendered clean, if total screenshot images are 6
 ```
 
 **Name any target you did not design.** This applies when a target was named and
