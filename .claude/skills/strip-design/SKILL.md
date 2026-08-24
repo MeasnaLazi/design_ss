@@ -73,6 +73,12 @@ input/                       strips/
 **Images loose at `input/` root belong to no target.** They are not read. If
 that is all there is, say so and name the folder they should move into.
 
+Note the difference between this and *Which target* below. **Refuse when an
+input is missing; never ask when a choice can be defaulted.** With no app name
+and no captures there is nothing to design, and stopping is the only honest
+outcome — in a CLI that is a failure with a clear reason, not a hang. Choosing
+between five present device folders is not that: a default exists, so take it.
+
 Panel copy is **not** required — see *Draft the panels that are missing* below.
 A description plus the captures is enough to start.
 
@@ -84,31 +90,96 @@ brief. An `input/` holding only that file counts as empty.
 
 ### Which target
 
-**One run designs one target.** The folder names it, and there is no `preset`
-key — the folder *is* the declaration.
+**The device folders name the targets.** There is no `preset` key — the folders
+*are* the declaration.
 
 | Situation | What to design |
 | --- | --- |
-| the user named a target | that one |
-| exactly one device folder exists | that one, without asking |
-| several exist, none named | **ask which**, listing them |
+| the user named a target | that one, alone |
+| exactly one device folder exists | that one |
+| several exist, none named | **all of them** — the root fresh, the rest following it |
+
+**Several folders means a whole set, not a choice between them.** An app ships
+to a store as a set; designing one of five and stopping is never the finished
+job, and leaving the other four for later runs guarantees they diverge — a
+later run with no `follows:` is *required* by the no-repeat rule to change the
+archetype and two structural axes. One run, one concept, every target.
+
+**Never stop to ask which target, or whether to do the rest.** A question is a
+run that has halted, and nothing guarantees anyone is there to answer it — this
+skill has to survive being driven from a CLI or a batch job, where a prompt is
+not a pause but a hang.
+
+Announcing is not asking. Say what is about to happen, then do it without
+waiting:
+
+```
+5 device folders, none named — designing the set.
+  iphone (root, fresh) → ipad, phone, tablet_7, tablet_10 (following it)
+Each replaces strips/<target>/ outright.
+```
+
+**The root** is the target `follows:` names, if `request:` names one — that is
+what `follows:` is for, and a target never follows itself. Otherwise it is the
+first populated folder in **precedence order:** `iphone`, `phone`, `ipad`,
+`tablet_7`, `tablet_10`. Phone targets first because they are the tightest
+canvas, and copy that fits there fits everywhere while the reverse does not
+hold; App Store before Play within each tier.
+
+Fixed order, not "whichever has no strip yet" — a rule that depends on what
+already exists would pick a different root on the second run, and the whole set
+would shift under you.
+
+**This trades a hang for a risk, and the risk is real.** A run replaces every
+folder it designs, so someone who wanted only `ipad` touched, said nothing, and
+got the whole set redesigned has lost four other strips. Two things make that
+survivable and neither is optional: **announce the set before the first write**,
+so it is visible in the log of even an unattended run, and remember that
+`strips/` is disposable by design — see the note in `.gitignore` about copying a
+folder out to keep it.
+
+Naming a target is how you scope a run down. *"Design ipad"* designs `ipad` and
+nothing else.
 
 | folder | panel size |
 | --- | --- |
-| `iphone`    | 1290×2796 |
-| `ipad`      | 2048×2732 |
-| `phone`     | 1080×1920 |
-| `tablet_7`  | 1200×1920 |
+| `iphone` | 1290×2796 |
+| `ipad` | 2048×2732 |
+| `phone` | 1080×1920 |
+| `tablet_7` | 1200×1920 |
 | `tablet_10` | 1600×2560 |
 
-Never design two targets in one run. The editor watches one file, so the others
-would change where the user cannot see them, and there would be nothing to judge
-until all of it was finished.
+**Designing a set: root first, then the rest, in one run.** The root is an
+ordinary pipeline run — choose a concept, append the `history.md` line. Every
+target after it is a **follow-run** against the root: same concept,
+re-composed. Only the root appends to `history.md`; see *Following another
+target*.
 
-**Targets are peers, not copies.** Do not open another target's strip for
-reference. An iPad panel is the same height as an iPhone panel and 59% wider, so
-its layout is a different problem, not a scaled one — and reading the other
-design anchors this one to it. Same input, designed again.
+Work through them **one at a time, finishing each before starting the next**,
+and report each as it lands:
+
+```
+[1/5] strips/iphone/  root · continuous-canvas · type-over-device · … · rendered clean
+[2/5] strips/ipad/    following iphone · rendered clean
+```
+
+Finishing one at a time is what keeps the editor usable — it watches a single
+file, so a half-written second target while the first is still being judged is
+the thing to avoid. Interleaving them would also mean a concept problem is
+found five times instead of once.
+
+**Stop the set if the root does not render clean.** Following a broken concept
+four more times wastes the work and buries the actual failure under four
+repetitions of it. Say which target failed and what remains undesigned.
+
+**Targets are peers, not copies** — unless `follows:` says otherwise. Do not
+open another target's strip for reference. An iPad panel is the same height as
+an iPhone panel and 59% wider, so its layout is a different problem, not a
+scaled one — and reading the other design anchors this one to it. Same input,
+designed again.
+
+That anchoring is exactly what a **follow-run** is for, which is why it has to
+be asked for rather than assumed. See *Following another target*.
 
 `app.md` gives you:
 
@@ -119,6 +190,9 @@ design anchors this one to it. Same input, designed again.
   what you inferred*.
 - **`panels`** — optional, 5-10. How many panels to design. Only consulted for
   panels `app.md` does not already contain.
+- **`follows: <target>`** — optional, inside `request:`. Names another target
+  whose design concept this one repeats. Turns the run into a **follow-run** —
+  see *Following another target*.
 - **per panel, where they exist: `title`, `subtitle`, optional `caption`,
   optional `screenshot`**
 
@@ -139,6 +213,82 @@ as `/strips/<device>/screenshots/<file>` — the finished strip must not depend 
 A panel with no `screenshot` is not a blocker: omit `data-screenshot`, let the
 frame render a blank screen filled by `data-screen-fallback`, and list the gap
 at the end.
+
+### Following another target
+
+`follows: iphone` inside `request:` — or the user asking for it in words — makes
+this a **follow-run**: the same design concept, re-composed for this target's
+canvas. It exists because one app usually wants one look across both stores, and
+designing each target from nothing produces five cousins rather than one family.
+
+**A target never follows itself.** If the target being designed is the one
+`follows:` names, it is the **root** of the set: run it as an ordinary pipeline
+run, choose a concept, append the history line, and say that is what you did.
+`follows:` describes how the *other* targets relate to this one, so on the
+target it points at it is inert — not an instruction to copy yourself.
+
+**Inherited, verbatim:**
+
+- the seven concept slots — set rhythm, panel archetype, device treatment, type
+  placement, background/palette, typeface, decor family
+- panel order
+- the copy and the screenshot-to-panel mapping, which `app.md` already shares
+  across every target
+
+**Decided again, always:**
+
+- every pixel — positions, sizes, device block widths, crop and bleed
+- type scale and leading. A 2048-wide canvas is not a 1290-wide canvas with
+  bigger numbers
+- where copy breaks across lines: the same words wrap differently
+- `data-pack`, which is *forced* to change — `check-schema.mjs` requires a
+  pack's type to equal the `strips/` folder, so the source's pack is never valid
+  here
+
+**Same decisions, re-composed.** A larger canvas earns larger type and more
+generous margins. It does **not** earn a new decor motif or a new panel
+archetype: invent one and the two stores stop reading as one family, which was
+the whole reason to follow. The opposite failure is just as real — port too
+literally and the iPad strip reads as a stretched phone strip, which is a
+well-known amateur tell.
+
+**Where the concept comes from.** Two sources, each asked only for what it
+actually knows:
+
+| | Read from | Why that one |
+| --- | --- | --- |
+| palette, typeface | `strips/<source>/strip.html` — its `:root` vars and hex values | exact, and still true if the strip was hand-tuned in the editor after the run |
+| the other five slots | the `<source>` line in `composer/references/history.md` | categorical judgements a run *declared*; inferring them back out of markup is guesswork |
+
+`strips/` is gitignored and a run replaces it wholesale, so the source strip may
+be gone. Then fall back to `history.md` alone — every slot survives there,
+including the exact typeface — re-derive the palette from the recorded
+description and the app icon, and **say that you did**.
+
+If neither exists, this is not a follow-run. Say so and stop, rather than
+inventing a concept and presenting it as inherited.
+
+**Reconcile the panels before designing anything.** The panel count in `app.md`
+is shared across targets; the captures are not. Report what you found and wait:
+
+```
+app.md declares 6 panels · input/ipad/ has 5 captures
+building panels 1-5 · skipping 6 (settings.PNG not found in input/ipad/)
+```
+
+A forgotten capture and a deliberate omission look identical from here, and
+silently dropping a panel is the one behaviour that would make this
+untrustworthy.
+
+**A follow-run appends nothing to `history.md`.** It records no new concept — it
+repeats one — and the no-repeat rule reads that file for the last concept a run
+*chose*. Five follow lines would bury it. The useful consequence: the next fresh
+run still sees the source's concept as the one to vary from.
+
+**Following regenerates; it does not patch.** *"Update ipad to follow iphone"*
+replaces `strips/ipad/` outright and any hand-tuning there is gone — the run is
+not deterministic, so it will not come back. Say that before replacing a strip
+the user has been editing.
 
 ### Draft the panels that are missing
 
@@ -221,7 +371,7 @@ too close to the title"* — is **not** a pipeline run. It is a different job:
 read that strip, make the **smallest edit** that achieves it, leave `input/`
 alone, and replace nothing.
 
-Decide which of the two you are doing **before you touch anything**, and say
+Decide which of the three you are doing **before you touch anything**, and say
 which. Everything else in this skill assumes you have already classified the
 request:
 
@@ -229,6 +379,25 @@ request:
 | --- | --- |
 | *"design the strip"*, *"run it again"*, *"redo it with the new copy"*, or nothing named | **Pipeline run.** Read `input/`, design fresh, replace the folder. |
 | A named change to a strip that exists | **Targeted edit.** Read that file, change that thing, leave the rest byte-identical. |
+| `app.md`'s `request:` carries `follows: <target>`, or the user asks for one target to follow another | **Follow-run.** Repeat that target's concept on this canvas, replace this folder. See *Following another target*. |
+
+A follow-run is a pipeline run in every respect but one: it inherits the concept
+instead of choosing it. Everything about assets, checking, rendering and
+iterating is unchanged.
+
+**A run covers a whole set unless a target is named.** With several populated
+device folders and none named, the run is one pipeline run for the root followed
+by a follow-run for each remaining target — see *Which target*. That is a
+sequence of the modes above, not a fourth one.
+
+**A request outranks `app.md`.** `follows:` in the file is a standing default,
+not a lock. *"Design ipad from scratch"* is a pipeline run even with
+`follows: iphone` sitting in `request:`, and *"make ipad follow iphone"* is a
+follow-run even when the file says nothing. The file records how these targets
+usually relate; the person asking knows what they want this time.
+
+Say which mode you concluded, and say it before writing anything — a run that
+silently disagreed with the file is the one that will be hard to explain later.
 
 ## Required reading
 
@@ -307,9 +476,15 @@ Nothing needs to be running. Rendering and review are entirely offline.
    then look at the PNGs.
 8. **Iterate.** Renders are cheap. Stop when a round stops improving, or after
    about four rounds.
-9. **Append the concept line** to `composer/references/history.md`.
+9. **Append the concept line** to `composer/references/history.md` — unless this
+   was a follow-run, which repeats a concept rather than choosing one and
+   records nothing. See *Following another target*.
 
 ### Choose the concept
+
+**Skip this section on a follow-run.** The concept is inherited, and the
+no-repeat rule below is inverted there — repeating is the point. State the
+inherited line the same way, naming where it came from.
 
 Before any markup, pick from `archetypes.md` and **state the picks in one line**
 so they can be rejected before five panels exist:
@@ -586,3 +761,25 @@ the editor URL for the file.
 where they now live (`input/app.md`), so the user knows what to review rather
 than discovering it later in the render. If you resolved the panel count from
 `panels`, or ignored an out-of-range value, that is one more line.
+
+**On a set, report it as a set.** One line per target, saying which was the root
+and which followed, so the whole run can be judged from the summary:
+
+```
+strips/iphone/    root      6 panels   rendered clean
+strips/ipad/      follows   5 panels   rendered clean, 1 panel will optional
+strips/phone/     follows   6 panels   rendered clean
+```
+
+**Name any target you did not design.** This applies when a target was named and
+the run was scoped to it: the other populated folders are still sitting there
+with nothing to point at them. Give both routes explicitly, because a later run
+left to its own devices applies the no-repeat rule and makes the second target
+*deliberately* unlike the first:
+
+```
+Designed strips/ipad/ only, as asked.
+input/iphone/, input/phone/ also have captures.
+  to match this design — run with no target named, and `follows: ipad` in request:
+  for different ones   — run naming each, no follows
+```
