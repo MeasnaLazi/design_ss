@@ -252,6 +252,29 @@ the whole reason to follow. The opposite failure is just as real — port too
 literally and the iPad strip reads as a stretched phone strip, which is a
 well-known amateur tell.
 
+**The source's spacing is part of the concept, not a free variable.** Geometry
+is re-decided per canvas, but *proportion* is inherited. Measure the source
+before sizing anything, and carry two ratios across:
+
+- **Side margin as a fraction of panel width**, on the panels that are framed.
+  Whatever the source leaves, the target leaves at least as much: a source at
+  90px on a 1080 panel is 8.3%, so a 1200 panel keeps ≥100px and a 2048 panel
+  keeps ≥170px. A source panel that deliberately bleeds has no margin to
+  inherit — inherit its *crop* instead, as a fraction of the device, and compare
+  framed panels only against framed ones.
+- **The coverage band.** Read the source's `strip-data.json` and stay inside the
+  band its body panels occupy. Never exceed the top of it — see *Reading a
+  render*.
+
+Compare **bands, not panel indexes**: the two sets often have different panel
+counts, so panel 2 of one is not panel 2 of the other.
+
+This is the rule that a follow-run breaks most easily, because the destination
+pack is usually a different shape from the source's. Going from a 0.49 pose to a
+0.60 or 0.77 one, holding the device's *height* constant costs far more width —
+so the side margins vanish first, and they vanish silently while every other
+inherited slot still looks correct.
+
 **Where the concept comes from.** Two sources, each asked only for what it
 actually knows:
 
@@ -404,11 +427,21 @@ silently disagreed with the file is the one that will be hard to explain later.
 1. **`composer/references/archetypes.md`** — the design vocabulary: panel
    archetypes, set rhythms, and the axes (device treatment, type placement,
    background, palette, decor, screenshot treatment) that a design is assembled
-   from. Read it on a pipeline run **before you write any markup**, and choose
-   from it — see *Choose the concept* below.
+   from. Read it **before you write any markup** — on every run, follow-runs
+   included — and choose from it on a pipeline run; see *Choose the concept*
+   below.
 
    Consulting it after the panels exist is too late: by then the concept is
    committed and the only thing left to change is spacing.
+
+   **A follow-run needs it just as much**, even though it chooses nothing. It
+   inherits slots written in this vocabulary — *"framed flat-front side-crop
+   17–24%"* means nothing without it — and Axis 3 holds the limits that stop a
+   re-composed device from bursting its panel: § Scale for width as a fraction
+   of panel width, § Crop for how deep and toward which edge, and *The frame has
+   to remain a frame* for where a crop stops being framed at all. Those limits
+   are where a follow-run fails, because the destination pack is usually a
+   different shape from the source's.
 2. **`composer/strip-schema.md`** — the contract. Panel structure, the five
    `data-layer` kinds, device attributes, z-order, and the shape of
    `strip-data.json`. Read it before writing any markup.
@@ -548,6 +581,18 @@ height, means the composition is leaving space it did not intend to. The usual
 cause is a device sized against its own artwork rather than against the panel —
 see `archetypes.md` § Axis 3 · Scale. An empty *column* is invisible to any
 row-by-row check, which is why it has to be measured as area.
+
+**Coverage has a ceiling as well as a floor. It is a measurement, not a score.**
+Nothing improves by driving it upward. A framed panel at **0.97 or above** has
+its device touching or crossing the panel edge, because that is the only way the
+last of the margin disappears — so a rising coverage number across iterations is
+a symptom to investigate, not progress. Read it beside the device's own box: if
+`left` is negative, or `left + width` exceeds the panel width, the number went up
+because the composition broke.
+
+Margins are part of the design, not slack to be reclaimed. A panel that measures
+0.88 with air down both sides is finished; the same panel at 1.00 is a device
+with its screen clipped by the panel edge.
 
 Anything that stops the render outright — a missing pack, an unknown pose, a
 dead device screenshot — never reaches this step: `render.mjs` exits non-zero
@@ -721,8 +766,33 @@ Each of these was learned from a real failure.
   `<div>`. The editor rebuilds text content on first edit and silently discards
   anything else.
 - **A device block gets a CSS `width` and never a height.** Height follows the
-  pose's SVG viewBox aspect. Read that viewBox before sizing one: width ≈
-  1.0–1.3 × its width.
+  pose's viewBox aspect, so width is the only number you set — and you set it as
+  a **fraction of panel width**, from `archetypes.md` § Axis 3 · Scale:
+  dominant, balanced or incidental.
+
+  That table is the authority and this file deliberately does not restate it.
+  The two disagreed for a long time: a "width ≈ 1.0–1.3 × its viewBox width"
+  rule lived here, which Axis 3 had already worked out lands at 0.60–0.78 of
+  panel width and leaves a quarter of the panel empty either side. A copy
+  drifts; a pointer cannot.
+- **A device crosses a panel edge only where the concept says it does.**
+  Cropping and bleeding are real choices, and a device running half off one edge
+  or cropped hard at the bottom is a composition, not a bug. What makes it a
+  choice is that it was *declared*: name the edge and the depth in the concept
+  line, the way `history.md` already records it — *"wide 1320px bleeding both
+  side edges and cropped 32–38% at the top"*.
+
+  Geometry that crosses an edge the concept line never mentions is
+  **overgrowth**, not crop. It has a signature: it appears while closing empty
+  space, it is small and symmetric — a few percent off both sides at once — and
+  no part of the composition is better for it. A deliberate crop is deep,
+  usually anchored, and the panel reads worse without it.
+
+  How far a declared crop may go, and why the test is the **bezel** rather than
+  the screen, is `archetypes.md` § Axis 3 — *The frame has to remain a frame*.
+  Nothing checks it mechanically: `strip-data.json` gives the device box and the
+  panel size, so the crossing is measurable, but whether it was intended is only
+  answerable against the concept line you stated.
 - **Position blocks absolutely.** A statically positioned block cannot be moved
   by writing `left`/`top`, so it arrives in the editor unusable.
 - **No external network assets.** No web fonts, no remote images. Everything

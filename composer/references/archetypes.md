@@ -223,6 +223,14 @@ Pose is a separate question and still comes from that pack's `frame.json`, which
 
   Past roughly 60% cropped you are showing a sliver, and the panel needs
   something else to lead it. Check the render, not the intention.
+
+  **Prefer the bottom edge.** Vertical crop is cheap: an app scrolls, so a device
+  cut off at the bottom still shows a complete idea, and the eye reads it as
+  continuing past the panel rather than as damage. Horizontal crop is expensive —
+  app UI is laid out edge to edge, so width lost at the sides takes real
+  structure with it: a nav rail, a column, the right half of every row. The
+  screenshot stops being legible *as a screen*. `top` is rarer again, and earns
+  its place only when the bottom of the UI is the thing being shown.
 - **Scale** — as a multiple of the pose's viewBox width, which is the only
   number that travels between poses:
 
@@ -247,6 +255,28 @@ Pose is a separate question and still comes from that pack's `frame.json`, which
   over 1.7 phone-widths wide, and the two collide. Two devices that merely sit
   side by side without overlapping read as a row of small phones rather than as
   a composition — the overlap is what makes it one object instead of two.
+
+  **The frame has to remain a frame.** Scale and crop both stop at the same
+  place, and it is not where the screen gets clipped — it is where the *bezel*
+  leaves the panel.
+
+  The top of the dominant band, `1.05 × panel width`, is already a device wider
+  than its panel. That works, because what runs off the edge is bezel. Push
+  further and the bezel is gone down both sides: the screenshot now meets the
+  panel edge directly, and the panel is not `framed` any more — it has become
+  `bare and full-bleed`, a different Framing choice carrying a different
+  meaning. Nothing errors. The concept line still says framed, and is now
+  describing a panel that is not.
+
+  **Judge it on the bezel, not on the screen.** The aperture can sit entirely
+  inside the panel while the frame around it has already gone — the arithmetic
+  that catches people out, because technically nothing is clipped. What the eye
+  reports is that the device disappeared and a screenshot was pasted onto the
+  panel flat.
+
+  So: a `framed` panel keeps visible bezel on every edge it did not declare a
+  crop for. Wanting the device to run off an edge is fine — that is `crop`. Name
+  the edge and the depth, and the panel stays honest about what it is.
 - **Angle** — flat front · rotated 3–8° (subtle) · rotated 10–20° (energetic) ·
   perspective/isometric if the pack has such a pose
 - **Depth** — flat on background · drop shadow · coloured glow · resting on a
