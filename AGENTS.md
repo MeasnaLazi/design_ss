@@ -42,6 +42,33 @@ and `input/` folder name is the only thing that says which target a run is for.
   it and must not restate it — the two disagreed for months once, and the wrong
   copy was the one being trusted.
 
+## Agent configuration & permissions
+
+Instructions, not an enforced sandbox. Real enforcement lives in each agent's own
+settings — `.claude/settings.json` in this repo for Claude Code, `/permissions`
+for Gemini CLI and Antigravity. This section states the intent those files encode;
+where they disagree, they win.
+
+### Allowed behaviours
+
+- **ALLOW** — read anywhere in the repo.
+- **ALLOW** — write inside `strips/` and `input/`, and append one concept line to `composer/references/history.md`.
+- **ALLOW** — run `node composer/check-schema.mjs`, `node composer/render.mjs`, `node composer/pick-frame.mjs`.
+- **ALLOW** — run `npm test`, `npm run check`, `npm run typecheck`, `npm run dev`, `npm install`.
+- **ALLOW** — read-only git: `git status`, `git diff`, `git log`.
+
+### Exclusions & blocks
+
+Denied outright, so the agent neither does these nor stops to ask:
+
+- **DENY** — editing `composer/*.mjs`, `strip_editor/src/**`, or anything under `composer/device-frames/`. The engine, the editor and the measured frame packs are off limits to a design run (see Standing constraints above).
+- **DENY** — `rm -rf`, `git push --force`, or anything that rewrites published history.
+- **DENY** — never install a global package, and never write outside this repository.
+
+Anything not listed under ALLOW and not denied here falls through to a prompt.
+That is the intended fallback, so the allow list is what to extend when a run
+stops for something it should have been able to do.
+
 ## Commands
 
 ```

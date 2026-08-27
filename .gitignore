@@ -30,3 +30,7 @@ composer/references/*/
 
 input/
 !input/README.md
+
+# Personal Claude Code overrides. The committed .claude/settings.json is the
+# shared one; this file is yours and is not shipped.
+.claude/settings.local.json
