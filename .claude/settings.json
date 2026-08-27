@@ -9,10 +9,7 @@
       "WebFetch"
     ],
     "deny": [
-      "Bash(rm -rf *)",
-      "Bash(python -c*)",
-      "Bash(python3 -c*)",
-      "Bash(python3.11 -c*)"
+      "Bash(rm -rf *)"
     ]
   }
 }
