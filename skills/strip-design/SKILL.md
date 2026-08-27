@@ -424,7 +424,7 @@ silently disagreed with the file is the one that will be hard to explain later.
 
 ## Required reading
 
-1. **`composer/references/archetypes.md`** — the design vocabulary: panel
+1. **`skills/strip-design/archetypes.md`** — the design vocabulary: panel
    archetypes, set rhythms, and the axes (device treatment, type placement,
    background, palette, decor, screenshot treatment) that a design is assembled
    from. Read it **before you write any markup** — on every run, follow-runs
@@ -475,7 +475,7 @@ Nothing needs to be running. Rendering and review are entirely offline.
 
 ## The loop
 
-1. **Read** `input/app.md`, `composer/references/archetypes.md` and
+1. **Read** `input/app.md`, `skills/strip-design/archetypes.md` and
    `composer/strip-schema.md`. On a pipeline run that is *all* you read — never
    the previous strip. On a targeted edit, read the strip you were asked to
    change and skip to step 3.

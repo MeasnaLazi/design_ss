@@ -1,6 +1,6 @@
 # Type library
 
-Self-hosted woff2 for the typeface axis (`composer/references/archetypes.md`,
+Self-hosted woff2 for the typeface axis (`skills/strip-design/archetypes.md`,
 Axis 11). Served at `/composer/fonts/**` by both the export server
 (`composer/render.mjs`) and the editor — the same route `device-frames/` uses,
 and for the same reason: this is a repo-global library, not a per-strip asset.
@@ -166,6 +166,6 @@ python3 -c "from fontTools.ttLib import TTFont; c=TTFont('composer/fonts/lora/Lo
 3. Subset with the command above into `composer/fonts/<family>/`.
 4. Check the glyph coverage. The EB Garamond row above is what happens when
    nobody does.
-5. Add it to the Axis 11 table in `composer/references/archetypes.md` with a
+5. Add it to the Axis 11 table in `skills/strip-design/archetypes.md` with a
    line on what it is *for* — a face nobody knows when to pick is a file, not a
    choice.

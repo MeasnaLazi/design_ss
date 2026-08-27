@@ -16,7 +16,7 @@ strip_editor/package-lock.json
 strip_editor/dist/
 
 # Reference galleries — the category folders under composer/references/, not the
-# three documents beside them (README.md, archetypes.md, history.md), which are
+# two documents beside them (README.md and history.md), which are
 # ours and stay tracked.
 #
 # These are screenshots of store pages by other people, kept as local anchors

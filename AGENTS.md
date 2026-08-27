@@ -16,7 +16,7 @@ This file is a pointer, not the brief. Do not work from it alone.
 | Path | What it is |
 |------|------------|
 | `skills/strip-design/SKILL.md` | The one agent entry point. Read before any strip work. |
-| `composer/references/archetypes.md` | The design vocabulary — axes, panel archetypes, set rhythms. The authority on anything visual. |
+| `skills/strip-design/archetypes.md` | The design vocabulary — axes, panel archetypes, set rhythms. The authority on anything visual. |
 | `composer/references/history.md` | One line per concept, newest last. The no-repeat rule reads the last line. |
 | `composer/strip-schema.md` | The markup contract: panel structure, the five `data-layer` kinds, device attributes, z-order. |
 | `input/README.md` | The brief format for `input/app.md`. |
