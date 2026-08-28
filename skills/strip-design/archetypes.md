@@ -9,8 +9,8 @@ anywhere below, because they are combinations, not entries.
 1. Choose a **panel archetype** (structure) and a **set rhythm** (how the five
    panels relate). Those two decide the design.
 2. Choose the remaining axes — device treatment, type placement, typeface,
-   background, palette, decor — **independently**. Do not adopt the bundle some
-   other strip happened to use.
+   background, palette, decor, screenshot treatment — **independently**. Do not
+   adopt the bundle some other strip happened to use.
 3. Combinations absent from this file are allowed and encouraged. If none of the
    archetypes suits the app, **invent one and add it here** with a name.
 4. A run must differ from the previous run in **the archetype and at least two
@@ -23,12 +23,13 @@ anywhere below, because they are combinations, not entries.
    varied nothing. Mood (Axis 7) does count, and is usually the only colour
    decision available.
 5. **One wildcard per run:** at least one axis value that `history.md` has
-   never recorded. The no-repeat rule only prevents repetition; this is the
-   rule that forces exploration, and it is mechanically checkable — grep the
-   history before claiming it. Say which value is the wildcard in your message
+   never recorded. A palette pinned by `app.md` cannot be it, for the same
+   reason it does not count as variation. The no-repeat rule only prevents
+   repetition; this is the rule that forces exploration, and it is
+   mechanically checkable — grep the history before claiming it. Say which value is the wildcard in your message
    back. When the vocabulary is genuinely spent, say so and retire the rule
    rather than gaming it.
-6. **Name the register** — the gestalt, in one or two words: *warm literary
+6. **Name the register** — the gestalt, in one or two words: *literary
    editorial*, *dark tech*, *bleached minimal*, *playful consumer*. It is the
    last slot of the concept line and it counts as a structural axis for the
    no-repeat rule. Eight runs of this repo proved the axes can all move while
@@ -162,9 +163,8 @@ the one that most separates professional sets from generated ones.**
 
 `escalating` names density and saturation, but the walk can run on any axis:
 crop depth deepening panel to panel, device scale growing, mood cooling, one
-decor mark growing and sinking (Axis 8 · *a mark that walks* — an earlier run
-here grew a dog-eared corner 160 → 280px as its ink sheet grew, this repo's own
-precedent). Axis 2 names the shape of the set; which material carries that
+decor mark growing and sinking (Axis 8 · *a mark that walks* holds this repo's
+own precedent). Axis 2 names the shape of the set; which material carries that
 shape is a separate, free choice.
 
 ### What survives the gap
@@ -355,8 +355,10 @@ same frame square and centred.
   it by choice.
 - **Behind** the device — oversized word, device covering part of it
 - **Wrapped** — the headline's rag following the device's silhouette, lines
-  shortening where the device intrudes. The most editorial move on this list,
-  expensive to set, and one copy change breaks it. Once per set, if at all.
+  shortening where the device intrudes but never touching it. Distinct from
+  device-through-type (Axis 3 · Escape), where the device overlaps the
+  letters. The most editorial move on this list, expensive to set, and one
+  copy change breaks it. Once per set, if at all.
 - Inside a shape — pill, card, ribbon, tag
 - Full-panel, device absent
 - Split — title top, subtitle bottom, device between them
@@ -425,7 +427,8 @@ than choice; naming the effect is what makes it a decision.
   as one colour. A shift smaller than the gutter's own contrast is not a
   shift; put the five swatches side by side at 150px before claiming the
   value.
-- **Inversion** — all light, all dark, or one inverted panel as a break. Dark
+- **Inversion** — all light, all dark, or one inverted panel as a break; the
+  break, made structural, is the `broken-uniform` rhythm (Axis 2). Dark
   strips have become standard for anything with a dark mode, and showing dark
   mode is close to expected now.
 
@@ -628,11 +631,14 @@ for a reason.
 Frequently forgotten, and it changes a strip more than decor does.
 
 - As captured
-- Cropped to a region — one card, one row, one chart, enlarged
+- Cropped to a region — one card, one row, one chart, enlarged. At full-panel
+  scale this becomes the `ui-macro` archetype (Axis 1)
 - **Spotlight-region** — everything on the screen dimmed except the one row,
   card or button the headline argues; the screenshot lit like a stage.
   OBSERVED, widespread — the most common professional treatment on the store,
-  and long missing from this list.
+  and long missing from this list. No relation to the `spotlight` mood (Axis
+  7): that lights the panel, this happens inside the screen, and the two
+  combine freely.
 - **Multi-state** — the same screen composited in two states: toggle off and
   on, empty beside full, before beside after. Two captures, one device; the
   change is the claim.
@@ -642,7 +648,8 @@ Frequently forgotten, and it changes a strip more than decor does.
   panel does not decorate the evidence; it presents it. Handle with care —
   evidence on the wrong panel argues against the app (a "before" capture under
   panel 0's promise is a contradiction, not an exhibit).
-- Dimmed or blurred behind overlaid type
+- Dimmed or blurred behind overlaid type — the treatment side of Axis 4's
+  on-screen placement; the two are one decision seen from two axes
 - Recoloured or duotoned to match the palette
 - Simplified — a mock screen with less content than the real one, so it reads at
   thumbnail size. (Check store rules: it must still represent the actual app.)
@@ -688,7 +695,7 @@ about themselves — which is why it converts, and why inventing one is punished
 - **What a new app can truthfully say** — declining fabricated proof does not
   mean declining trust. "No account. No tracking. Yours." are honest claims
   that do proof-shaped work, worn as a badge or pill (Axis 8) rather than as
-  this axis's forms. Skipping the axis because there are no ratings yet leaves
+  this axis's forms — or, set large, as the negation voice (Axis 5). Skipping the axis because there are no ratings yet leaves
   that on the table.
 
 ## Axis 11 · Typeface

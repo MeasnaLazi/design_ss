@@ -12,9 +12,9 @@ description: >-
 # Designing a screenshot strip
 
 A **strip** is a folder. `strip.html` holds every panel of a screenshot set and
-is the single source of truth.
-representation. `composer/render.mjs` exports it and `strip_editor` edits it, in
-the same browser engine, from the same file.
+is the single source of truth — there is no second representation.
+`composer/render.mjs` exports it and `strip_editor` edits it, in the same
+browser engine, from the same file.
 
 ```
 input/<device>/  →  design  →  strips/<device>/
@@ -425,9 +425,9 @@ silently disagreed with the file is the one that will be hard to explain later.
 ## Required reading
 
 1. **`skills/strip-design/archetypes.md`** — the design vocabulary: panel
-   archetypes, set rhythms, and the axes (device treatment, type placement,
-   background, palette, decor, screenshot treatment) that a design is assembled
-   from. Read it **before you write any markup** — on every run, follow-runs
+   archetypes, set rhythms, and the axes a design is assembled from (it, not
+   this file, is the authority on what the axes are).
+   Read it **before you write any markup** — on every run, follow-runs
    included — and choose from it on a pipeline run; see *Choose the concept*
    below.
 
@@ -689,7 +689,9 @@ it there, so the finished strip does not depend on `input/`.
 
 When a panel has none, **omit `data-screenshot`**: the frame renders a blank
 screen filled with `data-screen-fallback` (choose a theme-fitting hex). That is
-a deliberate empty device and is a legitimate design choice.
+a deliberate empty device and is a legitimate design choice — on a support
+panel. A panel with no app content on it is the review-risk case
+(`archetypes.md` § RULE), so never panel 0.
 
 **Never pause the run to request screenshot uploads.** Design around the gap and
 list it at the end of your final message.
@@ -861,4 +863,5 @@ Designed strips/ipad/ only, as asked.
 input/iphone/, input/phone/ also have captures.
   to match this design — run with no target named, and `follows: ipad` in request:
   for different ones   — run naming each, no follows
+```
 ```
