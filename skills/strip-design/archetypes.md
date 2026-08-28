@@ -162,8 +162,8 @@ the one that most separates professional sets from generated ones.**
 
 `escalating` names density and saturation, but the walk can run on any axis:
 crop depth deepening panel to panel, device scale growing, mood cooling, one
-decor mark growing and sinking (Axis 8 · *a mark that walks* — run 2026-08-26's
-dog-eared corner went 160 → 280px as its ink sheet grew, this repo's own
+decor mark growing and sinking (Axis 8 · *a mark that walks* — an earlier run
+here grew a dog-eared corner 160 → 280px as its ink sheet grew, this repo's own
 precedent). Axis 2 names the shape of the set; which material carries that
 shape is a separate, free choice.
 
@@ -545,7 +545,7 @@ against. It is the row that fails, not the symbol. These work:
   so both parts stay editable.
 - **Instead of a bullet** — when a panel genuinely lists two or three points.
 - **Echoing the app icon** — lift the icon's own motif and repeat it as decor.
-  This repo has done it once (run 34, "echoes the app icon's swirl") and it is
+  This repo has done it once ("echoes the app icon's swirl") and it is
   the strongest option available, because nobody else on the store page can use
   it.
 - **The whole decor of a `statement` panel** — one symbol, one line of type.
@@ -554,7 +554,7 @@ against. It is the row that fails, not the symbol. These work:
   size, position or depth: growing, sinking behind the device, crossing the
   panel corner to corner. This is decor carrying the set rhythm (Axis 2 · *Any
   axis can carry the rhythm*), and this repo invented it before naming it —
-  run 2026-08-26's dog-eared corner deepened 160 → 280px as its ink sheet
+  an earlier run's dog-eared corner deepened 160 → 280px as its ink sheet
   grew.
 
 **Scale and weight.** At 1290px wide, a mark below roughly 80px stops reading;
@@ -632,7 +632,7 @@ Frequently forgotten, and it changes a strip more than decor does.
 - **Spotlight-region** — everything on the screen dimmed except the one row,
   card or button the headline argues; the screenshot lit like a stage.
   OBSERVED, widespread — the most common professional treatment on the store,
-  and absent from this list until 2026-08-28.
+  and long missing from this list.
 - **Multi-state** — the same screen composited in two states: toggle off and
   on, empty beside full, before beside after. Two captures, one device; the
   change is the claim.
@@ -866,7 +866,7 @@ These recur, and every one of them is a decision someone made:
 Observed in this repo's own output. The most trustworthy section in the file,
 because it is the only one describing something that actually happened.
 
-**`bio`, 2026-08-10 — panels 0 and 4, `bookended`.** The device was set to
+**`bio`, panels 0 and 4, `bookended`.** The device was set to
 1550px wide (2.0× the pose's viewBox width, against a 1.0–1.3 guide) and pushed
 so far off the edge that **78% of it was cropped on panel 0 and 64% on panel 4**.
 What remained visible was a status bar and a navigation row on one, a home
@@ -885,8 +885,8 @@ Three causes, worth separating:
 
 Fixed by sizing the device to 950px (1.23×) and cropping 7% and 2%.
 
-**The register drift, 2026-08-18 → 2026-08-27 — every axis moved, nothing
-changed.** Eight concept lines in `history.md`, every one legal under the
+**The register drift — eight consecutive runs in which every axis moved and
+nothing changed.** Eight concept lines in `history.md`, every one legal under the
 no-repeat rule: six on warm paper or parchment grounds, the front pose in all
 eight with never more than ±5° of rotation, a left text rail at 100–110px in
 nearly every run, serif editorial titles in five. The rule was satisfied combinatorially while
