@@ -229,8 +229,8 @@ target it points at it is inert — not an instruction to copy yourself.
 
 **Inherited, verbatim:**
 
-- the seven concept slots — set rhythm, panel archetype, device treatment, type
-  placement, background/palette, typeface, decor family
+- the eight concept slots — set rhythm, panel archetype, device treatment, type
+  placement, background/palette, typeface, decor family, register
 - panel order
 - the copy and the screenshot-to-panel mapping, which `app.md` already shares
   across every target
@@ -281,7 +281,7 @@ actually knows:
 | | Read from | Why that one |
 | --- | --- | --- |
 | palette, typeface | `strips/<source>/strip.html` — its `:root` vars and hex values | exact, and still true if the strip was hand-tuned in the editor after the run |
-| the other five slots | the `<source>` line in `composer/references/history.md` | categorical judgements a run *declared*; inferring them back out of markup is guesswork |
+| the other six slots | the `<source>` line in `composer/references/history.md` | categorical judgements a run *declared*; inferring them back out of markup is guesswork |
 
 `strips/` is gitignored and a run replaces it wholesale, so the source strip may
 be gone. Then fall back to `history.md` alone — every slot survives there,
@@ -523,15 +523,16 @@ Before any markup, pick from `archetypes.md` and **state the picks in one line**
 so they can be rejected before five panels exist:
 
 ```
-bio · continuous-canvas · full-bleed-screen · bare/no-frame · type-behind · dark + one accent · decor: representational (lock watermark)
-     ^rhythm             ^archetype          ^device         ^type        ^palette             ^which decor family, and what
+bio · continuous-canvas · full-bleed-screen · bare/no-frame · type-behind · dark + one accent · Space Grotesk 700 + Inter · decor: representational (lock watermark) · register: dark tech
+     ^rhythm             ^archetype          ^device         ^type        ^palette             ^typeface                  ^which decor family, and what           ^the gestalt, one or two words
 ```
 
-**Name the decor family** — abstract/typographic, or representational. Ten
-consecutive runs picked abstract without considering the alternative, so state
-it and make it a decision. `archetypes.md` § Axis 8 has both lists.
+**Name the decor family** — abstract/typographic, representational, or
+photographic. Ten consecutive runs picked abstract without considering the
+alternatives, so state it and make it a decision. `archetypes.md` § Axis 8 has
+all three lists.
 
-Four rules:
+Six rules:
 
 - **Pick the set rhythm first.** It constrains everything else, and it is the
   axis that silently defaults to `uniform` — five identical panels, a template
@@ -541,10 +542,18 @@ Four rules:
   point of having axes.
 - **Do not repeat the previous run.** Read the last line of
   `composer/references/history.md`; change the archetype and at least two
-  **structural** axes — set rhythm, device treatment, type placement, screenshot
-  treatment, decor. A palette pinned by `app.md` does not count as variation;
-  **mood** does, and is usually the only colour decision left. If the history
-  file is missing or empty, this is the first run — choose freely.
+  **structural** axes — set rhythm, device treatment, type placement, typeface,
+  screenshot treatment, decor, register. A palette pinned by `app.md` does not
+  count as variation; **mood** does, and is usually the only colour decision
+  left. If the history file is missing or empty, this is the first run —
+  choose freely.
+- **Spend the wildcard.** At least one axis value `history.md` has never
+  recorded, per run — and say which. The no-repeat rule prevents repetition;
+  this is the rule that forces exploration. `archetypes.md` § How to use this
+  is the authority on it.
+- **Name the register.** One or two words for the gestalt, the concept line's
+  last slot. It counts as a structural axis for the no-repeat rule —
+  `archetypes.md` explains why (see its *Failures seen here*).
 - **Invent when nothing fits.** If no archetype suits the app, make one, use it,
   and add it to `archetypes.md` with a name.
 

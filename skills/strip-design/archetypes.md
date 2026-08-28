@@ -15,22 +15,36 @@ anywhere below, because they are combinations, not entries.
    archetypes suits the app, **invent one and add it here** with a name.
 4. A run must differ from the previous run in **the archetype and at least two
    of the structural axes** — set rhythm, device treatment, type placement,
-   typeface, screenshot treatment, decor. Variety is a decision, not a hope.
+   typeface, screenshot treatment, decor, register. Variety is a decision, not
+   a hope.
 
    **Palette does not count.** When `app.md` pins `theme`, the palette is
    brand, not a choice — a run that "varied" by rewording the same two hexes has
    varied nothing. Mood (Axis 7) does count, and is usually the only colour
    decision available.
+5. **One wildcard per run:** at least one axis value that `history.md` has
+   never recorded. The no-repeat rule only prevents repetition; this is the
+   rule that forces exploration, and it is mechanically checkable — grep the
+   history before claiming it. Say which value is the wildcard in your message
+   back. When the vocabulary is genuinely spent, say so and retire the rule
+   rather than gaming it.
+6. **Name the register** — the gestalt, in one or two words: *warm literary
+   editorial*, *dark tech*, *bleached minimal*, *playful consumer*. It is the
+   last slot of the concept line and it counts as a structural axis for the
+   no-repeat rule. Eight runs of this repo proved the axes can all move while
+   the register stands still (see *Failures seen here*); no single axis
+   captures the whole, so the whole gets its own slot.
 
 ## How much to trust each line
 
-Every claim below is one of four things. **Check the tag before obeying.**
+Every claim below is one of five things. **Check the tag before obeying.**
 
 | Tag | Means |
 | --- | --- |
 | **RULE** | Enforced by Apple. Breaking it risks rejection. Cited. |
 | **CONVENTION** | What most professional strips do. Safe, unoriginal, usually right. |
 | **OPINION** | Mine. Written from general familiarity, not from a survey or any data. Argue with it. |
+| **OBSERVED** | Seen working on a real store page. Cite the app. No number attached, so it outranks OPINION and nothing else. |
 | **MEASURED** | Your own A/B result. There are none yet. This is the tier that should grow. |
 
 Untagged prose is description, not a claim.
@@ -41,7 +55,9 @@ from conversion data. It leans like an art director, which is a real bias: ASO
 practice and design taste disagree in known places, and where they do, this file
 sides with taste. It is also reliable on conventional moves and thin on unusual
 ones — the ones worth stealing. When you see something on a store page whose
-move is not in here, add it. The gaps are where the interesting work lives.
+move is not in here, add it — tagged **OBSERVED**, with the app's name. That is
+the tag's whole job: stolen moves used to enter this file disguised as
+opinions, which undersold them. The gaps are where the interesting work lives.
 
 ## RULE · what Apple actually requires
 
@@ -105,18 +121,23 @@ Structure only — where the mass sits. Not a look.
 
 | Name | Structure |
 | --- | --- |
-| `type-over-device` | Headline top third, device below, cropped at the bottom edge. The default; safe, legible, everywhere. |
-| `device-over-type` | Device top, headline beneath. Rarer, reads calmer, good when the screen itself is the argument. |
-| `type-dominant` | Type owns 60%+ of the panel. Device small, cropped hard, or absent. For claims rather than features. |
+| `type-over-device` | Headline top third, device below, cropped at the bottom edge. The default; safe, legible, everywhere. Fails by being invisible — the value has to come from the other axes. |
+| `device-over-type` | Device top, headline beneath. Rarer, reads calmer, good when the screen itself is the argument. Fails when it isn't — a settings page proves nothing. |
+| `type-dominant` | Type owns 60%+ of the panel. Device small, cropped hard, or absent. For claims rather than features. Fails when the claim is thin: big type makes a weak sentence louder, not stronger. |
 | `full-bleed-screen` | The screenshot *is* the panel — edge to edge, no frame, no margin. Type overlaid on a dimmed or blurred region. Very strong; needs a screenshot that can carry it. |
-| `device-bleed-side` | Device cropped off the left or right edge, often 30–50% gone. Type in the remaining column. Creates motion across the set when the side alternates. |
-| `floating-card` | A UI element lifted *out* of the device screen and enlarged beside it — a notification, a row, a chart. The most-used "modern" move. Shows the feature without needing the whole screen readable. |
+| `device-bleed-side` | Device cropped off the left or right edge, often 30–50% gone. Type in the remaining column. Creates motion across the set when the side alternates. Fails past ~50%: side crop takes UI structure with it (Axis 3 · Crop). |
+| `floating-card` | A UI element lifted *out* of the device screen and enlarged beside it — a notification, a row, a chart. The most-used "modern" move. Shows the feature without needing the whole screen readable. Fails when the lifted element needs the screen's context to make sense. |
 | `two-device-overlap` | Two frames, one behind the other, offset and usually at different scales. **Reach for it when two screens tell one story** — a before/after, a flow (compose → published), a state change — not because there were spare captures. Surplus captures are a reason to *choose better*, not to pack more in. `app.md` signals it with two filenames on one panel's `screenshot:` line. **Size them for two**: the standard width guide is written for a single dominant device, and applying it twice puts 2.6 phone-widths in a 1.7-phone-wide panel. See Axis 3 · Scale. |
-| `split-panel` | Hard horizontal or vertical division — colour block one side, device the other. Graphic, poster-like. |
-| `tilted-device` | Device rotated 3–15°, usually with a directional shadow. Buys energy from a single flat pose. |
+| `split-panel` | Hard horizontal or vertical division — colour block one side, device the other. Graphic, poster-like. Fails when both halves compete: one side leads, the other supports. |
+| `tilted-device` | Device rotated 3–15°, usually with a directional shadow. Buys energy from a single flat pose. Fails in multiples — five tilted panels read as a gimmick, not energy. |
 | `annotated` | Callout lines or arrows from labels to UI elements. Instructional register; good for complex tools, deadly for consumer apps. |
 | `statement` | No device at all. A sentence, a number, a logo. A breath in the middle of a set. **Review risk as panel 0** — Apple requires screenshots to show the app in use, and this one shows none. Safe as panel 2 or 3 among panels that do. |
 | `collage` | Several small UI fragments arranged as a composition rather than one screen. Busy, energetic, hard to do well. |
+| `screen-spill` | The screenshot's *content* keeps going past the device — a map, a photo grid, a page — spilling into the panel as if the screen were a window onto something larger. The strongest "the app is bigger than the phone" move. Distinct from an element escape (Axis 3) and from `full-bleed-screen` (no device at all). Fails when what spills has hard UI edges: chrome that spills reads as a rendering bug; fields — maps, photos, paper — read as depth. |
+| `hand-held` | The device in a photographed hand, usually entering from a panel edge. OBSERVED everywhere on the store — the dominant consumer-lifestyle archetype, and the whole warm-human register is unreachable without it. Needs a hand asset whose light matches the palette; a mismatched cutout fails harder than no hand. See Axis 3 · Context. |
+| `quote-panel` | A review quote is the structural subject — large type, attributed, device small or absent. Gives Axis 10's proof a home as a panel rather than a badge. Fails with invented praise (Axis 10, RULE-adjacent) and fails as panel 0; with the device absent it also carries `statement`'s review exposure — keep a device in it, however small. |
+| `screen-deck` | Several bare screenshots fanned or stacked behind one leading screen, edges peeking, no frames. Says "there is more inside" — libraries, feeds, template galleries, browse-heavy apps. Distinct from `two-device-overlap` (framed devices, one story) and `collage` (fragments). Fails when the back screens are legible enough to compete: they are depth, not content. |
+| `ui-macro` | One real UI element blown up to fill most of the panel — a button, a toggle, one card — device absent, the element at poster scale. The bridge between `floating-card` and `statement`: it still shows actual app content, so it dodges the statement's review risk. Fails when the element is generic — a giant button proves nothing unless it is recognisably *yours*. |
 
 ## Axis 2 · Set rhythm
 
@@ -133,6 +154,18 @@ the one that most separates professional sets from generated ones.**
 | `continuous-canvas` | Background, or a single graphic element, runs across panel boundaries so the set reads as one image when swiped. Highest-effort, highest-impact. Requires designing the strip as one 6450px canvas, which this pipeline already does natively — but see *What survives the gap* below before choosing what to run across. |
 | `bookended` | Panels 0 and 4 carry claims; 1–3 carry features. Opens and closes on the argument rather than the feature list. **The bookends still show the app** — make them claim-led *layouts* (bigger type, more air), not the device-less `statement` archetype. Panel 0 especially: see CONVENTION (cited) above. |
 | `zoom-sequence` | Progressively tighter crops of the same screen, each with a different label. Good for one dense feature. |
+| `broken-uniform` | Four panels share one strict layout; one deliberately violates it — inverted, rotated, or a `statement`. Uniformity weaponised: the discipline of the four is what makes the fifth land, and the breach takes all the attention. OPINION: the breach must be one axis, made large — two small violations read as inconsistency, not intent. |
+| `call-and-response` | Panels work in pairs: one poses — a question headline, a claim, an empty state — and the next answers with the app doing it. Pairs with the question voice (Axis 5). Each panel must still stand alone (see *What survives the gap*): the store's gutter will break any pairing that leans on its neighbour. |
+| `mirrored` | The set is symmetric around the middle panel: 0 echoes 4, 1 echoes 3, and panel 2 is the pivot with the one-off layout. Reads as composed even in a passing scroll. OPINION: the pivot must earn its difference — it is the strip's centrepiece, so the strongest single claim goes there. Only ~9% see all five (CONVENTION above), so each mirrored pair must also work unpaired. |
+
+### Any axis can carry the rhythm
+
+`escalating` names density and saturation, but the walk can run on any axis:
+crop depth deepening panel to panel, device scale growing, mood cooling, one
+decor mark growing and sinking (Axis 8 · *a mark that walks* — run 2026-08-26's
+dog-eared corner went 160 → 280px as its ink sheet grew, this repo's own
+precedent). Axis 2 names the shape of the set; which material carries that
+shape is a separate, free choice.
 
 ### What survives the gap
 
@@ -278,11 +311,35 @@ Pose is a separate question and still comes from that pack's `frame.json`, which
   crop for. Wanting the device to run off an edge is fine — that is `crop`. Name
   the edge and the depth, and the panel stays honest about what it is.
 - **Angle** — flat front · rotated 3–8° (subtle) · rotated 10–20° (energetic) ·
-  perspective/isometric if the pack has such a pose
+  perspective/isometric **when the pack has such a pose — today none does**.
+  Every current pack ships `front` only, so as shipped this sub-axis is CSS
+  rotation, full stop. Perspective poses are planned; when a pack gains one it
+  appears in that pack's `frame.json` and this line stops being a warning.
+  Until then, do not fake perspective with CSS transforms on a front pose —
+  the frame artwork does not foreshorten, and a flat bezel on a "tilted"
+  screen reads as broken. Worth knowing while choosing: the
+  `lifestyle-journal/` gallery, this file's own taste benchmark, is built
+  almost entirely on perspective poses — it currently sets a bar the frame
+  catalogue cannot reach, so a panel judged against it should be judged on
+  everything except the pose.
 - **Depth** — flat on background · drop shadow · coloured glow · resting on a
-  drawn surface or plane · behind a foreground element
-- **Escape** — a UI element breaking out of the screen bounds (card, badge,
-  cursor, notification). Strong and cheap; the frame stops being a box.
+  drawn surface or plane · behind a foreground element · a floor reflection —
+  the device mirrored faintly below its bottom edge; dark grounds only, and
+  kept subtle, or it reads as a puddle
+- **Context** — what world the device sits in: floating in graphic space (the
+  default, and the only value this repo has ever used) · resting on a drawn or
+  photographed surface · held by a hand (the `hand-held` archetype, Axis 1) ·
+  inside a scene. The further down that list, the warmer the register and the
+  hungrier for assets — held and in-scene need photography whose light matches
+  the palette. OPINION: floating is chosen by default so often it has stopped
+  being a choice; the other three are where the unusual registers live.
+- **Escape** — the screen refusing to contain things. Three kinds, in rising
+  order of commitment: **element-escape** — one card, badge, cursor or
+  notification past the screen bounds; strong and cheap. **Content-spill** —
+  the screenshot's whole subject continuing into the panel; that is the
+  `screen-spill` archetype (Axis 1) worn as a treatment. **Device-through-type**
+  — the device breaking a headline's baseline, the type reading around it. All
+  three end the frame-as-box; pick one per panel, not a parade.
 
 With only one pose available, `angle` and `crop` are what buy variety. A front
 frame rotated −6° and cropped at the bottom-left reads very differently from the
@@ -292,11 +349,24 @@ same frame square and centred.
 
 - Above the device · below it · beside it (device cropped to a column)
 - **Overlapping** the device's top or bottom edge — needs explicit `z-index`
+- **On the screen** — type set inside the screenshot's own area, over a dimmed
+  or blurred region of it, not merely overlapping the device's edge. The
+  `full-bleed-screen` archetype does this by necessity; a framed device can do
+  it by choice.
 - **Behind** the device — oversized word, device covering part of it
+- **Wrapped** — the headline's rag following the device's silhouette, lines
+  shortening where the device intrudes. The most editorial move on this list,
+  expensive to set, and one copy change breaks it. Once per set, if at all.
 - Inside a shape — pill, card, ribbon, tag
 - Full-panel, device absent
 - Split — title top, subtitle bottom, device between them
 - Vertical or rotated (rare; use once at most across a set)
+
+**OPINION · the rail has a meaning.** A left rail reads editorial — a magazine
+margin. Centred reads poster — symmetrical, declarative. A right rail reads
+tense, deliberate, slightly off-balance. Eight consecutive runs of this repo
+set a left rail at 100–110px, which was almost certainly inheritance rather
+than choice; naming the effect is what makes it a decision.
 
 ## Axis 5 · Headline mechanics
 
@@ -310,9 +380,16 @@ same frame square and centred.
   ALL CAPS (loud, needs generous letter-spacing) · lowercase (casual, risky)
 - **Voice** — imperative verb ("Track every rep") · benefit claim ("Sleep
   better by Friday") · number-led ("3 taps to log a meal") · plain noun label
-  ("Offline maps")
+  ("Offline maps") · question ("Forgot what Tuesday felt like?") —
+  problem-framing, the natural opener for `narrative` and `call-and-response`
+  rhythms · first person ("My year, on one page") — the user's own voice
+  rather than the developer's; rare, intimate, easy to overdo · negation ("No
+  ads. No feeds. No noise.") — short denials in rhythm, positioning the app
+  against its category; strongest when the category's flaw is famous.
 - **Accent** — one word coloured, italic, or in the display face while the rest
-  stays neutral. Cheap emphasis, works at any size.
+  stays neutral. Cheap emphasis, works at any size. **Internal scale** is the
+  louder cousin: one word at 2–3× the rest — the panel's whole hierarchy
+  carried inside a single headline.
 - **Continuation** — a single sentence running across all five panels. Binds the
   set; fails badly if anyone reads them out of order, which they do.
 - **Subtitle** — earns its place or is cut. A subtitle restating the title is
@@ -327,8 +404,27 @@ same frame square and centred.
 - `photographic` — a photo, usually heavily dimmed or blurred.
 - `textured` — noise, grain, paper, subtle pattern over a flat or gradient base.
 - `pattern` — grid, dots, rules, repeating marks.
+- `split-ground` — the background alone divided into two hard blocks,
+  horizontal or diagonal, the device sitting across the seam. The graphic
+  energy of `split-panel` (Axis 1) without surrendering the panel's structure
+  to it.
+- `horizon` — a two-tone ground with a soft or hard line at device-foot
+  height, implying a floor and a sky. The cheapest way to give a panel space
+  instead of surface; pairs with a shadow or reflection (Axis 3 · Depth).
 - `continuous` — one background spanning the whole strip (see set rhythm).
+- `screenshot-derived` — the capture itself, blown up and heavily blurred or
+  dimmed, as the panel's own background. OBSERVED, widespread. The background
+  sibling of palette-from-icon (Axis 7): free coherence no competitor can copy,
+  and the device sits on a ground made of its own content. Keep the blur heavy
+  enough that the background never competes with the readable copy of the same
+  screen inside the frame.
 - `per-panel-shift` — hue walks across the set; each panel a step along a ramp.
+  The walk has a floor: **monotonic, and visible at thumbnail size, or it did
+  not happen.** This repo shipped a "warm paper sequence" whose relative
+  luminance ran 0.876 → 0.786 → 0.892 → 0.760 → 0.852 — a zigzag that rendered
+  as one colour. A shift smaller than the gutter's own contrast is not a
+  shift; put the five swatches side by side at 150px before claiming the
+  value.
 - **Inversion** — all light, all dark, or one inverted panel as a break. Dark
   strips have become standard for anything with a dark mode, and showing dark
   mode is close to expected now.
@@ -350,6 +446,9 @@ against the editor's neutral grey.
 - Duotone — screenshots recoloured into two-tone to unify a messy UI
 - Complementary high contrast — energetic, hard to keep tasteful
 - Palette pulled from the app icon — free coherence, and nobody does it enough
+- Palette pulled from the captures themselves — the screenshots' dominant
+  colours as ground and accent. Sibling of the icon pull, same free coherence;
+  works even when the icon is a poor colour source
 
 Rule that survives every palette: check contrast against **the render**, not the
 intent. A gradient that is fine at the top of the panel can swallow a subtitle
@@ -363,27 +462,31 @@ comes from, how hard the falloff is, how much air, how cold. Two runs with the
 matters here, because `app.md` usually pins the colours. This is the one part of
 Axis 7 that stays free when the brief fixes the palette.
 
-| Mood | Light, falloff, feel |
-| --- | --- |
-| `midnight` | Near-black ground, cold, one small light source. High contrast, hard edges, lots of empty. Still. |
-| `ember` | Dark ground, warm glow low and behind the device, soft long falloff. Intimate. |
-| `golden hour` | Warm ground, light raking from one side, long soft shadows, amber-to-violet drift. |
-| `dawn` | Pale, cool drifting to warm, low contrast, generous air. Quiet and optimistic. |
-| `overcast` | Flat neutral, no glow at all, even light, ink-black type. Sober; lets the UI speak. |
-| `parchment` | Warm off-white ground, sepia ink, faint grain. Archival, literary. |
-| `neon` | Dark ground, saturated cyan/magenta bloom, high chroma, glow on everything. |
-| `clinical` | Pure white, hard edges, one saturated accent, no gradient anywhere. Precise. |
-| `deep water` | Saturated dark blue-green, light from above, heavy falloff. Calm and serious. |
-| `spotlight` | Any ground, one tight radial behind the device and near-black elsewhere. Theatrical. |
+| Mood | Light, falloff, feel | The moves |
+| --- | --- | --- |
+| `midnight` | Near-black ground, cold, one small light source. High contrast, hard edges, lots of empty. Still. | flat near-black + one small radial with steep stops; no grain, no soft shadows |
+| `ember` | Dark ground, warm glow low and behind the device, soft long falloff. Intimate. | dark flat ground; warm radial set low behind the device, stops stretched long; faint grain |
+| `golden hour` | Warm ground, light raking from one side, long soft shadows, amber-to-violet drift. | linear warm ramp, light side lighter; long soft shadow cast off one side; violet in the far stop |
+| `dawn` | Pale, cool drifting to warm, low contrast, generous air. Quiet and optimistic. | low-contrast linear cool-to-warm; generous empty; no shadow, or a barely-there one |
+| `overcast` | Flat neutral, no glow at all, even light, ink-black type. Sober; lets the UI speak. | one flat neutral; no gradient, no glow, no grain — the discipline is the mood |
+| `parchment` | Warm off-white ground, sepia ink, faint grain. Archival, literary. | warm off-white flat; `feTurbulence` grain at low opacity; sepia ink; hairline rules |
+| `neon` | Dark ground, saturated cyan/magenta bloom, high chroma, glow on everything. | near-black; two saturated radials overlapping; blur/shadow glow on type and device both |
+| `clinical` | Pure white, hard edges, one saturated accent, no gradient anywhere. Precise. | pure white flat; hard-edged shapes only; one saturated accent; nothing blurred anywhere |
+| `deep water` | Saturated dark blue-green, light from above, heavy falloff. Calm and serious. | saturated blue-green linear, light in the top stop, falling to near-black at the foot |
+| `spotlight` | Any ground, one tight radial behind the device and near-black elsewhere. Theatrical. | one tight radial centred behind the device; everything outside it within a stop of black |
+| `bleached` | Near-white, slightly warm, overexposed. Contrast pulled low everywhere except one ink element. High-key, airy, expensive-looking. | near-white warm flat; every colour desaturated toward it; a single full-ink element carries all the contrast |
+| `sherbet` | Light warm ground, two or three pastel-but-saturated hues, soft rounded shapes, no black anywhere. Playful, consumer, kind — the register Poppins was made for, and the only mood on this list that serves it. | light cream ground; 2–3 saturated pastels as large soft shapes; ink swapped for a dark warm tone; generous corner radii on everything |
 
-Pick a mood even when the palette is fixed. It is usually the only colour
-decision left, and leaving it unmade is how three runs end up looking identical.
+A mood is two or three CSS moves — the last column names them so a mood is
+executable, not just an adjective. Pick a mood even when the palette is fixed.
+It is usually the only colour decision left, and leaving it unmade is how
+three runs end up looking identical.
 
 ## Axis 8 · Decor vocabulary
 
 **OPINION.** The orderings below are aesthetic judgements, not findings.
 
-**Two families. Say which one you chose, in the concept line.** Ten consecutive
+**Three families. Say which one you chose, in the concept line.** Ten consecutive
 runs of this repo picked abstract every single time — rules, pills, rings,
 numerals, grain, glow, bars, dots — and never once considered a representational
 mark. That is a default, not a decision. Abstract may well be right; it has to
@@ -399,6 +502,9 @@ Ordered roughly by how much they cost in taste:
 - Blurred colour blobs
 - Rules and dividers
 - Numerals, folio marks, chapter tags — type used as ornament
+- Knockout type — the headline as a window, the background or an image
+  visible through the letters. One word at most; past that it is a poster
+  about typography rather than about an app
 - Badges and pills — "New", "Offline", "No account needed"
 - Grain or noise overlay across the whole panel
 - Hand-drawn marks — underline, circle, scribble arrow
@@ -444,19 +550,37 @@ against. It is the row that fails, not the symbol. These work:
   it.
 - **The whole decor of a `statement` panel** — one symbol, one line of type.
 - **A terminal mark** — a single symbol on the last panel, closing the set.
+- **A mark that walks** — one mark recurring on every panel while changing
+  size, position or depth: growing, sinking behind the device, crossing the
+  panel corner to corner. This is decor carrying the set rhythm (Axis 2 · *Any
+  axis can carry the rhythm*), and this repo invented it before naming it —
+  run 2026-08-26's dog-eared corner deepened 160 → 280px as its ink sheet
+  grew.
 
 **Scale and weight.** At 1290px wide, a mark below roughly 80px stops reading;
 120–200px is a comfortable label size and 600px+ is a watermark. Match stroke
 weight to the type — a hairline icon beside a heavy serif looks borrowed, which
 it should not, because you drew it.
 
+### Family C · Photographic — the real thing
+
+A scanned paper edge, a pressed leaf, a coffee ring, a strip of torn tape.
+Texture no vector reaches, and the one tactile register the two SVG families
+cannot produce. The costs are real: assets must be shot or properly licensed —
+no unlicensed stock in a shipped strip — their colours are baked in like any
+`image` block, and one cutout whose light does not match the palette fails
+harder than no decor at all. OPINION: right for parchment and archival
+registers and almost nowhere else; if the strip is not already warm, Family C
+will not warm it.
+
 ### Choosing between the families
 
 Abstract suits editorial, literary and premium registers, and anything where the
 screenshots are already busy. Representational suits claims that are hard to
 show — privacy, offline, speed — where a symbol does work no amount of geometry
-can. Mixing is fine; leading with both is not, since the panel then has two
-things asking to be looked at.
+can. Photographic suits exactly one thing — a tactile, archival warmth — and
+should be declined everywhere else. Mixing is fine; leading with two is not,
+since the panel then has two things asking to be looked at.
 
 ### Drawing it — you do not need an image file
 
@@ -505,6 +629,19 @@ Frequently forgotten, and it changes a strip more than decor does.
 
 - As captured
 - Cropped to a region — one card, one row, one chart, enlarged
+- **Spotlight-region** — everything on the screen dimmed except the one row,
+  card or button the headline argues; the screenshot lit like a stage.
+  OBSERVED, widespread — the most common professional treatment on the store,
+  and absent from this list until 2026-08-28.
+- **Multi-state** — the same screen composited in two states: toggle off and
+  on, empty beside full, before beside after. Two captures, one device; the
+  change is the claim.
+- **Exhibit** — the capture's *content* is the argument, chosen so the screen
+  demonstrates the before of the feature's after: flawed prose beside a
+  grammar-check button, a chaotic camera roll beside the sorted album. The
+  panel does not decorate the evidence; it presents it. Handle with care —
+  evidence on the wrong panel argues against the app (a "before" capture under
+  panel 0's promise is a contradiction, not an exhibit).
 - Dimmed or blurred behind overlaid type
 - Recoloured or duotoned to match the palette
 - Simplified — a mock screen with less content than the real one, so it reads at
@@ -516,6 +653,11 @@ Frequently forgotten, and it changes a strip more than decor does.
 - Status-bar hygiene — full signal, full battery, a clean time (Apple's own
   marketing uses 9:41). A 3% battery at 2:47am is a story the panel did not
   mean to tell.
+
+**The captures are an input, not a given.** A run that needs a screen the
+capture set does not contain — a full week of data, a state worth arguing, a
+page of clean prose — says so and asks for it, rather than decorating the
+wrong capture. Nothing about treating screenshots obliges you to accept them.
 
 ## Axis 10 · Social proof
 
@@ -543,6 +685,11 @@ about themselves — which is why it converts, and why inventing one is punished
   supports, it does not shout.
 - **"No" is a legitimate answer** — a new app with no ratings should not fake
   the register of one that has them. Say the axis was considered and declined.
+- **What a new app can truthfully say** — declining fabricated proof does not
+  mean declining trust. "No account. No tracking. Yours." are honest claims
+  that do proof-shaped work, worn as a badge or pill (Axis 8) rather than as
+  this axis's forms. Skipping the axis because there are no ratings yet leaves
+  that on the table.
 
 ## Axis 11 · Typeface
 
@@ -583,6 +730,28 @@ each one actually ships.
 | **Space Grotesk** | 400, 700 | Grotesque with deliberate quirks in the g, a and k. Tech, tools, indie. Reads as designed rather than defaulted. |
 | **IBM Plex Mono** | 400, 600 | Mono. Not a title face — a kicker, label or caption face, and an instant genre signal for a developer tool. |
 
+### Known gaps in the library
+
+**OPINION.** Six families cover editorial-serif through tech-grotesque and
+nothing else. Three absences each lock away a register, in the order they hurt:
+
+- **A condensed display face.** At 104–128px, width is the scarce resource and
+  nothing here is narrow. Long words simply do not fit, which quietly biases
+  every headline toward short words — and the poster register condensed type
+  exists for is unreachable.
+- **A script or handwritten face.** For a journaling app this is the
+  genre-obvious accent move, and the library cannot make it. Accent words
+  only — script dies at caption size, which is exactly the thumbnail check any
+  candidate face must pass before joining.
+- **A slab serif**, optionally — the sturdy register between Lora and the
+  grotesques.
+
+Adding a face is a decision, not a download: files into `composer/fonts/`, the
+canonical block in its README updated, and the thumbnail guardrail below
+applied to the new face before anything ships in it. Until one lands, these
+registers are out of reach, and a concept that needs them should say so rather
+than approximating with tracking tricks.
+
 ### Pairings, which is the real unit
 
 Three text roles (`title`, `subtitle`, `caption`) means the choice is a pairing,
@@ -599,6 +768,11 @@ not a font. **OPINION**, all of it:
 - **Inter 700 + Inter 400** — one family, contrast carried entirely by weight
   and size. Underrated: a great many professional strips are exactly this, and
   it never looks borrowed.
+- **Space Grotesk 700 + Lora subtitle** — the reverse pairing: grotesque
+  title, serif support. Reads editorial-flipped and distinctly current. This
+  is the one sanctioned breach of the neutral-body guardrail below — the
+  *subtitle* takes the character, and the caption role stays Inter; breach
+  both and it is a font specimen.
 - **· + IBM Plex Mono for captions** — a modifier on any of the above, not a
   pairing of its own. One mono kicker per panel; a mono *subtitle* is a wall.
 
@@ -611,7 +785,9 @@ not a font. **OPINION**, all of it:
 - **One display face per set.** Two decorative faces plus a body face is three,
   and three is where strips start looking like a font specimen.
 - **The body role stays neutral.** Character belongs in the title. A subtitle in
-  Space Grotesk and a title in Poppins fight each other at every size.
+  Space Grotesk and a title in Poppins fight each other at every size. One
+  sanctioned exception: the reverse pairing above — a serif *subtitle* under a
+  grotesque title, captions still neutral.
 - **No faux anything.** Declare a real `@font-face` for every weight used. Ask
   for 700 with only a 400 file loaded and the browser synthesises a bold, which
   at 118px looks exactly like the mistake it is. Same for italic.
@@ -709,6 +885,17 @@ Three causes, worth separating:
 
 Fixed by sizing the device to 950px (1.23×) and cropping 7% and 2%.
 
+**The register drift, 2026-08-18 → 2026-08-27 — every axis moved, nothing
+changed.** Eight concept lines in `history.md`, every one legal under the
+no-repeat rule: six on warm paper or parchment grounds, the front pose in all
+eight with never more than ±5° of rotation, a left text rail at 100–110px in
+nearly every run, serif editorial titles in five. The rule was satisfied combinatorially while
+the gestalt stood still, because the rule only prevented repetition and no
+axis named the whole. Fixed above, twice: the wildcard rule (one
+never-recorded value per run) and the register slot in the concept line,
+which counts as a structural axis. Ranges do not enforce themselves; neither
+do vocabularies.
+
 ## Growing MEASURED
 
 The MEASURED tier is empty because nothing has been tested, not because nothing
@@ -734,12 +921,17 @@ is testable. When a strip ships, the first test is already known:
    differs.
 4. Pick the remaining axes independently. Say what you picked, in one line, so
    the choice is visible and can be rejected before anything is built. **Name
-   the decor family** (abstract or representational) — it is the axis this repo
-   has never once chosen deliberately. **Name the type pairing** (Axis 11) —
-   naming it is what makes it a choice; say nothing and the strip silently
-   inherits the blank template's Georgia. **Say whether the set carries social
-   proof** (Axis 10) — "no" is a fine answer, but it has to be an answer.
+   the decor family** (abstract, representational, or photographic) — it is
+   the axis this repo has never once chosen deliberately. **Name the type
+   pairing** (Axis 11) — naming it is what makes it a choice; say nothing and
+   the strip silently inherits the blank template's Georgia. **Say whether the
+   set carries social proof** (Axis 10) — "no" is a fine answer, but it has to
+   be an answer. **Name the register** — one or two words for the gestalt, the
+   last slot of the concept line.
 5. Do not repeat the previous run's archetype, and change at least two
    **structural** axes — rhythm, device treatment, type placement, typeface,
-   screenshot treatment, decor. A pinned palette cannot be one of them; mood
-   and typeface can.
+   screenshot treatment, decor, register. A pinned palette cannot be one of
+   them; mood, typeface and register can.
+6. Spend the wildcard: at least one axis value `history.md` has never
+   recorded. Say which value it is. If a check of the history shows nothing
+   left to spend, say that instead — it is the file's cue to grow.
