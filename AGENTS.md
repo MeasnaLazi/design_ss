@@ -1,4 +1,4 @@
-# apps_publisher — agent entry point
+# design_ss — agent entry point
 
 This repo designs App Store / Play Store screenshot strips. A strip is one HTML
 document: `strips/<target>/strip.html` is the single source of truth. The

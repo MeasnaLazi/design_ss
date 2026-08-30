@@ -1,4 +1,4 @@
-# apps_publisher
+# design_ss
 
 @./AGENTS.md
 
