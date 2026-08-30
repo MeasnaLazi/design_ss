@@ -11,6 +11,18 @@ index.json                     the pack catalogue
 <pack>/frame/<pose>.svg        the artwork, one file per pose
 ```
 
+## The artwork is not shipped — only the geometry
+
+Each pack here has a `frame.json` describing its poses, screen corners and
+viewBox, which is everything the runtime needs *except* the drawings themselves.
+Supply those yourself: put one SVG per pose in `<pack>/frame/`, named to match
+the pose ids in `frame.json`, each with a `#screen` path marking the aperture.
+Device mockups are available from [Apple Design
+Resources](https://developer.apple.com/design/resources/), [Design at
+Meta](https://www.meta.com/design-at-meta/tools/devices/) and the Figma
+Community, each under its own terms — which is why they are yours to download
+rather than ours to redistribute.
+
 ## Read the files, not this file
 
 **The catalogue is whatever is on disk.** Packs get added, poses get deleted
