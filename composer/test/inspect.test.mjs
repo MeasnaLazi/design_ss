@@ -50,7 +50,7 @@ const dom = new JSDOM(`<!doctype html><html><body>
     <div id="clipped"   data-layer="text" data-role="subtitle">Runs off the edge</div>
     <div id="empty"     data-layer="text" data-role="caption"></div>
     <div id="dev"       data-layer="device" data-device data-pack="iphone_12_pro" data-pose="tilted-left"></div>
-    <img id="deadimg"   data-layer="image" src="/datasource/images/gone.png">
+    <img id="deadimg"   data-layer="image" src="/strips/missing/images/gone.png">
     <img id="placeimg"  data-layer="image" src="/composer/placeholder.svg">
     <div id="offpanel"  data-layer="decor"></div>
   </section>

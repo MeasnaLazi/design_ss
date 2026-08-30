@@ -68,9 +68,6 @@ function startStaticServer(root) {
   const server = http.createServer(async (req, res) => {
     try {
       let urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname)
-      // Alias the dev-server datasource API route to the repo folder, for strip
-      // HTML written before assets moved into the strip folder.
-      if (urlPath.startsWith('/__api/datasource/')) urlPath = urlPath.replace('/__api/datasource/', '/datasource/')
       // Device frames moved from web_ui/public/ to composer/. Strips authored
       // before the move hardcode `framesRoot: '/web_ui/public'`, so the old
       // prefix is aliased rather than the files being rewritten.

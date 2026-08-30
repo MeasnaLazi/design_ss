@@ -323,8 +323,7 @@ editor just loads that runtime as-is rather than reimplementing it.
 | `POST /__api/strip-editor/validate?path=` | dropped — see P6 above |
 | `GET\|POST /__api/strip-editor/screenshots` | P4 |
 | `GET\|POST /__api/strip-editor/images` | ✅ |
-| Static `/strips/*`, `/composer/*`, `/datasource/*` | ✅ |
-| Alias `/__api/datasource/*` → `/datasource/*` | ✅ |
+| Static `/strips/*`, `/composer/*` | ✅ |
 | Alias `/web_ui/public/device-frames/*` → `/composer/device-frames/*` (legacy strips) | ✅ |
 
 Every path is jailed to the repo root; strip reads are further restricted to
@@ -374,12 +373,6 @@ missing.
   ("remove toolkit - restructure agent and skill"). The Validate button and its
   endpoint are deferred; we decide at P6 whether to restore the toolkit or drop
   the feature.
-- **`composer/test/bio-strip.html` has dead screenshot references.** Its five
-  `data-screenshot` UUIDs point into the retired shared library. Those device
-  blocks render with a red outline and appear in the editor's device-error
-  toast. Use `strips/hello-world/strip.html` — which uses `data-screen-fallback`
-  colours and resolves fully — as the reference strip until bio-strip is
-  repointed.
 - **Zoom floor is 4%, not the planned 25%.** A five-panel App Store strip is
   6450 px wide; fit-width lands near 15%, so the range had to start lower.
 - **Hit-testing is covered by tests that add a block first.** The earlier suite
@@ -610,7 +603,3 @@ worth confirming once.
 and confirm the PNG moved by the amount the inspector reported, and that
 `git diff` touches only that block's style attribute. Then retype a headline and
 check the same.
-
-Note that the P0 note about `bio-strip.html`'s missing screenshots still applies:
-its device blocks render red-outlined, which does not affect text editing but
-does mean it is not the strip to judge visual fidelity on.

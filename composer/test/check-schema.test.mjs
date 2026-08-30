@@ -52,7 +52,7 @@ await check('inline <svg> in a panel is caught', wrap(`${TEXT}\n<svg viewBox="0 
   errors: ['<svg>', 'no data-layer'],
 })
 
-await check('bare <img> in a panel is caught', wrap(`${TEXT}\n<img src="/datasource/images/x.png">`), {
+await check('bare <img> in a panel is caught', wrap(`${TEXT}\n<img src="/strips/iphone/images/x.png">`), {
   errors: ['<img>', 'no data-layer'],
 })
 

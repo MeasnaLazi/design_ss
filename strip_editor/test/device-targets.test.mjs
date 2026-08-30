@@ -163,7 +163,7 @@ check('a strip already in the right folder is left byte-identical', () => {
 
 check('retargeting does not touch other root-relative URLs', () => {
   const html = `<script src="/composer/device-frames.mjs"></script>
-    <img src="/datasource/images/x.png">`
+    <img src="/composer/images/x.png">`
   const r = retargetStripAssets(html, 'iphone')
   assert.equal(r.changed, 0)
   assert.equal(r.html, html)

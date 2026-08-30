@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test screen for device blocks in composer/test/.
+
+  A phone-aspect calibration target rather than a real capture: the grid, the
+  diagonals and the corner brackets make a homography error visible by eye. A
+  screenshot cannot do that — a photo warped slightly wrong still looks like a
+  photo, while a bent grid line is unmistakable.
+
+  Straight lines stay straight under a correct projective warp, and the
+  diagonals must still meet at the centre dot. Corner brackets sit inset from
+  the edges so a crop that eats the frame is obvious too.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 780" width="360" height="780">
+  <rect width="360" height="780" fill="#101418"/>
+  <g stroke="#2b3541" stroke-width="1">
+    <path d="M40 0V780M80 0V780M120 0V780M160 0V780M200 0V780M240 0V780M280 0V780M320 0V780"/>
+    <path d="M0 40H360M0 100H360M0 160H360M0 220H360M0 280H360M0 340H360M0 400H360M0 460H360M0 520H360M0 580H360M0 640H360M0 700H360M0 740H360"/>
+  </g>
+  <path d="M0 0L360 780M360 0L0 780" stroke="#3d6ea8" stroke-width="1.5"/>
+  <circle cx="180" cy="390" r="6" fill="#e8543f"/>
+  <g stroke="#e8543f" stroke-width="4" fill="none">
+    <path d="M12 44V12H44"/>
+    <path d="M316 12H348V44"/>
+    <path d="M348 736V768H316"/>
+    <path d="M44 768H12V736"/>
+  </g>
+  <rect x="8" y="8" width="344" height="764" fill="none" stroke="#5d6b7a" stroke-width="2"/>
+  <text x="180" y="330" fill="#8fa3b8" font-family="monospace" font-size="20" text-anchor="middle">TEST SCREEN</text>
+  <text x="180" y="360" fill="#5d6b7a" font-family="monospace" font-size="14" text-anchor="middle">360 x 780</text>
+</svg>

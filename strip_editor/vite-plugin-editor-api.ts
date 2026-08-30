@@ -4,13 +4,13 @@
  * Two jobs:
  *
  * 1. **Repo-root static aliasing.** Strip HTML references assets root-relatively
- *    (`/datasource/…`, `/composer/…`) because `composer/render.mjs` serves the
+ *    (`/strips/…`, `/composer/…`) because `composer/render.mjs` serves the
  *    repo root. Vite's root is `strip_editor/`, so this middleware serves those
  *    prefixes straight off disk — the same URL space the export renderer uses.
- *    It also implements the same two legacy aliases `render.mjs` does, so a
- *    strip renders identically in the iframe and in the export:
- *    `/__api/datasource/*` → `datasource/*`, and the pre-move device-frame
- *    prefix `/web_ui/public/device-frames/*` → `composer/device-frames/*`.
+ *    It also implements the same legacy alias `render.mjs` does, so a strip
+ *    renders identically in the iframe and in the export: the pre-move
+ *    device-frame prefix `/web_ui/public/device-frames/*` →
+ *    `composer/device-frames/*`.
  *
  * 2. **Strip file IO** under `/__api/strip-editor/*` — list, read, raw-serve
  *    for the editing iframe.
@@ -55,7 +55,7 @@ const STRIP_DIRS = ['strips', 'composer/test'] as const
  * Checked *after* {@link aliasLegacy}, so a retired prefix needs an entry here
  * only if it still names a real directory.
  */
-const STATIC_PREFIXES = ['/strips/', '/datasource/', '/composer/'] as const
+const STATIC_PREFIXES = ['/strips/', '/composer/'] as const
 
 const API_PREFIX = '/__api/strip-editor/'
 
@@ -377,15 +377,11 @@ function validUploadName(rawName: string): boolean {
 /**
  * Rewrite legacy URL prefixes onto their current location.
  *
- * Must stay in lockstep with the same aliases in `composer/render.mjs`: if the
+ * Must stay in lockstep with the same alias in `composer/render.mjs`: if the
  * two disagree, a strip renders one way in the editor and another way in the
  * export, which is precisely the class of bug this editor exists to remove.
  */
 function aliasLegacy(urlPath: string): string {
-  // Strips authored against the web_ui dev server use /__api/datasource/*.
-  if (urlPath.startsWith('/__api/datasource/')) {
-    return urlPath.replace('/__api/datasource/', '/datasource/')
-  }
   // Device frames lived in web_ui/public/ before they moved next to the runtime
   // that reads them. Strips predating the move hardcode the old prefix, and the
   // ones in output/ are gitignored — aliasing is cheaper than rewriting files
