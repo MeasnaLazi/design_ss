@@ -58,6 +58,9 @@ export function StripStage(): React.ReactElement {
   const loadToken = useEditorStore((s) => s.loadToken)
   const status = useEditorStore((s) => s.status)
   const error = useEditorStore((s) => s.error)
+  // The way out of a failed load. Clearing filePath also clears `?strip=` from
+  // the URL, so reloading lands on the picker rather than back on the failure.
+  const closeFile = useEditorStore((s) => s.closeFile)
   const geometry = useEditorStore((s) => s.geometry)
   const composerErrors = useEditorStore((s) => s.composerErrors)
   const nodes = useEditorStore((s) => s.nodes)
@@ -569,6 +572,13 @@ export function StripStage(): React.ReactElement {
               <AlertTriangle size={15} /> Could not load the strip
             </div>
             <p className="text-rose-300/90">{error}</p>
+            <button
+              type="button"
+              onClick={closeFile}
+              className="mt-3 rounded-md border border-rose-700 px-2.5 py-1 text-xs font-medium text-rose-100 hover:bg-rose-900/60"
+            >
+              Back to all strips
+            </button>
           </div>
         </div>
       )}

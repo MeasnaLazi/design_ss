@@ -48,6 +48,17 @@ export function subscribeToFile(path: string): () => void {
       store.setWatchState('offline')
       return
     }
+    if (event.type === 'removed') {
+      // Deleted underneath us. Unsaved work is still the human's — replacing it
+      // with an error screen would discard it with no way back — so a dirty
+      // editor is told, not emptied. A clean one has nothing to keep.
+      if (isDirty(useHistoryStore.getState())) {
+        store.setNotice('Deleted on disk — saving will write it back')
+        return
+      }
+      store.setError(`${path} no longer exists — the folder may have been deleted.`)
+      return
+    }
     if (event.type !== 'change') return
     if (event.mtime === store.mtime) return
 

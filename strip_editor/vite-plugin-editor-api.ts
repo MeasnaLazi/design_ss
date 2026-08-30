@@ -505,7 +505,15 @@ function watchStrip(abs: string, req: IncomingMessage, res: ServerResponse): voi
   // Named `snapshot`, not `open`: EventSource fires its *own* `open` event when
   // the connection is established, and a listener bound to that name would
   // receive both — one of them with no data at all.
-  void fs.stat(abs).then((stat) => send('snapshot', { mtime: stat.mtime.toISOString(), size: stat.size }))
+  void fs
+    .stat(abs)
+    .then((stat) => send('snapshot', { mtime: stat.mtime.toISOString(), size: stat.size }))
+    // The strip can be gone before the stream is even established: a folder
+    // deleted by hand, then the page reloaded from a URL that still names it.
+    // Unhandled, this rejection takes the whole dev server down with it, which
+    // turns a missing file into "nothing works". Report it like any other
+    // disappearance — the same event `emitChange` sends.
+    .catch(() => send('removed', { path: toRepoRel(abs) }))
 }
 
 /**

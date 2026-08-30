@@ -38,8 +38,27 @@ export function listStrips(): Promise<{ files: StripFile[] }> {
   return getJson<{ files: StripFile[] }>(`${API_PREFIX}/files`)
 }
 
-export function readStrip(path: string): Promise<{ path: string; html: string; mtime: string }> {
-  return getJson(`${API_PREFIX}/file?path=${encodeURIComponent(path)}`)
+/** The strip is not on disk — deleted, renamed, or never created. */
+export class StripMissingError extends Error {
+  path: string
+
+  constructor(path: string) {
+    super(`${path} no longer exists — the folder may have been deleted.`)
+    this.name = 'StripMissingError'
+    this.path = path
+  }
+}
+
+export async function readStrip(path: string): Promise<{ path: string; html: string; mtime: string }> {
+  try {
+    return await getJson(`${API_PREFIX}/file?path=${encodeURIComponent(path)}`)
+  } catch (e: unknown) {
+    // The server answers a missing file with 404 `not_found`. Say it in words,
+    // and name the path: the usual cause is a folder deleted by hand while the
+    // URL still points at the strip that was in it.
+    if (e instanceof Error && e.message === 'not_found') throw new StripMissingError(path)
+    throw e
+  }
 }
 
 export class StaleFileError extends Error {
