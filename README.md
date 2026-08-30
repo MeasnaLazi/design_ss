@@ -11,9 +11,10 @@
 Give it your app's description and a folder of screen captures. An agent reads
 them, designs the strip, and renders it at the exact size the stores require.
 
-**Three runs, one `input/` folder, three designs.** The concept is chosen fresh
-each time — palette, typeface, rhythm, how the devices sit — so a run you do not
-like is a run away from one you do.
+**Three runs, one `input/` folder, three designs.** A template gives every app
+the same layout with its content swapped in. Here the concept is composed per
+run — palette, typeface, rhythm, how the devices sit, what the panels do
+together — so a run you do not like is a run away from one you do.
 
 A strip is **one HTML document**. `strips/<target>/strip.html` is the single
 source of truth — the renderer exports that file and the visual editor edits
@@ -60,6 +61,9 @@ npx playwright install chromium
 
 That is everything needed to design and render. The visual editor installs
 separately and only if you want it.
+
+The agent is the part that designs, so a run costs whatever your agent costs.
+Everything else — rendering, checking, editing — is local and offline.
 
 ## Running the agent
 
@@ -161,6 +165,26 @@ holds it, and the lease lapses on its own if the run dies.
 
 → **[`strip_editor/README.md`](strip_editor/README.md)** for the full editor,
 its keyboard map, the server API and the architecture notes.
+
+## Why use this
+
+What the alternatives cost you:
+
+- always the same layout ~ template
+- looks like every other app that used it ~ template
+- your design fits the tool, not your app ~ template
+- a subscription that never ends ~ template
+- expensive ~ designer
+- days for a round of changes ~ designer
+- every new screenshot is another invoice ~ designer
+- five device targets is five jobs ~ designer
+- an afternoon per target, every time ~ yourself
+- export sizes are easy to get wrong ~ yourself
+- needs design skill you may not have ~ yourself
+- one screen changes and you re-export all five by hand ~ yourself
+
+None of this beats a good designer on your first strip. It beats the
+alternatives on your fifth.
 
 ## Read more
 
