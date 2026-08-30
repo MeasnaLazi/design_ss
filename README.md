@@ -30,6 +30,20 @@ input/<target>/*.png  ┴─►  the agent  ─►─┤
 Five targets: `iphone` and `ipad` for the App Store, `phone`, `tablet_7` and
 `tablet_10` for Play Store.
 
+| Target | Screenshot | Store |
+| --- | --- | --- |
+| `iphone` | 1290 × 2796 | App Store |
+| `ipad` | 2048 × 2732 | App Store |
+| `phone` | 1080 × 1920 | Play Store |
+| `tablet_7` | 1200 × 1920 | Play Store |
+| `tablet_10` | 1600 × 2560 | Play Store |
+
+One panel is one screenshot at these dimensions; a five-panel iPhone strip is
+6450 px wide. The two Apple sizes are specifications — Apple publishes exact
+export sizes and rejects anything else. The Play sizes are house choices inside
+Google's permitted range (320–3840 px per side, at most 2:1). All five are
+declared in `strip_editor/src/editor/devices.ts`.
+
 ## Requirements
 
 | | |
