@@ -159,6 +159,7 @@ its keyboard map, the server API and the architecture notes.
 | [`composer/README.md`](composer/README.md) | the renderer, the schema checker, and the frame packs |
 | [`composer/strip-schema.md`](composer/strip-schema.md) | the markup contract a strip has to satisfy |
 | [`NOTES.md`](NOTES.md) | non-obvious logic, and what breaks if you "fix" it |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | what to contribute — the vocabulary and the frame packs come first |
 
 ## License
 
