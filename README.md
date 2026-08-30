@@ -41,8 +41,7 @@ Five targets: `iphone` and `ipad` for the App Store, `phone`, `tablet_7` and
 One panel is one screenshot at these dimensions; a five-panel iPhone strip is
 6450 px wide. The two Apple sizes are specifications — Apple publishes exact
 export sizes and rejects anything else. The Play sizes are house choices inside
-Google's permitted range (320–3840 px per side, at most 2:1). All five are
-declared in `strip_editor/src/editor/devices.ts`.
+Google's permitted range (320–3840 px per side, at most 2:1).
 
 ## Requirements
 
