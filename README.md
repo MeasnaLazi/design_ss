@@ -187,6 +187,10 @@ design-ss stop                                        # cancel this project's ru
 goes to `<work root>/strips/`, so the toolkit can be installed once and aimed at
 any project. `--agent stub` runs the whole path with no model and no cost.
 
+`design-ss design` drives **Claude Code only** for now — it is the one adapter
+that ships. Every other agent above still works the way it always has, by
+reading `AGENTS.md` itself.
+
 | | | | |
 |---|---|---|---|
 | `0` | designed, checked, rendered | `4` | the agent process failed |
