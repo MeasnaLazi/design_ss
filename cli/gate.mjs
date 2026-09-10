@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { run } from './proc.mjs'
-import { stripPath, stripLabel } from './roots.mjs'
+import { stripPath, stripLabel, isTarget } from './roots.mjs'
 import { requireChromium } from './browser.mjs'
 
 /**
@@ -76,6 +76,8 @@ export function verdict(data) {
 
 /** Clean before, never after: see the stale strip-data.json note in NOTES.md. */
 export async function cleanOutput(roots, target) {
+  // The CLI refuses a bad --target first; this is the guard at the delete itself.
+  if (!isTarget(roots, target)) throw new Error(`"${target}" is not a folder under ${roots.stripsDir}`)
   await fs.rm(path.join(roots.stripsDir, target), { recursive: true, force: true })
 }
 

@@ -33,7 +33,7 @@ import { retarget } from '../cli/retarget.mjs'
 import { installEditor, startEditor, stopEditor, editorStatus, parsePort, DEFAULT_PORT } from '../cli/editor.mjs'
 import { installBrowser, requireChromium } from '../cli/browser.mjs'
 import { loadConfig } from '../cli/agents.mjs'
-import { resolveRoots, findWorkRoot, TOOLKIT_ROOT } from '../cli/roots.mjs'
+import { resolveRoots, findWorkRoot, isTarget, TOOLKIT_ROOT } from '../cli/roots.mjs'
 
 const VERSION = JSON.parse(readFileSync(path.join(TOOLKIT_ROOT, 'package.json'), 'utf8')).version
 
@@ -149,6 +149,13 @@ function parse(argv) {
 
 const die = (msg) => { process.stderr.write(`design-ss: ${msg}\nTry: design-ss --help\n`); process.exit(EXIT.USAGE) }
 const str = (v, name) => { if (!v || v === true) die(`--${name} is required`); return String(v) }
+// A target that leaves strips/ -- `..`, `.`, `a/b` -- would aim the clean step's
+// recursive delete at the project itself. Refused before any path is built.
+const target = (v) => {
+  const t = str(v, 'target')
+  if (!isTarget(roots, t)) die(`--target must be a single folder name under strips/, got "${t}"`)
+  return t
+}
 
 // An unexpected throw should read as one line, not a stack trace: a pipeline
 // only sees the exit code, and a human only reads the last line.
@@ -183,7 +190,7 @@ switch (command) {
     const d = config.defaults
     process.exit(await design(roots, {
       config,
-      target: str(args.target, 'target'),
+      target: target(args.target),
       message: str(args.message, 'message'),
       agentName: String(args.agent || d.agent),
       timeoutMs: Number(args.timeout || d.timeoutSeconds) * 1000,
@@ -195,14 +202,14 @@ switch (command) {
   }
 
   case 'gate':
-    process.exit(await gateOnly(roots, { target: str(args.target, 'target'), skipRender: args['no-render'] === true }))
+    process.exit(await gateOnly(roots, { target: target(args.target), skipRender: args['no-render'] === true }))
     break
 
   case 'render':
     // --target renders this project's strip; anything else is passed straight
     // through to the renderer, which still accepts an explicit --strip.
     if (args.target && args.target !== true) {
-      process.exit(await gateOnly(roots, { target: String(args.target), skipRender: false }))
+      process.exit(await gateOnly(roots, { target: target(args.target), skipRender: false }))
     } else {
       if (!await requireChromium()) process.exit(EXIT.USAGE)
       const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/render.mjs'), ...rest], { cwd: roots.workRoot })
@@ -212,7 +219,7 @@ switch (command) {
 
   case 'retarget':
     process.exit(await retarget(roots, {
-      target: str(args.target, 'target'),
+      target: target(args.target),
       size: str(args.size, 'size'),
       fromSize: args['from-size'] === true ? null : args['from-size'],
       skipRender: args['no-render'] === true,

@@ -53,6 +53,19 @@ export function resolveRoots({ cwd = process.cwd(), workRoot = null, inputFlag =
   }
 }
 
+/**
+ * A target is one folder directly under strips/.
+ *
+ * The name is joined into paths that are read, written and -- in the clean step
+ * -- deleted recursively, so `..` would clean the work root and `.` every strip.
+ * Resolving and comparing, rather than matching a character class, refuses
+ * exactly the names that leave strips/ and nothing else.
+ */
+export function isTarget(roots, target) {
+  const dir = path.resolve(roots.stripsDir, String(target))
+  return path.dirname(dir) === path.resolve(roots.stripsDir) && path.basename(dir) === String(target)
+}
+
 /** Where a target's strip lives, and the label the checker infers the target from. */
 export const stripPath = (roots, target) => path.join(roots.stripsDir, target, 'strip.html')
 export const stripLabel = (target) => path.join('strips', target, 'strip.html')

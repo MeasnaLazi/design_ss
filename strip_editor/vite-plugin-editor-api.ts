@@ -618,6 +618,33 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
   })
 }
 
+/**
+ * Is this a write that a page on another site sent?
+ *
+ * A browser sends a "simple" cross-site POST (text/plain, no custom headers)
+ * without a preflight, so without this any page open while the editor runs can
+ * call `create?replace=1` and wipe a strip folder. Browsers attach `Origin` to
+ * every such request. The editor's own fetches carry one that matches the host;
+ * curl and other local tools send none — the agent skill's `/mode` calls among
+ * them — so both still pass. `Origin: null` (a sandboxed or opaque context) does
+ * not parse and is refused like any other mismatch.
+ *
+ * Checked against the request's own Host rather than a fixed port, so `--port`
+ * and opening the editor as 127.0.0.1 instead of localhost keep working. Reads
+ * are left alone: a cross-site page cannot see the response without CORS
+ * headers, which this server never sends.
+ */
+function isCrossSiteWrite(req: IncomingMessage): boolean {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return false
+  const origin = req.headers.origin
+  if (origin === undefined) return false
+  try {
+    return new URL(origin).host !== (req.headers.host ?? '').toLowerCase()
+  } catch {
+    return true
+  }
+}
+
 export function editorApiPlugin(): Plugin {
   const middleware = async (
     req: IncomingMessage,
@@ -641,6 +668,11 @@ export function editorApiPlugin(): Plugin {
         return
       }
       const route = pathname.slice(API_PREFIX.length)
+
+      if (isCrossSiteWrite(req)) {
+        sendJson(res, 403, { ok: false, error: 'cross_origin', message: 'writes are accepted only from the editor itself' })
+        return
+      }
 
       // --- GET /__api/strip-editor/files -----------------------------------
       if (route === 'files' && req.method === 'GET') {
