@@ -158,15 +158,15 @@ The same run without a conversation: takes flags, writes files, returns an exit
 code, and never asks a question — so a script or a pipeline can drive it.
 
 ```bash
-design-ss design   --target iphone --message "warmer palette, lead with the timeline"
+design-ss design   --target iphone --message "warmer palette, lead with the timeline" --input <dir>
 design-ss retarget --target iphone --size 1284x2778   # rescale to another store size
 design-ss gate     --target iphone                    # check + render, no agent, no key
 design-ss check    --all                              # schema only, no browser
 design-ss render   --target iphone                    # strip -> store-size PNGs
-design-ss frames   iphone --list                      # device frame packs
+design-ss frames iphone --list                        # device frame packs
 design-ss design install                              # fetch Chromium, once
 design-ss editor install                              # fetch the visual editor, once
-design-ss editor start                                # ...run it in the background
+design-ss editor start --port <port>                  # ...run it in the background, default port 4714
 design-ss editor stop                                 # ...and stop it
 design-ss stop                                        # cancel this project's run
 ```
