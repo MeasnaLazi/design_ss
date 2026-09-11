@@ -59,6 +59,8 @@ Install it, and `design-ss` is on your path:
 ```bash
 npm install -g MeasnaLazi/design_ss
 design-ss --version
+design-ss design install #fetches chromium's dependency
+design-ss editor install #fetches editor's dependency
 ```
 
 Or clone it, which is the same thing plus the sources to edit:
@@ -69,16 +71,6 @@ cd design_ss
 npm install          # add `npm link` if you want the `design-ss` command
 npm run setup        # fetches Chromium and the editor's dependencies (~350MB, once)
 ```
-
-Either way you get the whole toolkit — composer, frame packs, fonts, the skill.
-The renderer's browser is a separate step, `design-ss design install` (~150MB,
-once), for the same reason the editor's is: nothing here downloads behind your
-back. `check`, `frames`, `retarget --no-render` and `editor` work without a
-browser; `design`, `gate`, `render` and `retarget` check for one, name the
-missing step and exit 2.
-
-Without installing, every command also works as `node bin/design-ss …`. The
-visual editor installs separately and only if you want it.
 
 The agent is the part that designs, so a run costs whatever your agent costs.
 Everything else — rendering, checking, editing — is local and offline.
@@ -158,11 +150,7 @@ strips/iphone/
 Self-contained: a strip never references anything outside its own folder, so it
 can be moved or cloned whole.
 
-**`strips/` is output and is gitignored.** A run replaces the target folder
-outright, and a run is not deterministic — the design decisions live in the
-agent, not in `app.md`, so re-running the same input gives you a *different*
-strip rather than the same one back. Copy a folder somewhere else if a
-particular result is worth keeping.
+**`strips/` is output and is gitignored.**
 
 ## `design-ss` — the command line
 
@@ -187,16 +175,7 @@ design-ss stop                                        # cancel this project's ru
 goes to `<work root>/strips/`, so the toolkit can be installed once and aimed at
 any project. `--agent stub` runs the whole path with no model and no cost.
 
-`design-ss design` drives **Claude Code only** for now — it is the one adapter
-that ships. Every other agent above still works the way it always has, by
-reading `AGENTS.md` itself.
-
-| | | | |
-|---|---|---|---|
-| `0` | designed, checked, rendered | `4` | the agent process failed |
-| `1` | gate failed — schema or render errors | `5` | `NEEDS_INPUT` — the input folder is incomplete |
-| `2` | usage, unknown agent, or it would not start | `6` | warnings only |
-| `3` | the agent finished and wrote no strip | `124` / `143` | hit its deadline / was stopped |
+`design-ss design` drives **Claude Code only** for now.
 
 Full reference, including which store sizes `retarget` can and cannot reach:
 [`docs/cli.md`](docs/cli.md).
@@ -212,14 +191,12 @@ npm install
 npm run dev          # http://localhost:4714
 ```
 
-Opens `strip.html` directly — no import step, nothing converted. Drag and resize
-blocks with snapping, edit text in place, swap screenshots and device poses,
-tune type and colour, undo anything. Saves are surgical: moving one headline
-rewrites one line and leaves the rest of the file byte-for-byte alone.
-
-It watches the file while the agent writes, so you can leave it open during a
-run and watch the design appear — the canvas goes read-only and names whoever
-holds it, and the lease lapses on its own if the run dies.
+Opens `strip.html` directly — no import, nothing converted. Drag and resize with
+snapping, edit text in place, swap screenshots and device poses, tune type and
+colour, undo anything; every save is surgical, rewriting the one line you
+changed and leaving the rest of the file byte-for-byte alone. Leave it open
+during a run and the design appears as the agent writes it — the canvas goes
+read-only, names whoever holds it, and releases on its own if the run dies.
 
 → **[`strip_editor/README.md`](strip_editor/README.md)** for the full editor,
 its keyboard map, the server API and the architecture notes.
