@@ -67,7 +67,7 @@ Or clone it, which is the same thing plus the sources to edit:
 git clone https://github.com/MeasnaLazi/design_ss.git
 cd design_ss
 npm install          # add `npm link` if you want the `design-ss` command
-npm run setup        # fetches Chromium — the same design-ss design install
+npm run setup        # fetches Chromium and the editor's dependencies (~350MB, once)
 ```
 
 Either way you get the whole toolkit — composer, frame packs, fonts, the skill.
