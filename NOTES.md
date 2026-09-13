@@ -190,3 +190,33 @@ Three consequences, each paid for by a real failure:
   module graph into a temp file elsewhere on disk. Measured on a relocated copy:
   resolving from `import.meta.url` reports *no playwright* on a machine that has
   one; with the root passed in it finds it.
+
+## Download is an Export you receive as a file
+
+The Download button runs the *same* render as Export — same renderer, same
+canonical `strips/<target>/rendered/` — and then hands the PNGs over as one zip.
+It is a second way to *receive* an export, not a second way to produce one, so
+nothing is redirected and `roots.mjs`'s rule still holds: output goes to the work
+root and nowhere else.
+
+It needs no folder dialog and no path from the page, because the browser's own
+download setting — including "ask every time" — is the folder picker. A browser
+cannot give a server a filesystem path anyway: `<input webkitdirectory>` uploads
+files rather than naming a folder, and `showDirectoryPicker()` is a
+Chromium-only handle the page alone can write through.
+
+Three details worth keeping:
+
+- **Stored, not deflated** (`cli/zip-store.mjs`). PNGs carry their own
+  compression; recompressing them would buy a percent for a dependency, a native
+  build, or a shell-out to a `zip` binary Windows does not have. Measured on a
+  real strip: 13,965,145 bytes of panels → 13,965,741 bytes of archive, all 596
+  of the difference being headers, and `unzip -t` clean.
+- **Its own CRC-32 table, not `zlib.crc32`.** That function landed in Node 20.15
+  and `engines` says `>=20`, so using it would make the module depend on a patch
+  version the manifest does not require.
+- **A POST, fetched rather than navigated to.** POST because it spawns a renderer,
+  and anything that prefetches links must not. Fetched because a failed render
+  answers with JSON, which a navigation would either display as a page or save as
+  `download.json` — reading the content type keeps the failure in the toolbar
+  beside every other failure.

@@ -37,6 +37,7 @@ import path from 'node:path'
 
 import { deviceForSize, panelSizeFromHtml, retargetStripAssets } from './src/editor/devices'
 import { browserPreflight, browserState } from '../cli/browser-state.mjs'
+import { zipStore } from '../cli/zip-store.mjs'
 
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
@@ -644,6 +645,41 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
 }
 
 /**
+ * Export, then hand the PNGs to the browser as one zip.
+ *
+ * The render is the same one the Export button runs -- same renderer, same
+ * canonical output folder, nothing redirected -- because "download" is a second
+ * way to *receive* an export, not a second way to produce one. Whatever the
+ * browser is set to do with a download decides where it lands, which is why this
+ * needs no folder dialog, no remembered destination and no path from the client.
+ *
+ * Stored rather than deflated: PNGs carry their own compression, so see
+ * `cli/zip-store.mjs`.
+ */
+async function runDownload(abs: string): Promise<
+  { ok: true; name: string; zip: Buffer } | { ok: false; body: Record<string, unknown> }
+> {
+  const rendered = await runExport(abs)
+  if (!rendered.ok) return { ok: false, body: rendered }
+
+  const outDir = path.join(REPO_ROOT, String(rendered.outDir))
+  const names = (await fs.readdir(outDir))
+    .filter((n) => /^panel.*\.png$/.test(n) || n === 'strip.png')
+    .sort()
+  if (!names.length) {
+    // The renderer said it wrote panels and the folder has none: report the
+    // disagreement rather than handing over an empty archive that looks fine.
+    return { ok: false, body: { ok: false, error: `the render reported success but ${rendered.outDir} holds no PNGs` } }
+  }
+
+  const entries = await Promise.all(names.map(async (name) => ({ name, data: await fs.readFile(path.join(outDir, name)) })))
+  // Named after the strip's folder — `iphone`, `ipad` — because that is the one
+  // segment of the path that differs, and it is what the download is of.
+  const label = path.basename(path.dirname(abs)) || path.basename(abs, path.extname(abs))
+  return { ok: true, name: `${label}-panels.zip`, zip: zipStore(entries) }
+}
+
+/**
  * Is this a write that a page on another site sent?
  *
  * A browser sends a "simple" cross-site POST (text/plain, no custom headers)
@@ -1090,6 +1126,33 @@ export function editorApiPlugin(): Plugin {
           return
         }
         sendJson(res, 200, await runExport(abs))
+        return
+      }
+
+      // --- POST /__api/strip-editor/download?path= -------------------------
+      // A POST because it renders: a GET that spawns a browser would be followed
+      // by anything that prefetches links, and `isCrossSiteWrite` only guards
+      // writes.
+      if (route === 'download' && req.method === 'POST') {
+        const abs = resolveStripPath(url.searchParams.get('path'))
+        if (!abs) {
+          sendJson(res, 400, { ok: false, error: 'bad_path' })
+          return
+        }
+        const made = await runDownload(abs)
+        if (!made.ok) {
+          // JSON on the failure path, so the toolbar can show the reason the
+          // same way it shows an export's. The client checks the content type.
+          sendJson(res, 200, made.body)
+          return
+        }
+        res.writeHead(200, {
+          'Content-Type': 'application/zip',
+          'Content-Length': String(made.zip.length),
+          'Content-Disposition': `attachment; filename="${made.name}"`,
+          'Cache-Control': 'no-store',
+        })
+        res.end(made.zip)
         return
       }
 

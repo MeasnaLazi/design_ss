@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Frame, Home, ImageDown, Keyboard, Loader2, Maximize2, Minus, Plus, Redo2, RotateCw, Save, Undo2, WifiOff, X } from 'lucide-react'
+import { Download, Frame, Home, ImageDown, Keyboard, Loader2, Maximize2, Minus, Plus, Redo2, RotateCw, Save, Undo2, WifiOff, X } from 'lucide-react'
 
 import { AddMenu } from './AddMenu'
 import { stripDisplayName } from '../editor/devices'
 import { ZOOM_STEPS, useEditorStore } from '../store/useEditorStore'
 import { canRedo, canUndo, isDirty, useHistoryStore } from '../store/useHistoryStore'
 import { redo, redoLabel, undo, undoLabel } from '../editor/undoRedo'
-import { exportStrip } from '../lib/api'
+import { downloadStrip, exportStrip } from '../lib/api'
 import { saveStrip } from '../editor/saveStrip'
 
 function IconButton({
@@ -71,6 +71,16 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
   const editCount = useHistoryStore((s) => Math.abs(s.cursor - s.savedAt))
 
   const [flash, setFlash] = useState<string | null>(null)
+  /**
+   * Which button is working — as distinct from `exporting`, which means "a render
+   * is in flight".
+   *
+   * Both buttons must be *disabled* together: they spawn the same renderer against
+   * the same strip and write the same PNGs, so two at once is a corrupted export.
+   * But only the button that was pressed should spin. Sharing one flag for both
+   * jobs made the other button look like it had been pressed too.
+   */
+  const [busy, setBusy] = useState<'export' | 'download' | null>(null)
 
   const save = useCallback(async (): Promise<void> => {
     const outcome = await saveStrip()
@@ -84,18 +94,23 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
    * Export renders the file *on disk*, so unsaved work would silently not
    * appear in the PNGs. Saving first is what anyone pressing this button means.
    */
+  const saveFirst = useCallback(async (): Promise<boolean> => {
+    if (!isDirty(useHistoryStore.getState())) return true
+    const saved = await saveStrip()
+    // the save path already surfaced why
+    return saved.status === 'saved' || saved.status === 'nothing-to-save'
+  }, [])
+
   const exportNow = useCallback(async (): Promise<void> => {
     const { filePath: path, setExporting, setSaveError } = useEditorStore.getState()
     if (!path) return
     setExporting(true)
+    setBusy('export')
     setSaveError(null)
     try {
-      if (isDirty(useHistoryStore.getState())) {
-        const saved = await saveStrip()
-        if (saved.status !== 'saved' && saved.status !== 'nothing-to-save') {
-          setExporting(false)
-          return // the save path already surfaced why
-        }
+      if (!(await saveFirst())) {
+        setExporting(false)
+        return
       }
       const result = await exportStrip(path)
       if (result.ok) {
@@ -107,8 +122,39 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
       setSaveError(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       useEditorStore.getState().setExporting(false)
+      setBusy(null)
     }
-  }, [])
+  }, [saveFirst])
+
+  /**
+   * The same render as Export, received as a file instead of left on disk.
+   *
+   * Where it lands is the browser's to decide — its download setting, including
+   * "ask every time", is the folder picker. Nothing here needs to know a path.
+   */
+  const downloadNow = useCallback(async (): Promise<void> => {
+    const { filePath: path, setExporting, setSaveError } = useEditorStore.getState()
+    if (!path) return
+    setExporting(true)
+    setBusy('download')
+    setSaveError(null)
+    setFlash('Rendering…')
+    try {
+      if (!(await saveFirst())) return
+      const result = await downloadStrip(path)
+      if (result.ok) setFlash(`Downloaded ${result.name} · ${((result.bytes ?? 0) / 1024).toFixed(0)} kB`)
+      else {
+        setSaveError(`Download failed: ${result.error ?? 'unknown error'}`)
+        setFlash(null)
+      }
+    } catch (e: unknown) {
+      setSaveError(`Download failed: ${e instanceof Error ? e.message : String(e)}`)
+      setFlash(null)
+    } finally {
+      useEditorStore.getState().setExporting(false)
+      setBusy(null)
+    }
+  }, [saveFirst])
 
   useEffect(() => {
     if (!flash) return
@@ -254,10 +300,29 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
 
         <IconButton
           onClick={() => void exportNow()}
-          title={exporting ? 'Rendering…' : 'Export panel PNGs with render.mjs (saves first)'}
+          title={
+            busy === 'export'
+              ? 'Rendering…'
+              : exporting
+                ? 'Waiting for the render that is already running'
+                : 'Export panel PNGs with render.mjs (saves first)'
+          }
           disabled={exporting || readOnly}
         >
-          {exporting ? <Loader2 size={15} className="animate-spin" /> : <ImageDown size={15} />}
+          {busy === 'export' ? <Loader2 size={15} className="animate-spin" /> : <ImageDown size={15} />}
+        </IconButton>
+        <IconButton
+          onClick={() => void downloadNow()}
+          title={
+            busy === 'download'
+              ? 'Rendering…'
+              : exporting
+                ? 'Waiting for the render that is already running'
+                : 'Download the rendered panels as a zip (saves and renders first)'
+          }
+          disabled={exporting || readOnly}
+        >
+          {busy === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
         </IconButton>
 
         <div className="mx-1 h-5 w-px bg-zinc-800" />

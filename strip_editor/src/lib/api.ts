@@ -247,6 +247,55 @@ export async function exportStrip(path: string): Promise<ExportResult> {
   return (await res.json()) as ExportResult
 }
 
+export type DownloadResult = {
+  ok: boolean
+  /** The file the browser was handed, on success. */
+  name?: string
+  bytes?: number
+  error?: string
+  /** `'browser'` when the render refused for want of Chromium. */
+  reason?: string
+}
+
+/** `attachment; filename="iphone-panels.zip"` → `iphone-panels.zip` */
+function filenameFrom(header: string | null): string | null {
+  const m = /filename="([^"]+)"/.exec(header ?? '')
+  return m ? m[1] : null
+}
+
+/**
+ * Render the strip, then let the browser save the PNGs as one zip.
+ *
+ * Fetched rather than navigated to, for two reasons: the route is a POST because
+ * it spawns a renderer, and a failed render answers with JSON — which a plain
+ * navigation would either display as a page or save as a file called
+ * `download.json`. Reading the content type keeps a failure in the toolbar where
+ * every other failure is.
+ *
+ * Where the file lands is the browser's business: whatever its download setting
+ * says, including asking every time. That is the whole reason this needs no
+ * folder dialog and no path from the page.
+ */
+export async function downloadStrip(path: string): Promise<DownloadResult> {
+  const res = await fetch(`${API_PREFIX}/download?path=${encodeURIComponent(path)}`, { method: 'POST' })
+  if (res.headers.get('content-type')?.includes('application/json')) {
+    return (await res.json()) as DownloadResult
+  }
+  const blob = await res.blob()
+  const name = filenameFrom(res.headers.get('content-disposition')) ?? 'panels.zip'
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Not revoked on the next line: a browser that has not finished reading the
+  // blob when click() returns ends up with a cancelled download.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  return { ok: true, name, bytes: blob.size }
+}
+
 export type WatchEvent =
   | { type: 'snapshot' | 'change'; mtime: string; size: number }
   | { type: 'removed' }
