@@ -36,6 +36,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { deviceForSize, panelSizeFromHtml, retargetStripAssets } from './src/editor/devices'
+import { browserPreflight, browserState } from '../cli/browser-state.mjs'
 
 const EDITOR_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
@@ -573,6 +574,30 @@ function checkSchema(relPath: string): Promise<{ ok: boolean; output: string }> 
 
 async function runExport(abs: string): Promise<Record<string, unknown>> {
   const rel = toRepoRel(abs)
+
+  // Is there a browser to render with, before spending up to 120s finding out?
+  //
+  // The renderer's own failure is a playwright stack trace naming a revision
+  // directory, which arrives in the canvas as raw JSON and reads like a bug in
+  // the strip. The same check the CLI runs, run here, turns it into the one
+  // step that fixes it -- and it costs two stat calls, so the Export button
+  // fails in milliseconds instead of after a render attempt.
+  //
+  // REPO_ROOT is the toolkit root in both shapes (the editor lives inside it),
+  // and it is passed explicitly because Vite bundles this file's module graph
+  // into a temp file elsewhere on disk -- resolution must not depend on where
+  // that lands.
+  const browser = await browserState({ toolkitRoot: REPO_ROOT })
+  const pre = browserPreflight(browser)
+  if (pre.code !== null) {
+    return {
+      ok: false,
+      error: pre.lines.join('\n'),
+      reason: 'browser',
+      required: browser.rev,
+      present: browser.present,
+    }
+  }
   // Renders land beside the strip they came from — strips/<name>/rendered/ —
   // so deleting a strip takes its output with it. Flat fixtures have no folder
   // of their own, so they keep a shared bucket.

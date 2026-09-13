@@ -63,7 +63,7 @@
     "verify:pack": "node scripts/verify-pack.mjs"
   },
   "dependencies": {
-    "playwright": "^1.49.0"
+    "playwright": "1.63.0"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"

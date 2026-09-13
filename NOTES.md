@@ -154,3 +154,39 @@ gives false negatives, because photo content lands in the same colour range.
 
 Changes to `.claude/skills/strip-design/SKILL.md` cannot be written through it.
 They have to arrive as an attachment and be copied in by hand.
+
+## Chromium is pinned by *revision*, and that is why playwright is pinned exactly
+
+Every playwright release pins one Chromium revision and looks for it in a
+directory named after it — `chromium-1243`, never `chromium`. So a machine can
+hold a complete, working Chromium and still fail every render, with playwright
+wording it as `Executable doesn't exist at …/chromium_headless_shell-1228`: a
+number nobody chose, next to a cache that plainly has a chromium folder in it.
+
+`package.json` therefore pins `playwright` to an exact version. npm strips the
+root `package-lock.json` out of a published tarball (verified against
+`@measnalazi/design-ss@0.1.4`: only `strip_editor/package-lock.json` ships), so
+for every installed user that dependency range is the *only* thing deciding
+their revision. Under `^`, two people installing a week apart need two
+different browsers, and `npm i -g @measnalazi/design-ss@latest` silently
+invalidates a download they already paid for. `cli/test/browser.test.mjs`
+asserts the pin, and asserts the lockfile agrees — `npm ci` refuses to run when
+they disagree, which would leave a clone unable to install at all.
+
+Three consequences, each paid for by a real failure:
+
+- **`hasChromium()` checks both binaries.** Headless launches through
+  `chrome-headless-shell`, in its own revision directory, while
+  `chromium.executablePath()` names the headed one. Testing only the headed path
+  let `design install` print "Chromium ready" at a path that really was there
+  while every render failed. `design install` now also launches headless once
+  and closes it — a file on disk is not proof that a launch works.
+- **The revision is read out of `executablePath()`, not `browsers.json`.** That
+  manifest is not in playwright-core's exports map (`ERR_PACKAGE_PATH_NOT_
+  EXPORTED` on 1.61.1). The executable path encodes both facts anyway:
+  `<registry>/chromium-<revision>/<platform>/<binary>`.
+- **`browserState()` takes an explicit `toolkitRoot`.** The editor imports
+  `cli/browser-state.mjs` to preflight its Export button, and Vite bundles that
+  module graph into a temp file elsewhere on disk. Measured on a relocated copy:
+  resolving from `import.meta.url` reports *no playwright* on a machine that has
+  one; with the root passed in it finds it.

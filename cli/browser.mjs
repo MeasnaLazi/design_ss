@@ -1,8 +1,10 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { EXIT } from './exit-codes.mjs'
 import { run } from './proc.mjs'
 import { TOOLKIT_ROOT } from './roots.mjs'
+import { browserState, browserPreflight, browserAdvice, parseExecutablePath } from './browser-state.mjs'
 
 /**
  * Chromium, as an explicit step -- `design-ss design install`.
@@ -23,60 +25,41 @@ import { TOOLKIT_ROOT } from './roots.mjs'
  * it spends the time at the moment you were least expecting to. So the browser
  * follows the same rule as the editor: install is its own step, the commands
  * that need it check and name the missing step, and nothing downloads unasked.
+ *
+ * Which *revision* is needed is decided by the playwright in this toolkit, and
+ * that is why `package.json` pins it exactly rather than with a caret. Under a
+ * range, two people installing design-ss a week apart need two different
+ * Chromium revisions, and an upgrade silently invalidates a browser the user
+ * already downloaded. `browser-state.mjs` explains what that failure looks like.
  */
 
 const say = (msg) => process.stderr.write(`design-ss: ${msg}\n`)
 
 const PLAYWRIGHT_CLI = path.join(TOOLKIT_ROOT, 'node_modules', 'playwright', 'cli.js')
 
+export { browserState, browserPreflight, browserAdvice, parseExecutablePath }
+
 /** Where playwright expects the browser, or null if playwright itself is unreachable. */
 export async function chromiumPath() {
-  try {
-    const { chromium } = await import('playwright')
-    return chromium.executablePath()
-  } catch { return null }
+  return (await browserState()).exe
 }
 
+/**
+ * Both binaries of the pinned revision, not "a file exists".
+ *
+ * The old check was `existsSync(chromium.executablePath())`, which is true for a
+ * headed-only install and true for the wrong revision's neighbour directory --
+ * so `design install` could print "Chromium ready" at a path that is really
+ * there while every render still failed to launch.
+ */
 export async function hasChromium() {
-  const p = await chromiumPath()
-  return Boolean(p) && existsSync(p)
-}
-
-/**
- * What `design`, `gate`, `render` and `retarget` decide before launching a
- * browser, as a function of one fact, so it can be tested without one.
- */
-export function browserPreflight({ installed }) {
-  if (installed) return { code: null, lines: [] }
-  return {
-    code: EXIT.USAGE,
-    lines: [
-      `the renderer needs Chromium and this machine has none`,
-      `  run:  design-ss design install      (~150 MB, once)`,
-      `  check, frames, retarget --no-render and editor work without it.`,
-    ],
-  }
-}
-
-/**
- * A present executablePath() is not proof the render can launch. Playwright
- * runs headless through a *second* binary -- chrome-headless-shell, in its own
- * revision directory -- and `chromium.executablePath()` names the headed one.
- * `playwright install chromium` fetches both, so the two disagree only when an
- * install is partial or hand-made; when they do, playwright says so in a way
- * that reads like a bug rather than a missing step. Translate it.
- */
-export function browserAdvice(output) {
-  if (!/Executable doesn't exist|playwright install/i.test(String(output ?? ''))) return []
-  return [
-    `that is a missing browser binary, not a problem with the strip.`,
-    `  run:  design-ss design install --force`,
-  ]
+  const s = await browserState()
+  return s.headed && s.shell
 }
 
 /** Used by the render paths: true to proceed, false after saying what to run. */
 export async function requireChromium() {
-  const pre = browserPreflight({ installed: await hasChromium() })
+  const pre = browserPreflight(await browserState())
   if (pre.code === null) return true
   for (const l of pre.lines) say(l)
   return false
@@ -84,10 +67,17 @@ export async function requireChromium() {
 
 /** `design-ss design install` -- the one command in this pipeline allowed to be slow. */
 export async function installBrowser({ force = false } = {}) {
-  if (await hasChromium() && !force) {
-    say(`Chromium is already installed at ${await chromiumPath()}`)
+  const before = await browserState()
+  if (before.headed && before.shell && !force) {
+    say(`Chromium ${before.rev} is already installed at ${before.registry}`)
     say(`reinstall it with: design-ss design install --force`)
     return EXIT.OK
+  }
+  // Say what is about to change before it changes: on a revision mismatch the
+  // number in the error is not the number being fetched, and that is confusing
+  // to watch in silence.
+  if (before.playwright && before.present.length && !(before.headed && before.shell)) {
+    say(`this toolkit's playwright wants Chromium ${before.rev}; ${before.registry} has ${before.present.join(', ')}`)
   }
 
   const skip = process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
@@ -97,22 +87,45 @@ export async function installBrowser({ force = false } = {}) {
     return EXIT.USAGE
   }
 
+  // A plain file check, not require.resolve: playwright's exports map does not
+  // publish every internal path (browsers.json already taught us that), and the
+  // CLI is only ever invoked by path anyway.
   if (!existsSync(PLAYWRIGHT_CLI)) {
     say(`playwright is not installed in ${TOOLKIT_ROOT} — reinstall design-ss`)
     return EXIT.USAGE
   }
 
-  say(`fetching Chromium (~150 MB, once)`)
+  say(`fetching Chromium ${before.rev ?? ''} (~150 MB, once)`.replace(/\s+/g, ' '))
   // playwright's own CLI, by path rather than through npx: this runs with the
   // work root as its cwd, where `playwright` does not resolve.
   const r = await run(process.execPath, [PLAYWRIGHT_CLI, 'install', 'chromium'], { cwd: TOOLKIT_ROOT })
 
-  // The exit code is playwright's self-report; the file on disk is the fact.
-  if (r.code !== 0 || !await hasChromium()) {
-    say(`could not fetch Chromium${r.code === 0 ? ' (it reported success and installed nothing)' : ` (exited ${r.code})`}`)
+  // The exit code is playwright's self-report; the file on disk is the fact --
+  // and a file on disk is still not proof that a headless launch works. Only a
+  // launch is, so this is the one place that pays the second for it. It is also
+  // the only check that covers the half of the install executablePath() cannot
+  // name: chrome-headless-shell.
+  const after = await browserState()
+  const launched = after.headed && after.shell ? await canLaunch() : { ok: false, error: 'binaries missing' }
+  if (r.code !== 0 || !launched.ok) {
+    say(`could not install Chromium${r.code === 0 ? ' (playwright reported success)' : ` (exited ${r.code})`}`)
+    if (launched.error) say(`  ${launched.error}`)
     say(`  PLAYWRIGHT_BROWSERS_PATH decides where it lands, if this machine keeps browsers elsewhere.`)
     return EXIT.USAGE
   }
-  say(`Chromium ready at ${await chromiumPath()}`)
+  say(`Chromium ${after.rev} ready at ${after.registry} (launched headless once to prove it)`)
   return EXIT.OK
 }
+
+/** The only statement about a browser that cannot be a self-report. */
+async function canLaunch() {
+  try {
+    const { chromium } = createRequire(path.join(TOOLKIT_ROOT, 'package.json'))('playwright')
+    const browser = await chromium.launch()
+    await browser.close()
+    return { ok: true, error: null }
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error).split('\n')[0] }
+  }
+}
+
