@@ -57,11 +57,18 @@ Google's permitted range (320–3840 px per side, at most 2:1).
 Install it, and `design-ss` is on your path:
 
 ```bash
-npm install -g MeasnaLazi/design_ss
+npm install -g @measnalazi/design-ss
 design-ss --version
 design-ss design install #fetches chromium's dependency
 design-ss editor install #fetches editor's dependency
 ```
+
+That is the published release, on
+[npm](https://www.npmjs.com/package/@measnalazi/design-ss). To track the
+unreleased `main` instead, install from GitHub — `npm install -g
+measnalazi/design_ss`, or `measnalazi/design_ss#v0.1.5` to pin a tag. Note the
+`#`: on a git spec npm reads whatever follows `@` as a branch or tag name, so
+`@latest` is not a thing there.
 
 Or clone it, which is the same thing plus the sources to edit:
 
