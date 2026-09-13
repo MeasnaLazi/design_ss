@@ -13,11 +13,31 @@ import { fileURLToPath } from 'node:url'
  * Input is the one thing that may live outside both, because it is the only
  * thing a run reads and never writes: a pinned clone of another repo, a
  * read-only mount, a folder a build step just fetched. Hence --input and no
- * --output. `cd` is the --output flag.
+ * --output. `cd` is the --output flag -- with one narrow exception, in
+ * {@link workRootFor}: where there is no project to cd into, an explicit
+ * --input names its own parent rather than letting strips/ land in whatever
+ * directory you happened to be standing in.
  */
 export const TOOLKIT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const MARKERS = ['design-ss.config.json', 'input']
+
+/**
+ * The nearest ancestor holding a marker, or null when there is none.
+ *
+ * Split out from {@link findWorkRoot} because "found a project" and "gave up and
+ * used the cwd" were indistinguishable in its return value, and the difference
+ * is exactly what {@link workRootFor} needs to decide on.
+ */
+export function markedRoot(from = process.cwd()) {
+  let dir = path.resolve(from)
+  for (;;) {
+    if (MARKERS.some((m) => existsSync(path.join(dir, m)))) return dir
+    const parent = path.dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+}
 
 /**
  * Found the way git finds a repository -- walk up for a marker -- so running
@@ -25,13 +45,34 @@ const MARKERS = ['design-ss.config.json', 'input']
  * directory wherever you happened to be standing.
  */
 export function findWorkRoot(from = process.cwd()) {
-  let dir = path.resolve(from)
-  for (;;) {
-    if (MARKERS.some((m) => existsSync(path.join(dir, m)))) return dir
-    const parent = path.dirname(dir)
-    if (parent === dir) return path.resolve(from)
-    dir = parent
-  }
+  return markedRoot(from) ?? path.resolve(from)
+}
+
+/**
+ * Where a run writes, when an explicit `--input` was named.
+ *
+ * The marker walk above stops `strips/` from landing wherever you were standing
+ * -- but only while a marker is somewhere above you, and `--input` is used
+ * precisely when it is not. `design-ss design --input ~/clients/acme/input` from
+ * a home directory used to read from the client's folder and write `strips/`
+ * into `~`. Measured, not imagined: from `/tmp` it wrote `/tmp/strips`.
+ *
+ * So: **a marked project always wins**, and only when there is none does an
+ * explicit input decide, by naming its own parent. That keeps `roots.mjs`'s rule
+ * -- `cd` is the `--output` flag -- true wherever a project exists, and gives an
+ * answer nobody has to guess at where one does not.
+ *
+ * Deliberately the *flag* only, never `DESIGN_SS_INPUT` and never the config's
+ * `paths.input`. The environment variable is set by `design.mjs` for the agent
+ * it spawns, so honouring it here would let a nested run relocate the work root
+ * out from under the run that spawned it; a configured path is already relative
+ * to a work root, so using it to find one would be circular.
+ */
+export function workRootFor({ cwd = process.cwd(), inputFlag = null } = {}) {
+  const marked = markedRoot(cwd)
+  if (marked) return { workRoot: marked, from: 'marker' }
+  if (inputFlag) return { workRoot: path.dirname(path.resolve(cwd, inputFlag)), from: 'input-parent' }
+  return { workRoot: path.resolve(cwd), from: 'cwd' }
 }
 
 /** --input > DESIGN_SS_INPUT > config paths.input > <workRoot>/input */

@@ -36,6 +36,22 @@ a `design-ss.config.json` or an `input/`, else the cwd itself. Run from a subfol
 and the output still goes to the project root rather than scattering a `strips/`
 directory wherever you were standing.
 
+With one narrow exception, for the case that walk cannot cover. If there is **no**
+marker anywhere above you *and* you passed `--input`, the work root is the input's
+own parent — so `design-ss design --input ~/clients/acme/input`, run from your home
+directory, writes `~/clients/acme/strips` rather than `~/strips`. A marked project
+always wins, so inside one `--input` still only changes what is read. The run says
+which happened:
+
+```
+design-ss: no project here (no input/ or design-ss.config.json) -- writing beside your input, in /Users/you/clients/acme
+```
+
+Only the flag does this — not `DESIGN_SS_INPUT` (which `design` sets for the agent
+it spawns, so honouring it would let a nested run move the work root mid-build) and
+not a configured `paths.input` (already relative to a work root, so using it to find
+one would be circular).
+
 Input resolves in this order:
 
 ```
@@ -45,8 +61,9 @@ Input resolves in this order:
 A `--input` path is relative to where you typed it; a configured one is relative
 to the work root.
 
-**There is no `--output`. `cd` is the `--output` flag.** Output is something a
-run produces, and a tool that scatters output across the filesystem on request
+**There is no `--output`. `cd` is the `--output` flag** — except where there is
+nothing to `cd` into, which is what the exception above covers. Output is something
+a run produces, and a tool that scatters output across the filesystem on request
 is a tool you go looking for afterwards. Input is the one that genuinely moves —
 a pinned clone, a read-only mount, a folder a build step just fetched — so it is the
 one that gets a flag.

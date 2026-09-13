@@ -1,10 +1,58 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FilePlus2, FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Check, Copy, FilePlus2, FolderInput, FolderOpen, Plus, RefreshCw } from 'lucide-react'
 
 import { DEVICE_TARGETS, type DeviceTarget } from '../editor/devices'
 import { blankStripTemplate } from '../editor/schema'
 import { createStrip, listStrips, loadStripFolder, StripExistsError, type FolderFile } from '../lib/api'
 import { useEditorStore } from '../store/useEditorStore'
+
+/**
+ * An absolute path, with the one action anyone wants from it.
+ *
+ * Copying beats revealing: it needs no shell-out per platform, and a path in the
+ * clipboard is a Finder window away (⇧⌘G) or the argument to whatever the person
+ * was going to run anyway. A `file://` link would have been simpler still, but a
+ * page served over http cannot navigate to one — Chrome refuses, silently.
+ *
+ * The clipboard API is unavailable outside a secure context, and while
+ * `localhost` counts as one, an editor opened over a LAN address does not. So the
+ * failure is caught and named rather than left as a button that does nothing.
+ */
+function PathLine({ path, tone = 'normal' }: { path: string; tone?: 'normal' | 'warn' }): React.ReactElement {
+  const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle')
+
+  const copy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(path)
+      setCopied('ok')
+    } catch {
+      setCopied('fail')
+    }
+    setTimeout(() => setCopied('idle'), 1600)
+  }
+
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <code
+        title={path}
+        className={`truncate text-[11px] ${tone === 'warn' ? 'text-amber-100' : 'text-zinc-400'}`}
+      >
+        {path}
+      </code>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        title={copied === 'fail' ? 'Could not reach the clipboard — select the path and copy it' : 'Copy this path'}
+        className={`shrink-0 rounded p-1 transition-colors ${
+          tone === 'warn' ? 'text-amber-300/70 hover:bg-amber-500/10 hover:text-amber-100' : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'
+        }`}
+      >
+        {copied === 'ok' ? <Check size={12} /> : <Copy size={12} />}
+      </button>
+      {copied === 'fail' && <span className="shrink-0 text-[10px] text-zinc-500">select it and copy</span>}
+    </span>
+  )
+}
 
 /**
  * Landing screen: one row of device targets, and a way to bring a folder in.
@@ -46,6 +94,16 @@ export function FilePicker(): React.ReactElement {
   const fixtures = files.filter((f) => f.dir !== 'strips')
 
   // Create
+  /**
+   * Which folder on disk these strips come from, and — when the editor is
+   * serving a different one from where `design-ss` writes — that one too.
+   *
+   * Worth a line on this page because an installed toolkit gives no other clue:
+   * `editor start` prints it once into a terminal that scrolls away, and every
+   * other path in this UI is repo-relative.
+   */
+  const [servingStrips, setServingStrips] = useState<string | null>(null)
+  const [projectStrips, setProjectStrips] = useState<string | null>(null)
   const [creatingFor, setCreatingFor] = useState<DeviceTarget | null>(null)
   const [panelCount, setPanelCount] = useState(5)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -76,7 +134,11 @@ export function FilePicker(): React.ReactElement {
 
   const refresh = (): void => {
     listStrips()
-      .then((r) => setFiles(r.files))
+      .then((r) => {
+        setFiles(r.files)
+        setServingStrips(r.servingStrips ?? null)
+        setProjectStrips(r.projectStrips ?? null)
+      })
       .catch((e: unknown) => console.error('[strip-editor] failed to list strips', e))
   }
 
@@ -84,7 +146,10 @@ export function FilePicker(): React.ReactElement {
     let cancelled = false
     listStrips()
       .then((r) => {
-        if (!cancelled) setFiles(r.files)
+        if (cancelled) return
+        setFiles(r.files)
+        setServingStrips(r.servingStrips ?? null)
+        setProjectStrips(r.projectStrips ?? null)
       })
       .catch((e: unknown) => {
         if (!cancelled) console.error('[strip-editor] failed to list strips', e)
@@ -208,6 +273,34 @@ export function FilePicker(): React.ReactElement {
             </p>
           </div>
         </div>
+
+        {servingStrips && (
+          <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[11px] uppercase tracking-wide text-zinc-600">Output</span>
+              <PathLine path={servingStrips} />
+            </div>
+            {projectStrips && (
+              // The two-root bug, said out loud. The editor resolves strips
+              // relative to its own directory, so an installed toolkit lists its
+              // own (empty) strips/ and never the project's — which otherwise
+              // reads as "this project has no strips". Both paths are here
+              // because the useful one is the second.
+              <div className="mt-2 flex items-start gap-2 border-t border-amber-500/20 pt-2">
+                <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] leading-snug text-amber-200">
+                    That is the toolkit's own folder, not this project's. Strips written by{' '}
+                    <code className="text-amber-100">design-ss</code> are in:
+                  </p>
+                  <div className="mt-1">
+                    <PathLine path={projectStrips} tone="warn" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* --- targets ---------------------------------------------------- */}
         <div className="mb-1.5 flex items-center gap-2 px-0.5">

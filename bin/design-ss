@@ -33,7 +33,7 @@ import { retarget } from '../cli/retarget.mjs'
 import { installEditor, startEditor, stopEditor, editorStatus, parsePort, DEFAULT_PORT } from '../cli/editor.mjs'
 import { installBrowser, requireChromium } from '../cli/browser.mjs'
 import { loadConfig } from '../cli/agents.mjs'
-import { resolveRoots, findWorkRoot, isTarget, TOOLKIT_ROOT } from '../cli/roots.mjs'
+import { resolveRoots, workRootFor, isTarget, TOOLKIT_ROOT } from '../cli/roots.mjs'
 
 const VERSION = JSON.parse(readFileSync(path.join(TOOLKIT_ROOT, 'package.json'), 'utf8')).version
 
@@ -172,14 +172,22 @@ if (!command || command === '--help' || command === '-h' || command === 'help') 
 }
 if (command === '--version' || command === '-v') { process.stdout.write(`${VERSION}\n`); process.exit(EXIT.OK) }
 
-// Order matters: the work root is found first (it depends only on which files
-// exist), then the project's config is read from it, then the config can say
-// where input lives.
-const workRoot = findWorkRoot()
+// Order matters: the work root is found first (it depends on which files exist
+// and, where none do, on an explicit --input), then the project's config is read
+// from it, then the config can say where input lives.
+const inputFlag = args.input === true ? null : args.input
+const { workRoot, from: workRootFrom } = workRootFor({ inputFlag })
 const config = ['design', 'gate', 'render', 'stop', 'retarget'].includes(command)
   ? await loadConfig(workRoot)
   : null
-const roots = resolveRoots({ workRoot, inputFlag: args.input === true ? null : args.input, config })
+const roots = resolveRoots({ workRoot, inputFlag, config })
+
+// Say it when the input decided. A run that writes somewhere other than where
+// you are standing should not be something you discover afterwards, and this is
+// the only case where that happens.
+if (workRootFrom === 'input-parent') {
+  process.stderr.write(`design-ss: no project here (no input/ or design-ss.config.json) -- writing beside your input, in ${workRoot}\n`)
+}
 
 switch (command) {
   case 'design': {

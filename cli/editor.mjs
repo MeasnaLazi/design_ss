@@ -216,6 +216,25 @@ const tail = async (file, lines = 20) => {
   try { return (await fs.readFile(file, 'utf8')).trimEnd().split('\n').slice(-lines).join('\n') } catch { return '' }
 }
 
+/**
+ * The environment the editor server is started with.
+ *
+ * `DESIGN_SS_WORK_ROOT` is a string to *display*, not a root to resolve
+ * against: the editor still serves and lists strips relative to its own parent
+ * (the two-root fix this file's header describes is still owed). Handing it the
+ * work root lets the first page say which folder it is showing and, when that is
+ * not the project's, which folder the project's strips are actually in -- the
+ * same thing `start` prints here, except that the terminal message scrolls away
+ * and the page does not.
+ *
+ * Pure and exported so a test can assert it survives: a spawn that silently
+ * stopped passing this would cost an installed user the one signpost they have,
+ * and nothing else would look wrong.
+ */
+export function editorEnv(env, workRoot) {
+  return workRoot ? { ...env, DESIGN_SS_WORK_ROOT: workRoot } : { ...env }
+}
+
 export async function startEditor(roots, { port = DEFAULT_PORT } = {}) {
   const existing = await state.read(roots.stateDir, STATE_FILE)
   if (existing && isEditor(existing.pid)) {
@@ -241,6 +260,7 @@ export async function startEditor(roots, { port = DEFAULT_PORT } = {}) {
   try {
     child = spawn(process.execPath, [VITE_BIN, '--port', String(port), '--strictPort'], {
       cwd: EDITOR_DIR,
+      env: editorEnv(process.env, roots.workRoot),
       // Its own process group, for the same reason a run gets one: Vite spawns
       // esbuild, and killing only the pid we hold leaves that behind holding
       // the port we are about to tell someone is free.

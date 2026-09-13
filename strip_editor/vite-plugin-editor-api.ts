@@ -52,6 +52,28 @@ export const REPO_ROOT = path.resolve(EDITOR_DIR, '..')
 const STRIP_DIRS = ['strips', 'composer/test'] as const
 
 /**
+ * The two strips folders the first page tells the user about.
+ *
+ * `SERVING_STRIPS` is the one this server actually lists and opens — its own
+ * parent's — and `PROJECT_STRIPS` is where `design-ss` writes, handed over by
+ * `editor start` as `DESIGN_SS_WORK_ROOT`.
+ *
+ * **They are strings to display. Nothing resolves against them.** For a clone
+ * they are the same folder and the page says so once; for a globally installed
+ * toolkit they differ, and that difference *is* the two-root bug — this reports
+ * it where it is noticed instead of leaving an empty strip list to read as a
+ * project with no strips. When the fix lands the two become equal and the
+ * warning disappears on its own.
+ *
+ * Absent when the editor was started by `npm run dev` rather than by the CLI,
+ * which is the clone's own workflow and needs no warning.
+ */
+const SERVING_STRIPS = path.join(REPO_ROOT, 'strips')
+const PROJECT_STRIPS = process.env.DESIGN_SS_WORK_ROOT
+  ? path.resolve(process.env.DESIGN_SS_WORK_ROOT, 'strips')
+  : null
+
+/**
  * URL prefixes served straight off the repo root (the render.mjs URL space).
  *
  * Checked *after* {@link aliasLegacy}, so a retired prefix needs an entry here
@@ -737,7 +759,13 @@ export function editorApiPlugin(): Plugin {
 
       // --- GET /__api/strip-editor/files -----------------------------------
       if (route === 'files' && req.method === 'GET') {
-        sendJson(res, 200, { ok: true, files: await listStrips() })
+        sendJson(res, 200, {
+          ok: true,
+          files: await listStrips(),
+          // Where these came from, in words the user can paste into Finder.
+          servingStrips: SERVING_STRIPS,
+          projectStrips: PROJECT_STRIPS !== null && PROJECT_STRIPS !== SERVING_STRIPS ? PROJECT_STRIPS : null,
+        })
         return
       }
 

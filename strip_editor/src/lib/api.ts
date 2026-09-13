@@ -34,8 +34,21 @@ async function getJson<T>(url: string): Promise<T> {
   return body
 }
 
-export function listStrips(): Promise<{ files: StripFile[] }> {
-  return getJson<{ files: StripFile[] }>(`${API_PREFIX}/files`)
+export type StripListing = {
+  files: StripFile[]
+  /** Absolute path of the folder this server lists strips from. */
+  servingStrips: string
+  /**
+   * Absolute path of the folder `design-ss` writes to, when that is a *different*
+   * folder — which is the two-root bug, seen from the outside. Null when they
+   * agree, and null when the editor was started by `npm run dev` rather than by
+   * the CLI, which is how a clone runs it.
+   */
+  projectStrips: string | null
+}
+
+export function listStrips(): Promise<StripListing> {
+  return getJson<StripListing>(`${API_PREFIX}/files`)
 }
 
 /** The strip is not on disk — deleted, renamed, or never created. */

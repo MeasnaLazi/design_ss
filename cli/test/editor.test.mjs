@@ -8,7 +8,7 @@
 import path from 'node:path'
 import os from 'node:os'
 import { promises as fs, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { parsePort, depsInstalled, isEditor, startPreflight, installMismatch, DEFAULT_PORT, STATE_FILE } from '../editor.mjs'
+import { parsePort, depsInstalled, isEditor, startPreflight, installMismatch, editorEnv, DEFAULT_PORT, STATE_FILE } from '../editor.mjs'
 import * as state from '../run-state.mjs'
 
 let failures = 0
@@ -99,5 +99,19 @@ await state.clear(stateDir, STATE_FILE)
 check('clearing the editor leaves the run alone', (await state.read(stateDir))?.pid === 111 && (await state.read(stateDir, STATE_FILE)) === null)
 
 await fs.rm(tmp, { recursive: true, force: true })
+// The editor server is handed the work root to *display*, not to resolve
+// against. It is the only signpost an installed user gets: `start` prints the
+// folder once into a terminal that scrolls away, and every path in the editor's
+// own UI is repo-relative. A spawn that quietly stopped passing this would take
+// that signpost away and nothing else would look wrong.
+const base = { PATH: '/usr/bin', HOME: '/Users/me' }
+const withRoot = editorEnv(base, '/Users/me/project')
+check('the work root reaches the editor server', withRoot.DESIGN_SS_WORK_ROOT === '/Users/me/project')
+check('...without dropping the rest of the environment',
+  withRoot.PATH === '/usr/bin' && withRoot.HOME === '/Users/me')
+check('...and without mutating what was passed in', !('DESIGN_SS_WORK_ROOT' in base))
+check('no work root sets no variable, rather than an empty one',
+  !('DESIGN_SS_WORK_ROOT' in editorEnv(base, null)), JSON.stringify(editorEnv(base, null)))
+
 console.log(failures ? `\n${failures} failure(s)` : '\nall green')
 process.exit(failures ? 1 : 0)
