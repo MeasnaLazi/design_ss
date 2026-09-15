@@ -621,6 +621,12 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
       present: browser.present,
     }
   }
+  // The pinned Chromium is incomplete but a system Chrome is there: render with
+  // it, and say so -- in the dev-server log with the reason, and in the result
+  // so the toolbar can name it. Chrome that will not start fails the render
+  // itself; the editor does not pay for a separate launch.
+  const browserArgs = pre.browser === 'chrome' ? ['--browser', 'chrome'] : []
+  if (pre.browser === 'chrome') for (const l of pre.lines) console.warn(`[strip-editor] ${l.trim()}`)
   // Renders land beside the strip they came from — strips/<name>/rendered/ —
   // so deleting a strip takes its output with it. Flat fixtures have no folder
   // of their own, so they keep a shared bucket.
@@ -632,7 +638,7 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
     const started = Date.now()
     const child = spawn(
       process.execPath,
-      [path.join(REPO_ROOT, 'composer', 'render.mjs'), '--strip', rel, '--out', outDir, '--full'],
+      [path.join(REPO_ROOT, 'composer', 'render.mjs'), '--strip', rel, '--out', outDir, '--full', ...browserArgs],
       { cwd: REPO_ROOT },
     )
 
@@ -652,15 +658,15 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
       clearTimeout(timeout)
       const ms = Date.now() - started
       if (code !== 0) {
-        resolve({ ok: false, error: stderr.trim() || stdout.trim() || `renderer exited with code ${code}`, ms })
+        resolve({ ok: false, error: stderr.trim() || stdout.trim() || `renderer exited with code ${code}`, ms, browser: pre.browser })
         return
       }
       // render.mjs prints a JSON summary on success.
       try {
         const summary = JSON.parse(stdout) as { panels?: unknown[]; strip?: string }
-        resolve({ ok: true, outDir, ms, panels: summary.panels ?? [], strip: summary.strip ?? null })
+        resolve({ ok: true, outDir, ms, panels: summary.panels ?? [], strip: summary.strip ?? null, browser: pre.browser })
       } catch {
-        resolve({ ok: true, outDir, ms, panels: [], raw: stdout.slice(0, 2000) })
+        resolve({ ok: true, outDir, ms, panels: [], raw: stdout.slice(0, 2000), browser: pre.browser })
       }
     })
   })

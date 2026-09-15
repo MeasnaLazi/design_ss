@@ -7,7 +7,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { browserPreflight, browserAdvice, parseExecutablePath } from '../browser.mjs'
+import { browserPreflight, browserAdvice, parseExecutablePath, browserArgs } from '../browser.mjs'
+import { chromeCandidates, chromePath } from '../browser-state.mjs'
 
 let failures = 0
 const check = (label, cond, detail = '') => {
@@ -55,6 +56,16 @@ check('a wrong-revision cache is reported as a mismatch, not as "none"',
 check('...and names both revisions',
   mismatch.lines.join(' ').includes('1243') && mismatch.lines.join(' ').includes('1228'),
   mismatch.lines.join(' | '))
+// A registry can hold folders with no revision number (a plain `chromium`
+// symlink); they are not "another revision" and must not become an empty name.
+const unnumbered = browserPreflight(state({
+  present: ['chromium', 'chromium-1194', 'chromium_headless_shell-1194'], headed: false, shell: false,
+}))
+check('an unnumbered chromium folder is not listed as a revision',
+  unnumbered.lines[0] === 'the renderer needs Chromium 1243 and this machine has 1194', unnumbered.lines[0])
+check('a registry with only unnumbered folders reads as none, not as incomplete',
+  /has none/.test(browserPreflight(state({ present: ['chromium'], headed: false, shell: false })).lines[0]))
+
 check('...and names the directory it looked in',
   mismatch.lines.join(' ').includes(`${sep}cache${sep}ms-playwright`), mismatch.lines.join(' | '))
 
@@ -99,6 +110,63 @@ check('...and --force is reserved for the case the files are all there',
     .join(' ').includes('design-ss design install --force'))
 check('a real strip failure is left alone',
   browserAdvice('{"ok":false,"problems":[{"level":"error","message":"panel 2 overflows"}]}', state()).length === 0)
+
+// ---- Google Chrome, when the pinned Chromium is not there -------------------
+//
+// Managed machines block the download or remove it overnight while the Chrome IT
+// installed stays. The pinned revision still wins; Chrome is the fallback, and
+// never a silent one: its version is not pinned and its headless mode is not
+// chrome-headless-shell.
+const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+
+check('a complete pinned Chromium wins even when Chrome is installed',
+  browserPreflight(state({ chrome: CHROME })).browser === 'chromium')
+check('...and says nothing about it',
+  browserPreflight(state({ chrome: CHROME })).lines.length === 0)
+
+const fallback = browserPreflight(state({ present: [], headed: false, shell: false, chrome: CHROME }))
+check('a missing Chromium with Chrome on disk proceeds with Chrome',
+  fallback.code === null && fallback.browser === 'chrome', JSON.stringify(fallback))
+check('...and still says why Chromium was passed over, and where Chrome is',
+  /needs Chromium 1243/.test(fallback.lines.join(' ')) && fallback.lines.join(' ').includes(CHROME),
+  fallback.lines.join(' | '))
+check('...and that its output is not pinned',
+  /not pinned/.test(fallback.lines.join(' ')), fallback.lines.join(' | '))
+check('...and how to get the pinned renderer back',
+  fallback.lines.join(' ').includes('design-ss design install'), fallback.lines.join(' | '))
+
+const mismatchChrome = browserPreflight(state({
+  present: ['chromium-1228', 'chromium_headless_shell-1228'], headed: false, shell: false, chrome: CHROME,
+}))
+check('a revision mismatch falls back too, and keeps its diagnosis',
+  mismatchChrome.browser === 'chrome' && /mismatch/i.test(mismatchChrome.lines.join(' ')),
+  mismatchChrome.lines.join(' | '))
+check('a half install falls back too, and names the missing half',
+  /headless shell is missing/.test(browserPreflight(state({ present: ['chromium-1243'], shell: false, chrome: CHROME })).lines.join(' ')))
+
+check('no playwright means no fallback: playwright is what drives Chrome',
+  browserPreflight(state({ playwright: false, chrome: CHROME })).code === 2)
+check('with neither browser, the refusal says Chrome was looked for',
+  /no Google Chrome/.test(missing.lines.join(' ')), missing.lines.join(' | '))
+
+check('the renderer is told chrome only for the fallback',
+  browserArgs('chrome').join(' ') === '--browser chrome' && browserArgs('chromium').length === 0)
+
+check('a Chrome that would not start is not advised as a partial Chromium',
+  !browserAdvice(`Chromium distribution 'chrome' is not found at ${CHROME}\nRun "npx playwright install chrome"`,
+    state({ present: [], headed: false, shell: false, chrome: CHROME })).join(' ').includes('--force'))
+
+// Where playwright itself looks for channel 'chrome' -- and only there.
+check('macOS: only /Applications, as playwright does',
+  chromeCandidates({ platform: 'darwin' }).join() === CHROME)
+check('linux: /opt/google/chrome/chrome',
+  chromeCandidates({ platform: 'linux' }).join() === '/opt/google/chrome/chrome')
+const win = chromeCandidates({ platform: 'win32', env: { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local', PROGRAMFILES: 'C:\\Program Files' } })
+check('windows: LOCALAPPDATA before PROGRAMFILES, unset ones skipped',
+  win.length === 2 && win[0] === 'C:\\Users\\me\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe', JSON.stringify(win))
+check('the first candidate that exists is the answer; none is null',
+  chromePath({ platform: 'darwin', exists: () => true }) === CHROME &&
+  chromePath({ platform: 'darwin', exists: () => false }) === null)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))

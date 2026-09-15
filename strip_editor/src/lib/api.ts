@@ -253,6 +253,8 @@ export type ExportResult = {
   ms?: number
   panels?: Array<{ panel: string; file: string; width: number; height: number }>
   strip?: string | null
+  /** `'chrome'` when the pinned Chromium was missing and the system Google Chrome rendered instead. */
+  browser?: 'chromium' | 'chrome'
 }
 
 export async function exportStrip(path: string): Promise<ExportResult> {

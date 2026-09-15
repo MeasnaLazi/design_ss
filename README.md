@@ -51,7 +51,7 @@ Google's permitted range (320–3840 px per side, at most 2:1).
 | | |
 | --- | --- |
 | **Node 22.x** | the renderer and the editor |
-| **Chromium** | headless export — `design-ss design install`, once |
+| **Chromium** | headless export — `design-ss design install`, once. Without it, an installed Google Chrome is used instead (and the CLI says so) |
 | **An agent** | anything that reads `AGENTS.md`: Claude Code, Gemini CLI, Codex, Open Code, Co-Pilot, Cursor...etc |
 
 Install it, and `design-ss` is on your path:

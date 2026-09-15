@@ -114,7 +114,8 @@ export function TopBar({ onShowShortcuts }: { onShowShortcuts: () => void }): Re
       }
       const result = await exportStrip(path)
       if (result.ok) {
-        setFlash(`Exported ${result.panels?.length ?? 0} panels → ${result.outDir} · ${result.ms}ms`)
+        const via = result.browser === 'chrome' ? ' · rendered with Google Chrome (pinned Chromium missing)' : ''
+        setFlash(`Exported ${result.panels?.length ?? 0} panels → ${result.outDir} · ${result.ms}ms${via}`)
       } else {
         setSaveError(`Export failed: ${result.error ?? 'unknown error'}`)
       }

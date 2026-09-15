@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { EXIT } from './exit-codes.mjs'
 import { run } from './proc.mjs'
 import { TOOLKIT_ROOT } from './roots.mjs'
-import { browserState, browserPreflight, browserAdvice, parseExecutablePath } from './browser-state.mjs'
+import { browserState, browserPreflight, browserAdvice, parseExecutablePath, chromePath, WORKS_WITHOUT } from './browser-state.mjs'
 
 /**
  * Chromium, as an explicit step -- `design-ss design install`.
@@ -37,7 +37,7 @@ const say = (msg) => process.stderr.write(`design-ss: ${msg}\n`)
 
 const PLAYWRIGHT_CLI = path.join(TOOLKIT_ROOT, 'node_modules', 'playwright', 'cli.js')
 
-export { browserState, browserPreflight, browserAdvice, parseExecutablePath }
+export { browserState, browserPreflight, browserAdvice, parseExecutablePath, chromePath }
 
 /** Where playwright expects the browser, or null if playwright itself is unreachable. */
 export async function chromiumPath() {
@@ -57,12 +57,44 @@ export async function hasChromium() {
   return s.headed && s.shell
 }
 
-/** Used by the render paths: true to proceed, false after saying what to run. */
-export async function requireChromium() {
+/**
+ * Used by the render paths: which browser to render with -- `'chromium'` (the
+ * pinned revision) or `'chrome'` (the system Google Chrome) -- or null after
+ * saying what to run.
+ *
+ * The fallback is proven the same way `design install` proves Chromium: by
+ * launching it. A Chrome.app on disk is not a Chrome that starts headless -- an
+ * admin policy can disable headless mode or remote debugging -- and finding that
+ * out here costs about a second, once per command, instead of a stack trace from
+ * the renderer. The explanation is printed on every call, because a render that
+ * quietly changed engines is the kind of surprise this toolkit avoids.
+ */
+let chromeProof = null
+
+/** What composer/render.mjs is told, given requireBrowser()'s answer. Chromium is its default. */
+export function browserArgs(browser) {
+  return browser === 'chrome' ? ['--browser', 'chrome'] : []
+}
+
+export async function requireBrowser() {
   const pre = browserPreflight(await browserState())
-  if (pre.code === null) return true
+  if (pre.code !== null) {
+    for (const l of pre.lines) say(l)
+    return null
+  }
+  if (pre.browser !== 'chrome') return 'chromium'
+
   for (const l of pre.lines) say(l)
-  return false
+  chromeProof ??= canLaunch({ channel: 'chrome' })
+  const proof = await chromeProof
+  if (!proof.ok) {
+    say(`Google Chrome would not start headless: ${proof.error}`)
+    say(`  on a managed machine an admin policy can disable headless mode or remote debugging.`)
+    say(WORKS_WITHOUT)
+    return null
+  }
+  say(`rendering with Google Chrome ${proof.version} (started headless once to prove it)`)
+  return 'chrome'
 }
 
 /** `design-ss design install` -- the one command in this pipeline allowed to be slow. */
@@ -111,21 +143,29 @@ export async function installBrowser({ force = false } = {}) {
     say(`could not install Chromium${r.code === 0 ? ' (playwright reported success)' : ` (exited ${r.code})`}`)
     if (launched.error) say(`  ${launched.error}`)
     say(`  PLAYWRIGHT_BROWSERS_PATH decides where it lands, if this machine keeps browsers elsewhere.`)
+    // Still a failure -- this command installs the pinned Chromium and it did
+    // not -- but on a machine that will not keep one, say what renders anyway.
+    if (after.chrome) {
+      const chrome = await canLaunch({ channel: 'chrome' })
+      if (chrome.ok) say(`  Google Chrome ${chrome.version} starts headless here, so design, gate, render and retarget will use it instead.`)
+      else say(`  Google Chrome at ${after.chrome} is no fallback either: ${chrome.error}`)
+    }
     return EXIT.USAGE
   }
   say(`Chromium ${after.rev} ready at ${after.registry} (launched headless once to prove it)`)
   return EXIT.OK
 }
 
-/** The only statement about a browser that cannot be a self-report. */
-async function canLaunch() {
+/** The only statement about a browser that cannot be a self-report. `channel: 'chrome'` for the system Chrome. */
+async function canLaunch(options = {}) {
   try {
     const { chromium } = createRequire(path.join(TOOLKIT_ROOT, 'package.json'))('playwright')
-    const browser = await chromium.launch()
+    const browser = await chromium.launch(options)
+    const version = browser.version()
     await browser.close()
-    return { ok: true, error: null }
+    return { ok: true, version, error: null }
   } catch (error) {
-    return { ok: false, error: String(error?.message ?? error).split('\n')[0] }
+    return { ok: false, version: null, error: String(error?.message ?? error).split('\n')[0] }
   }
 }
 

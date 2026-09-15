@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { run } from './proc.mjs'
 import { stripPath, stripLabel, isTarget } from './roots.mjs'
-import { requireChromium } from './browser.mjs'
+import { requireBrowser, browserArgs } from './browser.mjs'
 
 /**
  * The gate. An agent's exit code says it stopped talking, not that it designed
@@ -30,12 +30,14 @@ export async function checkSchema(roots, target) {
  * success -- a stale one from a previous build outlives a crash.
  */
 export async function render(roots, target, extraArgs = []) {
-  if (!await requireChromium()) return { code: 2, signal: null, output: '', data: null }
+  const browser = await requireBrowser()
+  if (!browser) return { code: 2, signal: null, output: '', data: null }
   const result = await run('node', [
     path.join(roots.toolkitRoot, 'composer/render.mjs'),
     '--strip', stripPath(roots, target),
     '--strips-root', roots.stripsDir,
     ...extraArgs,
+    ...browserArgs(browser),
   ], { cwd: roots.workRoot, echo: false })   // stdout is data; keep it off the console
 
   let data = null
@@ -53,12 +55,14 @@ export async function checkSchemaFile(roots, relStrip) {
 }
 
 export async function renderFile(roots, relStrip, relOut) {
-  if (!await requireChromium()) return { code: 2, signal: null, output: '', data: null }
+  const browser = await requireBrowser()
+  if (!browser) return { code: 2, signal: null, output: '', data: null }
   const result = await run('node', [
     path.join(roots.toolkitRoot, 'composer/render.mjs'),
     '--strip', relStrip,
     '--strips-root', roots.stripsDir,
     '--out', relOut,
+    ...browserArgs(browser),
   ], { cwd: roots.workRoot, echo: false })
   let data = null
   try { data = JSON.parse(result.output.slice(result.output.indexOf('{'))) } catch { /* not JSON */ }

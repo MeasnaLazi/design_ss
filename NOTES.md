@@ -191,6 +191,29 @@ Three consequences, each paid for by a real failure:
   resolving from `import.meta.url` reports *no playwright* on a machine that has
   one; with the root passed in it finds it.
 
+### Without the pinned Chromium: Google Chrome, loudly
+
+Managed company machines may refuse the download or remove it overnight, while
+the Google Chrome IT installed stays. So the order is pinned Chromium → system
+Chrome (`channel: 'chrome'`) → refuse. What looks wrong and is not:
+
+- **`browserPreflight` returns `code: null` for a missing Chromium** when Chrome
+  is on disk — with `browser: 'chrome'` and lines explaining why. Callers print
+  those lines on every use: the fallback gives up the pin (Chrome updates
+  itself) and chrome-headless-shell (Chrome's own headless mode renders
+  slightly differently), so it must never be silent.
+- **Chrome is looked for only where playwright looks** (`chromeCandidates`,
+  mirrored from playwright-core 1.63.0). A Chrome in `~/Applications` is not one
+  playwright would launch. Re-check the list when the pin moves.
+- **The CLI launches Chrome once per command before rendering**
+  (`requireBrowser`). A file on disk is not proof: an admin policy can disable
+  headless mode or remote debugging. The editor skips that launch — a Chrome
+  that will not start fails the render, and the toolbar says which engine ran.
+- **`design install` still exits non-zero when the download fails**, even if
+  Chrome works; it only adds that renders will use Chrome meanwhile.
+- **`render.mjs --browser`** is how the choice reaches the renderer. Its default
+  stays `chromium`, so a direct `node composer/render.mjs` is unchanged.
+
 ## Download is an Export you receive as a file
 
 The Download button runs the *same* render as Export — same renderer, same

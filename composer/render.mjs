@@ -13,6 +13,10 @@
  *   --timeout <ms>            ready-wait timeout (default 30000)
  *   --strips-root <dir>       where strip folders live (default: <toolkit>/strips).
  *                             Served at /strips/; the toolkit is served at /.
+ *   --browser <name>          chromium (default: playwright's pinned revision) or
+ *                             chrome (the system Google Chrome). The CLI and the
+ *                             editor pass chrome only when the pinned revision is
+ *                             missing -- see cli/browser-state.mjs.
  *
  * The page is served over a local static file server rooted at the repo root,
  * so strip HTML can reference /composer/** (device frames, the runtime) and
@@ -48,7 +52,7 @@ const MIME = {
 }
 
 function parseArgs(argv) {
-  const args = { out: null, panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false }
+  const args = { out: null, panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false, browser: 'chromium' }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--strip') args.strip = argv[++i]
@@ -58,9 +62,11 @@ function parseArgs(argv) {
     else if (a === '--scale') args.scale = Number(argv[++i])
     else if (a === '--timeout') args.timeout = Number(argv[++i])
     else if (a === '--strips-root') args.stripsRoot = argv[++i]
+    else if (a === '--browser') args.browser = argv[++i]
     else throw new Error(`unknown flag: ${a}`)
   }
   if (!args.strip) throw new Error('--strip <file.html> is required')
+  if (!['chromium', 'chrome'].includes(args.browser)) throw new Error(`--browser must be chromium or chrome, not ${args.browser}`)
   return args
 }
 
@@ -135,7 +141,7 @@ async function main() {
   await fs.mkdir(outDir, { recursive: true })
 
   const { server, port } = await startStaticServer({ toolkitRoot: REPO_ROOT, stripsRoot })
-  const browser = await chromium.launch()
+  const browser = await chromium.launch(args.browser === 'chrome' ? { channel: 'chrome' } : {})
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: args.scale })
     page.on('console', (msg) => { if (msg.type() === 'error') console.error('[page]', msg.text()) })
