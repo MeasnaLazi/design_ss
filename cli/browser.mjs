@@ -71,9 +71,9 @@ export async function hasChromium() {
  */
 let chromeProof = null
 
-/** What composer/render.mjs is told, given requireBrowser()'s answer. Chromium is its default. */
+/** What composer/render.mjs is told, given requireBrowser()'s answer: always explicit, so it does not decide again. */
 export function browserArgs(browser) {
-  return browser === 'chrome' ? ['--browser', 'chrome'] : []
+  return ['--browser', browser]
 }
 
 export async function requireBrowser() {

@@ -211,8 +211,12 @@ Chrome (`channel: 'chrome'`) → refuse. What looks wrong and is not:
   that will not start fails the render, and the toolbar says which engine ran.
 - **`design install` still exits non-zero when the download fails**, even if
   Chrome works; it only adds that renders will use Chrome meanwhile.
-- **`render.mjs --browser`** is how the choice reaches the renderer. Its default
-  stays `chromium`, so a direct `node composer/render.mjs` is unchanged.
+- **`render.mjs --browser`** is how the choice reaches the renderer. The CLI and
+  the editor always pass it explicitly. Its default is `auto`, which makes the
+  same decision itself, because agents call `render.mjs` directly (SKILL.md) and
+  used to answer "Executable doesn't exist" with `npx playwright install` — a
+  loop on a machine that removes the download. Its refusals, and SKILL.md, now
+  say not to install a browser from a design run.
 
 ## Download is an Export you receive as a file
 

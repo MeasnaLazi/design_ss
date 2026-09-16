@@ -468,7 +468,13 @@ silently disagreed with the file is the one that will be hard to explain later.
 From the repo root, before the first render:
 
 - If `composer/node_modules` is missing: `cd composer && npm install`
-- Ensure the browser: `npx playwright install chromium` (idempotent)
+- **Never install a browser.** Not `npx playwright install`, not
+  `design-ss design install`. `render.mjs` chooses one itself: the pinned
+  Chromium when it is complete, otherwise the system Google Chrome (it says so
+  on stderr — that is expected, not a problem to fix). If it reports *no
+  browser to render with* or that Chrome would not start, stop and tell the
+  operator. On some machines the download is blocked or removed overnight, so
+  installing from a design run only loops.
 - Node 22.x
 
 Nothing needs to be running. Rendering and review are entirely offline.

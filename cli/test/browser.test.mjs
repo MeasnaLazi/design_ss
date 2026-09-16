@@ -149,8 +149,15 @@ check('no playwright means no fallback: playwright is what drives Chrome',
 check('with neither browser, the refusal says Chrome was looked for',
   /no Google Chrome/.test(missing.lines.join(' ')), missing.lines.join(' | '))
 
-check('the renderer is told chrome only for the fallback',
-  browserArgs('chrome').join(' ') === '--browser chrome' && browserArgs('chromium').length === 0)
+check('the renderer is told the choice explicitly, so it does not decide again',
+  browserArgs('chrome').join(' ') === '--browser chrome' && browserArgs('chromium').join(' ') === '--browser chromium')
+
+// An agent that calls render.mjs directly gets the same fallback (auto is the
+// default), and is told not to answer a missing browser with a download --
+// on a machine that blocks or removes it, that loops.
+const renderSrc = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../composer/render.mjs'), 'utf8')
+check('render.mjs defaults to --browser auto', /browser: 'auto'/.test(renderSrc))
+check('...and its refusals say not to install a browser', /do not install a browser/.test(renderSrc))
 
 check('a Chrome that would not start is not advised as a partial Chromium',
   !browserAdvice(`Chromium distribution 'chrome' is not found at ${CHROME}\nRun "npx playwright install chrome"`,

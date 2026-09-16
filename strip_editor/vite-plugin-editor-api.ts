@@ -625,7 +625,7 @@ async function runExport(abs: string): Promise<Record<string, unknown>> {
   // it, and say so -- in the dev-server log with the reason, and in the result
   // so the toolbar can name it. Chrome that will not start fails the render
   // itself; the editor does not pay for a separate launch.
-  const browserArgs = pre.browser === 'chrome' ? ['--browser', 'chrome'] : []
+  const browserArgs = ['--browser', pre.browser ?? 'chromium']
   if (pre.browser === 'chrome') for (const l of pre.lines) console.warn(`[strip-editor] ${l.trim()}`)
   // Renders land beside the strip they came from — strips/<name>/rendered/ —
   // so deleting a strip takes its output with it. Flat fixtures have no folder

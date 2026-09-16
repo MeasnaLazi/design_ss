@@ -13,10 +13,17 @@
  *   --timeout <ms>            ready-wait timeout (default 30000)
  *   --strips-root <dir>       where strip folders live (default: <toolkit>/strips).
  *                             Served at /strips/; the toolkit is served at /.
- *   --browser <name>          chromium (default: playwright's pinned revision) or
- *                             chrome (the system Google Chrome). The CLI and the
- *                             editor pass chrome only when the pinned revision is
- *                             missing -- see cli/browser-state.mjs.
+ *   --browser <name>          auto (default), chromium or chrome. auto takes the
+ *                             pinned Chromium when it is complete, otherwise the
+ *                             system Google Chrome (said on stderr), otherwise
+ *                             refuses -- the same decision the CLI makes, in
+ *                             cli/browser-state.mjs. The CLI and the editor pass
+ *                             the choice explicitly; auto is for agents and
+ *                             people who call this file directly.
+ *
+ * It never installs a browser, and its refusals say not to install one from a
+ * design run: on a machine that blocks or removes the download, an agent that
+ * answers "Executable doesn't exist" with `npx playwright install` loops.
  *
  * The page is served over a local static file server rooted at the repo root,
  * so strip HTML can reference /composer/** (device frames, the runtime) and
@@ -29,6 +36,7 @@ import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { browserState, browserPreflight } from '../cli/browser-state.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(__dirname, '..')
@@ -52,7 +60,7 @@ const MIME = {
 }
 
 function parseArgs(argv) {
-  const args = { out: null, panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false, browser: 'chromium' }
+  const args = { out: null, panelSelector: '[data-panel]', scale: 1, timeout: 30000, full: false, browser: 'auto' }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--strip') args.strip = argv[++i]
@@ -66,7 +74,7 @@ function parseArgs(argv) {
     else throw new Error(`unknown flag: ${a}`)
   }
   if (!args.strip) throw new Error('--strip <file.html> is required')
-  if (!['chromium', 'chrome'].includes(args.browser)) throw new Error(`--browser must be chromium or chrome, not ${args.browser}`)
+  if (!['auto', 'chromium', 'chrome'].includes(args.browser)) throw new Error(`--browser must be auto, chromium or chrome, not ${args.browser}`)
   return args
 }
 
@@ -111,8 +119,21 @@ export function startStaticServer({ toolkitRoot, stripsRoot }) {
   })
 }
 
+const NO_INSTALL = `agents: do not install a browser from a design run (no npx playwright install) -- stop and report this to the operator.`
+
+/** `--browser auto` → 'chromium' | 'chrome', or throw the reason. Decided before the server starts. */
+async function pickBrowser(requested) {
+  if (requested !== 'auto') return requested
+  const pre = browserPreflight(await browserState({ toolkitRoot: REPO_ROOT }))
+  if (pre.code !== null) throw new Error(['no browser to render with.', ...pre.lines, NO_INSTALL].join('\n'))
+  // stdout is the JSON summary; the notice goes to stderr, every time.
+  if (pre.browser === 'chrome') for (const l of pre.lines) console.error(`[render] ${l.trim()}`)
+  return pre.browser
+}
+
 async function main() {
   const args = parseArgs(process.argv)
+  const engine = await pickBrowser(args.browser)
 
   // A relative --strip is resolved against the cwd first, then the toolkit, so
   // `node composer/render.mjs --strip strips/x/strip.html` keeps working from
@@ -141,7 +162,17 @@ async function main() {
   await fs.mkdir(outDir, { recursive: true })
 
   const { server, port } = await startStaticServer({ toolkitRoot: REPO_ROOT, stripsRoot })
-  const browser = await chromium.launch(args.browser === 'chrome' ? { channel: 'chrome' } : {})
+  let browser
+  try {
+    browser = await chromium.launch(engine === 'chrome' ? { channel: 'chrome' } : {})
+  } catch (err) {
+    server.close()
+    const first = String(err?.message ?? err)
+    throw new Error(engine === 'chrome'
+      ? [`Google Chrome would not start headless: ${first.split('\n')[0]}`,
+         `  on a managed machine an admin policy can disable headless mode or remote debugging.`, NO_INSTALL].join('\n')
+      : `${first}\n${NO_INSTALL}`)
+  }
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: args.scale })
     page.on('console', (msg) => { if (msg.type() === 'error') console.error('[page]', msg.text()) })
