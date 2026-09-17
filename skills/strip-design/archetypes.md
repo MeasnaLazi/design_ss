@@ -327,6 +327,43 @@ Pose is a separate question and still comes from that pack's `frame.json`, which
   drawn surface or plane · behind a foreground element · a floor reflection —
   the device mirrored faintly below its bottom edge; dark grounds only, and
   kept subtle, or it reads as a puddle
+
+  **OPINION · how each one is built.** Relationships, not values — tune every
+  number against the render, and expect a different number on every run.
+
+  | Depth | How |
+  | --- | --- |
+  | flat | Nothing. A whole choice, not a missing one — `clinical` is built on it. |
+  | drop shadow | Two layers: a tight, darker **contact** layer where the object nearly meets the ground, and a large, faint **ambient** layer around it. One layer alone reads as a sticker. On a device use `filter: drop-shadow()`: the frame is an SVG inside a rectangular block (`composer/device-frames.mjs`), so `box-shadow` shadows the rectangle, not the phone. No render here has used it yet — check the first one that does. |
+  | coloured glow | A radial-gradient `decor` block behind the device, fading to nothing well inside its own box — not a `filter` glow on the frame. |
+  | resting on a surface | `horizon` (Axis 6), plus a contact shadow at the device's foot: a flattened ellipse `decor`. |
+  | behind a foreground element | The nearer object casts the larger, softer shadow. Shadow size is how the eye orders the layers. |
+  | floor reflection | See the line above: dark grounds, subtle. |
+
+  **Light has one source.** Depth is believable only when the whole set agrees
+  about where the light is. Four checks, whatever depth was chosen:
+
+  - **One light per set.** Its direction belongs to the mood — Axis 7's *Light
+    & shadow* column is the one place that says where each mood puts it.
+    Shadows fall away from it. Alternating the device left and right does not
+    move the light.
+  - **Height shows in the shadow.** The further an object floats above the
+    ground, the further its shadow is offset, the softer and the fainter.
+    Two objects at one height with different shadows read as two lights.
+  - **A shadow is a darker ground, not black.** Tint it from the ground it
+    falls on. Black on a coloured ground goes grey — the muddy shadow in
+    *Anti-patterns*.
+  - **Crop and depth share the device's foot.** A bottom-cropped device has no
+    foot, so contact shadow, surface and reflection have nothing to attach to;
+    only the ambient layer survives. A panel that wants its device *resting* on
+    something declares crop none.
+
+  These checks are not a menu and take no slot of their own: the light's
+  direction rides inside the mood entry of the concept line (*"mood golden
+  hour, light left"*). **Each one can be broken on purpose** — a second light,
+  a black shadow, a shadow falling toward the light, a reflection under a
+  cropped device. Name the break in the concept line and it is a decision;
+  unnamed, it is a mistake. The same test as a declared crop.
 - **Context** — what world the device sits in: floating in graphic space (the
   default, and the only value this repo has ever used) · resting on a drawn or
   photographed surface · held by a hand (the `hand-held` archetype, Axis 1) ·
@@ -466,23 +503,26 @@ comes from, how hard the falloff is, how much air, how cold. Two runs with the
 matters here, because `app.md` usually pins the colours. This is the one part of
 Axis 7 that stays free when the brief fixes the palette.
 
-| Mood | Light, falloff, feel | The moves |
-| --- | --- | --- |
-| `midnight` | Near-black ground, cold, one small light source. High contrast, hard edges, lots of empty. Still. | flat near-black + one small radial with steep stops; no grain, no soft shadows |
-| `ember` | Dark ground, warm glow low and behind the device, soft long falloff. Intimate. | dark flat ground; warm radial set low behind the device, stops stretched long; faint grain |
-| `golden hour` | Warm ground, light raking from one side, long soft shadows, amber-to-violet drift. | linear warm ramp, light side lighter; long soft shadow cast off one side; violet in the far stop |
-| `dawn` | Pale, cool drifting to warm, low contrast, generous air. Quiet and optimistic. | low-contrast linear cool-to-warm; generous empty; no shadow, or a barely-there one |
-| `overcast` | Flat neutral, no glow at all, even light, ink-black type. Sober; lets the UI speak. | one flat neutral; no gradient, no glow, no grain — the discipline is the mood |
-| `parchment` | Warm off-white ground, sepia ink, faint grain. Archival, literary. | warm off-white flat; `feTurbulence` grain at low opacity; sepia ink; hairline rules |
-| `neon` | Dark ground, saturated cyan/magenta bloom, high chroma, glow on everything. | near-black; two saturated radials overlapping; blur/shadow glow on type and device both |
-| `clinical` | Pure white, hard edges, one saturated accent, no gradient anywhere. Precise. | pure white flat; hard-edged shapes only; one saturated accent; nothing blurred anywhere |
-| `deep water` | Saturated dark blue-green, light from above, heavy falloff. Calm and serious. | saturated blue-green linear, light in the top stop, falling to near-black at the foot |
-| `spotlight` | Any ground, one tight radial behind the device and near-black elsewhere. Theatrical. | one tight radial centred behind the device; everything outside it within a stop of black |
-| `bleached` | Near-white, slightly warm, overexposed. Contrast pulled low everywhere except one ink element. High-key, airy, expensive-looking. | near-white warm flat; every colour desaturated toward it; a single full-ink element carries all the contrast |
-| `sherbet` | Light warm ground, two or three pastel-but-saturated hues, soft rounded shapes, no black anywhere. Playful, consumer, kind — the register Poppins was made for, and the only mood on this list that serves it. | light cream ground; 2–3 saturated pastels as large soft shapes; ink swapped for a dark warm tone; generous corner radii on everything |
+| Mood | Light, falloff, feel | The moves | Light & shadow |
+| --- | --- | --- | --- |
+| `midnight` | Near-black ground, cold, one small light source. High contrast, hard edges, lots of empty. Still. | flat near-black + one small radial with steep stops; no grain, no soft shadows | one small source, above · short, hard-edged, close to the object |
+| `ember` | Dark ground, warm glow low and behind the device, soft long falloff. Intimate. | dark flat ground; warm radial set low behind the device, stops stretched long; faint grain | low, behind the device · little shadow — the glow does the work |
+| `golden hour` | Warm ground, light raking from one side, long soft shadows, amber-to-violet drift. | linear warm ramp, light side lighter; long soft shadow cast off one side; violet in the far stop | one side, low · long and soft, thrown to the opposite side |
+| `dawn` | Pale, cool drifting to warm, low contrast, generous air. Quiet and optimistic. | low-contrast linear cool-to-warm; generous empty; no shadow, or a barely-there one | high, diffuse · barely there, straight down |
+| `overcast` | Flat neutral, no glow at all, even light, ink-black type. Sober; lets the UI speak. | one flat neutral; no gradient, no glow, no grain — the discipline is the mood | everywhere · ambient only, straight down, no offset — or none |
+| `parchment` | Warm off-white ground, sepia ink, faint grain. Archival, literary. | warm off-white flat; `feTurbulence` grain at low opacity; sepia ink; hairline rules | soft, above · short, soft, warm-tinted |
+| `neon` | Dark ground, saturated cyan/magenta bloom, high chroma, glow on everything. | near-black; two saturated radials overlapping; blur/shadow glow on type and device both | the coloured sources · glow replaces shadow; any shadow tints toward the nearest source |
+| `clinical` | Pure white, hard edges, one saturated accent, no gradient anywhere. Precise. | pure white flat; hard-edged shapes only; one saturated accent; nothing blurred anywhere | even · none |
+| `deep water` | Saturated dark blue-green, light from above, heavy falloff. Calm and serious. | saturated blue-green linear, light in the top stop, falling to near-black at the foot | above · straight down, soft, long falloff |
+| `spotlight` | Any ground, one tight radial behind the device and near-black elsewhere. Theatrical. | one tight radial centred behind the device; everything outside it within a stop of black | behind the device · short, under it; the lit halo is the depth |
+| `bleached` | Near-white, slightly warm, overexposed. Contrast pulled low everywhere except one ink element. High-key, airy, expensive-looking. | near-white warm flat; every colour desaturated toward it; a single full-ink element carries all the contrast | high, overexposed · felt rather than seen |
+| `sherbet` | Light warm ground, two or three pastel-but-saturated hues, soft rounded shapes, no black anywhere. Playful, consumer, kind — the register Poppins was made for, and the only mood on this list that serves it. | light cream ground; 2–3 saturated pastels as large soft shapes; ink swapped for a dark warm tone; generous corner radii on everything | soft, above · soft, tinted with the nearest pastel, never grey |
 
-A mood is two or three CSS moves — the last column names them so a mood is
-executable, not just an adjective. Pick a mood even when the palette is fixed.
+A mood is two or three CSS moves — the third column names them so a mood is
+executable, not just an adjective. The fourth is where the mood keeps its
+light: the one direction Axis 3 · Depth checks shadows against. It is a
+starting direction, not a law — move the light and say where it went.
+Pick a mood even when the palette is fixed.
 It is usually the only colour decision left, and leaving it unmade is how
 three runs end up looking identical.
 
@@ -585,6 +625,36 @@ show — privacy, offline, speed — where a symbol does work no amount of geome
 can. Photographic suits exactly one thing — a tactile, archival warmth — and
 should be declined everywhere else. Mixing is fine; leading with two is not,
 since the panel then has two things asking to be looked at.
+
+### Finish — what a shape is made of
+
+**OPINION.** The families say what a mark *is*; finish says what it is *made
+of*. It applies to decor shapes, pills, badges and lifted cards — not to the
+device, whose frame artwork already has a surface.
+
+| Finish | How | Sits easily with |
+| --- | --- | --- |
+| matte | Flat fill, nothing more. | clinical, overcast, midnight |
+| soft | A gentle gradient across the shape and a hairline highlight on its lit edge. | most moods — the cheapest step up from matte |
+| glass | Translucent fill, `backdrop-filter: blur()`, a thin light border. | dawn, deep water, neon |
+| paper | Grain — Family A already lists it. | parchment |
+
+- **Glass needs something behind it.** Over a flat ground there is nothing to
+  blur, and it reads as a paler rectangle. It earns itself over a gradient, a
+  glow or a screenshot. Editor and export share one engine, so
+  `backdrop-filter` should agree between them — but no run here has used it;
+  check the render.
+- **The highlight sits on the lit edge.** A `soft` shape lit from the top-left
+  under a mood whose light is on the right is Axis 3 · Depth's two-lights
+  error in miniature.
+- **One finish leads a set.** A second reads as a second design system,
+  unless it is the set's one deliberate break.
+
+The last column is a hint, not a pairing rule. Nothing is off limits — glass
+on `parchment` is a contradiction, and worth attempting only on purpose and
+named as such. Finish rides inside the decor entry of the concept line
+(*"abstract (soft pills)"*). It is **not** a structural axis and the
+no-repeat rule does not count it, so nothing forces it to churn between runs.
 
 ### Drawing it — you do not need an image file
 
