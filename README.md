@@ -8,8 +8,6 @@
 
 ![The same app on a deep green ground with a bleed of device art behind each panel](docs/strip-iphone.jpg)
 
-![The same app again: a photo band across the top, numbered panels, dark ground](docs/strip-iphone-2.jpg)
-
 Give it your app's description and a folder of screen captures. An agent reads
 them, designs the strip, and renders it at the exact size the stores require.
 
@@ -200,6 +198,8 @@ read-only, names whoever holds it, and releases on its own if the run dies.
 
 → **[`strip_editor/README.md`](strip_editor/README.md)** for the full editor,
 its keyboard map, the server API and the architecture notes.
+
+![The editor app again: edit screenshot, device frame, font, text...etc](docs/strip-editor.jpg)
 
 ## Why use this
 
