@@ -21,6 +21,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { TARGETS } from '../composer/targets.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8'))
@@ -123,7 +124,9 @@ try {
   // --- the sizes, from the files -------------------------------------------
   if (!skipRender) {
     step('5. exported PNG sizes, read from the files')
-    const sets = [['rendered', 1290, 2796]]
+    // The stub writes the iPhone fixture, so its panels are the iphone target's size.
+    const iphone = TARGETS.iphone.panel
+    const sets = [['rendered', iphone.width, iphone.height]]
     for (const [w, h] of [[1284, 2778], [1242, 2688]]) {
       const r = dss(['retarget', '--target', 'iphone', '--size', `${w}x${h}`])
       r.status === 0 ? pass(`retarget ${w}x${h} → 0`) : fail(`retarget ${w}x${h}`, `exit ${r.status}\n${r.stderr?.trim().split('\n').slice(-3).join('\n')}`)

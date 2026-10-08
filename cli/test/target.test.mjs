@@ -13,6 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { isTarget, resolveRoots } from '../roots.mjs'
 import { cleanOutput, exists } from '../gate.mjs'
+import { TARGET_NAMES } from '../../composer/targets.mjs'
 
 let failures = 0
 const check = (label, cond) => {
@@ -25,7 +26,7 @@ const roots = resolveRoots({ workRoot })
 
 try {
   // Every real target, and a name a project might plausibly choose.
-  for (const t of ['iphone', 'ipad', 'phone', 'tablet_7', 'tablet_10', 'my.app']) {
+  for (const t of [...TARGET_NAMES, 'my.app']) {
     check(`accepts ${t}`, isTarget(roots, t))
   }
 
