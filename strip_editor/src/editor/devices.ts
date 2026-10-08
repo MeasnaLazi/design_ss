@@ -1,3 +1,5 @@
+import targets from '../../../composer/targets.json' with { type: 'json' }
+
 /**
  * The device targets a strip can be built for.
  *
@@ -19,68 +21,34 @@
  * absent is visible immediately, wrong is visible at submission.
  */
 export interface DeviceTarget {
-  /** `preset` as written in `input/app.md`. */
-  readonly preset: string
-  /** The folder under `strips/`. */
+  /** The folder under `strips/` — the target's key in `composer/targets.json`. */
   readonly folder: string
-  /** Full name, for pickers where the store and size matter. */
+  /** Store and device, for pickers where the store matters. */
   readonly label: string
   /**
-   * The device, cased as its maker writes it, for places already carrying the
-   * context — a title bar, a breadcrumb. `strips/ipad/strip.html` says nothing
-   * a person needs while they are looking at the strip; `iPad` says the part
-   * they do.
+   * The device alone, for places already carrying the context — a title bar, a
+   * breadcrumb. `strips/ipad/strip.html` says nothing a person needs while they
+   * are looking at the strip; `iPad` says the part they do.
    */
   readonly short: string
   readonly width: number
   readonly height: number
 }
 
-export const DEVICE_TARGETS: readonly DeviceTarget[] = [
-  {
-    preset: 'appstore_iphone_portrait',
-    folder: 'iphone',
-    short: 'iPhone',
-    label: 'App Store · iPhone 6.7" portrait',
-    width: 1290,
-    height: 2796,
-  },
-  {
-    preset: 'appstore_ipad_portrait',
-    folder: 'ipad',
-    short: 'iPad',
-    label: 'App Store · iPad 12.9" portrait',
-    width: 2048,
-    height: 2732,
-  },
-  {
-    preset: 'play_phone_portrait',
-    folder: 'phone',
-    short: 'Phone',
-    label: 'Play Store · phone portrait',
-    width: 1080,
-    height: 1920,
-  },
-  {
-    preset: 'play_tablet_7_portrait',
-    folder: 'tablet_7',
-    short: 'Tablet 7"',
-    label: 'Play Store · 7" tablet portrait',
-    width: 1200,
-    height: 1920,
-  },
-  {
-    preset: 'play_tablet_10_portrait',
-    folder: 'tablet_10',
-    short: 'Tablet 10"',
-    label: 'Play Store · 10" tablet portrait',
-    width: 1600,
-    height: 2560,
-  },
-]
+/**
+ * Built from `composer/targets.json`, the one place a panel size is stated.
+ * Nothing here repeats a number: add or change a target in that file.
+ */
+export const DEVICE_TARGETS: readonly DeviceTarget[] = Object.entries(targets).map(([folder, t]) => ({
+  folder,
+  short: t.name,
+  label: `${t.store} · ${t.name}`,
+  width: t.panel.width,
+  height: t.panel.height,
+}))
 
 /**
- * A note on the two Play sizes above, because they are a different kind of
+ * A note on the Play sizes in `composer/targets.json`, because they are a different kind of
  * number from the Apple ones.
  *
  * Apple publishes exact export sizes and rejects anything else, so `iphone` and
@@ -89,8 +57,7 @@ export const DEVICE_TARGETS: readonly DeviceTarget[] = [
  * `tablet_10` are house choices that sit comfortably inside that range, not
  * requirements. Play asks for phone, 7" tablet and 10" tablet slots separately,
  * which is why there are two tablets; both sit at 0.625 and differ only in size.
- * Change them if a project wants different ones; the only hard constraint this
- * file imposes is that no two targets share a size, since the size is how a
+ * Change them if a project wants different ones; the only hard constraint is that no two targets share a size, since the size is how a
  * loaded strip is identified. `phone` and `tablet_7` share a *height* — 1920 —
  * and are told apart by width, so keep both numbers in mind when editing one.
  */
@@ -142,10 +109,6 @@ export function stripDisplayName(stripPath: string): string {
  */
 export function packForTarget(packs: ReadonlyArray<{ id: string; type: string }>, folder: string): string | null {
   return packs.find((p) => p.type === folder)?.id ?? packs[0]?.id ?? null
-}
-
-export function deviceForPreset(preset: string): DeviceTarget | null {
-  return DEVICE_TARGETS.find((d) => d.preset === preset) ?? null
 }
 
 /**

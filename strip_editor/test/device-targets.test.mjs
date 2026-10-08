@@ -44,6 +44,10 @@ try {
   if (!e.stdout?.toString().includes('error TS')) throw e
 }
 
+// devices.ts imports composer/targets.json, so tsc roots its output at the repo
+// and emits the JSON beside it: the modules land under their repo-relative path.
+const compiled = path.join(out, 'strip_editor/src/editor')
+
 const {
   DEVICE_TARGETS,
   deviceForSize,
@@ -53,8 +57,8 @@ const {
   panelSizeFromHtml,
   retargetStripAssets,
   stripDisplayName,
-} = await import(path.join(out, 'devices.js'))
-const { blankStripTemplate } = await import(path.join(out, 'schema.js'))
+} = await import(path.join(compiled, 'devices.js'))
+const { blankStripTemplate } = await import(path.join(compiled, 'schema.js'))
 
 let failures = 0
 function check(name, fn) {
@@ -94,11 +98,13 @@ check('the schema document\'s own skeleton measures as a known target', () => {
 
 // --- the table itself -------------------------------------------------------
 
-check('folders and presets are unique', () => {
-  const folders = DEVICE_TARGETS.map((d) => d.folder)
-  const presets = DEVICE_TARGETS.map((d) => d.preset)
-  assert.equal(new Set(folders).size, folders.length, 'two targets share a folder')
-  assert.equal(new Set(presets).size, presets.length, 'two targets share a preset')
+check('the table is composer/targets.json, entry for entry', () => {
+  const file = JSON.parse(readFileSync(path.join(REPO, 'composer/targets.json'), 'utf8'))
+  assert.deepEqual(DEVICE_TARGETS.map((d) => d.folder), Object.keys(file))
+  for (const d of DEVICE_TARGETS) {
+    assert.deepEqual({ width: d.width, height: d.height }, file[d.folder].panel)
+    assert.equal(d.short, file[d.folder].name)
+  }
 })
 
 check('no two targets share a panel size', () => {
@@ -107,7 +113,7 @@ check('no two targets share a panel size', () => {
 })
 
 check('deviceForFolder round-trips every target', () => {
-  for (const d of DEVICE_TARGETS) assert.equal(deviceForFolder(d.folder)?.preset, d.preset)
+  for (const d of DEVICE_TARGETS) assert.equal(deviceForFolder(d.folder), d)
 })
 
 // --- the parser -------------------------------------------------------------

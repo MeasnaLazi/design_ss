@@ -459,10 +459,15 @@ export function FilePicker(): React.ReactElement {
         {loadOpen && (
           <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
             <p className="mb-3 text-[12px] leading-snug text-zinc-400">
-              Pick the folder that <em>contains</em> <code className="text-zinc-300">strip.html</code>. Panels at
-              1290×2796 go to <code className="text-zinc-300">strips/iphone/</code>, 2048×2732 to{' '}
-              <code className="text-zinc-300">strips/ipad/</code>. A size matching no target is refused rather than
-              guessed. <code className="text-zinc-300">rendered/</code> is skipped — it regenerates.
+              Pick the folder that <em>contains</em> <code className="text-zinc-300">strip.html</code>. Panels at{' '}
+              {DEVICE_TARGETS.slice(0, 2).map((t, i) => (
+                <span key={t.folder}>
+                  {i > 0 && ', '}
+                  {t.width}×{t.height} {i === 0 ? 'go to' : 'to'}{' '}
+                  <code className="text-zinc-300">strips/{t.folder}/</code>
+                </span>
+              ))}
+              . A size matching no target is refused rather than guessed. <code className="text-zinc-300">rendered/</code> is skipped — it regenerates.
             </p>
 
             <input ref={attachFolderInput} type="file" multiple className="hidden" onChange={onFolderPicked} />
