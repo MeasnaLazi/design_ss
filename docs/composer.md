@@ -14,6 +14,7 @@ File paths in the table below are relative to `composer/`.
 | `check-schema.mjs` | Structural conformance against `strip-schema.md`, from the source text alone — no browser. `--all`, `--skeleton`, or a file. Takes `--strips-root <dir>` so a strip living outside the toolkit has its `/strips/**` assets resolved where they actually are. |
 | `device-frames.mjs` | Browser runtime: builds `[data-device]` blocks — matrix3d homography warp from `frame.json` `corners`, clip via the pose SVG's `#screen` path, frame artwork on top. |
 | `pick-frame.mjs` | CLI: `node composer/pick-frame.mjs <target> [--list]` — one frame pack id for that target, chosen at random from `device-frames/index.json`. Exists because an agent asked to pick at random returns the same one every time. |
+| `targets.json`, `targets.mjs` | The device targets and their panel sizes — the one place a size is stated. `targets.mjs` loads the file for Node (`TARGETS`, `panelFor`, `targetForSize`) and refuses a table in which two targets share a size; the editor imports the JSON directly. |
 | `homography.mjs` | Shared math (Node + browser): the screen-quad warp used by both the renderer and the editor. |
 | `strip-schema.md` | Layer contract for strip documents (keeps HTML importable to display JSON later). |
 | `test/homography.test.mjs` | `node composer/test/homography.test.mjs` — corner round-trip < 1e-6 px for every pose of every pack. |

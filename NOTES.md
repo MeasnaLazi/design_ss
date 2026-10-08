@@ -81,6 +81,13 @@ sync, and it would eventually disagree.
 The invariant that makes this work: **no two targets share a size.** Keep it
 that way when adding one.
 
+The sizes themselves live in `composer/targets.json` and nowhere else.
+`composer/targets.mjs` throws on load when two entries share a size, the editor
+builds `DEVICE_TARGETS` from the same file, and `composer/test/targets.test.mjs`
+fails when the table in the root `README.md` disagrees with it. That README
+table is the one deliberate copy, kept because it is the npm landing page; do
+not add another.
+
 Likewise, `input/<device>/` folders declare which targets a run covers. Adding a
 list of targets to `app.md` would recreate the same problem one level up.
 

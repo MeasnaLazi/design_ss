@@ -39,6 +39,8 @@ Five targets: `iphone` and `ipad` for the App Store, `phone`, `tablet_7` and
 | `tablet_7` | 1200 × 1920 | Play Store |
 | `tablet_10` | 1600 × 2560 | Play Store |
 
+These are declared in `composer/targets.json`, which everything else reads.
+
 One panel is one screenshot at these dimensions; a five-panel iPhone strip is
 6450 px wide. The two Apple sizes are specifications — Apple publishes exact
 export sizes and rejects anything else. The Play sizes are house choices inside

@@ -170,13 +170,9 @@ Everything below is optional.
 
 ### The device targets
 
-| folder | panel size | store |
-| --- | --- | --- |
-| `iphone` | 1290×2796 | App Store |
-| `ipad` | 2048×2732 | App Store |
-| `phone` | 1080×1920 | Play |
-| `tablet_7` | 1200×1920 | Play |
-| `tablet_10` | 1600×2560 | Play |
+The targets and their panel sizes are declared in `composer/targets.json`, and
+nowhere else: each key is a folder name, and its `panel` is the exact size of
+every exported screenshot. The root `README.md` shows the same table.
 
 `input/<device>/` in, `strips/<device>/` out, the same name on both ends.
 **There is no `preset` key.** The folder is the declaration; a name written in
@@ -186,7 +182,7 @@ The two Apple sizes are specifications — Apple publishes exact export sizes an
 rejects anything else. The two Play sizes are **house choices**: Google
 publishes a range (320–3840px per side, at most 2:1) and no canonical
 resolution, so those numbers sit inside the range rather than being required by
-it. They are declared in `strip_editor/src/editor/devices.ts`.
+it. Change them in `composer/targets.json`.
 
 **One `input/` describes one app.** Each device folder is that app on one
 device. Add a target by creating its folder and putting captures in it; nothing

@@ -141,13 +141,10 @@ folder out to keep it.
 Naming a target is how you scope a run down. *"Design ipad"* designs `ipad` and
 nothing else.
 
-| folder | panel size |
-| --- | --- |
-| `iphone` | 1290×2796 |
-| `ipad` | 2048×2732 |
-| `phone` | 1080×1920 |
-| `tablet_7` | 1200×1920 |
-| `tablet_10` | 1600×2560 |
+**Panel sizes are in `composer/targets.json`.** Read that file for the exact
+`width` and `height` of the target you are designing; each key is a folder name
+and its `panel` is the size of every panel in that strip. Do not take a size
+from memory or from another strip.
 
 **Designing a set: root first, then the rest, in one run.** The root is an
 ordinary pipeline run — choose a concept, append the `history.md` line. Every

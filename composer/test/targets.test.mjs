@@ -4,6 +4,9 @@
  *
  * Run: node composer/test/targets.test.mjs
  */
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { TARGETS, TARGET_NAMES, panelFor, targetForSize, validateTargets } from '../targets.mjs'
 
 let failures = 0
@@ -38,6 +41,22 @@ check('a missing panel is refused', throws(() => validateTargets({ a: { name: 'A
 check('a fractional size is refused', throws(() => validateTargets({ a: { ...ok, panel: { width: 100.5, height: 200 } } })))
 check('a missing name is refused', throws(() => validateTargets({ a: { store: 'S', panel: ok.panel } })))
 check('an empty table is refused', throws(() => validateTargets({})))
+
+// --- the README table -------------------------------------------------------
+// The one prose copy of the sizes, kept because it is the npm landing page.
+// Rows look like: | `iphone` | 1290 × 2796 | App Store |
+const readme = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../README.md'), 'utf8')
+const rows = [...readme.matchAll(/^\| `([\w.-]+)` \| (\d+) × (\d+) \| ([^|]+?) \|$/gm)]
+  .map((m) => ({ name: m[1], width: Number(m[2]), height: Number(m[3]), store: m[4] }))
+check('README.md lists exactly the targets in targets.json, in order',
+  JSON.stringify(rows.map((r) => r.name)) === JSON.stringify(TARGET_NAMES),
+  `README has ${rows.map((r) => r.name).join(', ') || '(no rows found)'}`)
+for (const r of rows) {
+  const t = TARGETS[r.name]
+  check(`README.md row for ${r.name} matches targets.json`,
+    Boolean(t) && t.panel.width === r.width && t.panel.height === r.height && t.store === r.store,
+    `README says ${r.width} × ${r.height}, ${r.store}`)
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL PASS')
 process.exit(failures ? 1 : 0)
