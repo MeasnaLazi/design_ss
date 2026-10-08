@@ -1,0 +1,7 @@
+{
+  "iphone":    { "name": "iPhone",      "store": "App Store",  "panel": { "width": 1290, "height": 2796 } },
+  "ipad":      { "name": "iPad",        "store": "App Store",  "panel": { "width": 2048, "height": 2732 } },
+  "phone":     { "name": "Phone",       "store": "Play Store", "panel": { "width": 1080, "height": 1920 } },
+  "tablet_7":  { "name": "Tablet 7",   "store": "Play Store", "panel": { "width": 1200, "height": 1920 } },
+  "tablet_10": { "name": "Tablet 10", "store": "Play Store", "panel": { "width": 1600, "height": 2560 } }
+}
