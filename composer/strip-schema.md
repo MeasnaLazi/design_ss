@@ -48,8 +48,8 @@ unselectable in the editor or invisible to the exporter.
 1. One `<div class="strip">` root, laid out as a horizontal row of panels. The
    class matters: the exporter reads its `column-gap`.
 2. Each panel is `<section data-panel="N">` (N is 0-based), sized to the
-   **exact export dimensions** of the target preset — e.g. 1290×2796 for
-   `appstore_iphone_portrait` — with `position: relative; overflow: hidden`.
+   **exact export dimensions** of the target — e.g. 1290×2796 for `iphone`,
+   as `composer/targets.json` declares — with `position: relative; overflow: hidden`.
 3. Panels are screenshotted **individually**. Anything that appears to span
    panels must still export correctly panel by panel.
 4. Reference assets **root-relatively**; the server root is the repo root:

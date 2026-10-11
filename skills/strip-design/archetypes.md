@@ -276,7 +276,7 @@ Pose is a separate question and still comes from that pack's `frame.json`, which
   | **two in one panel** | **0.5–0.7 each** | 0.85–1.2 | and overlap them by a third or more |
 
   **Panel width is the primary number.** The viewBox multiple is blind to the
-  box the device is going into: for `appstore_iphone_portrait` + `front`, the
+  box the device is going into: for the `iphone` target + `front`, the
   once-stated "1.0–1.3 × viewBox" lands at **0.60–0.78 of panel width**, which
   leaves 22–40% of the panel as empty column either side of the phone. That is
   arithmetic, not taste — and it is how a strip passes every other check and

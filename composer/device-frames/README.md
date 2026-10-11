@@ -90,7 +90,7 @@ travels between them:
 **Size against the panel, not the artwork.** The viewBox multiple tells you how
 big the phone is relative to its own drawing; it is blind to the box it is going
 into, and that is how side margins appear. Worked through for
-`appstore_iphone_portrait` (1290×2796) and the `front` pose:
+the `iphone` target (1290×2796) and the `front` pose:
 
 | × panel width | px | × viewBox | side margin | device covers |
 | --- | --- | --- | --- | --- |
