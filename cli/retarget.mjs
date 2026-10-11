@@ -51,12 +51,20 @@ export function detectPanelSize(html) {
   return m ? { w: Number(m[1]), h: Number(m[2]) } : null
 }
 
+/**
+ * Multiply every px length by `k`, but only inside `<style>` blocks and
+ * `style="…"` attributes. Copy text is not geometry, so "1290px wide" in a
+ * headline is left alone.
+ */
+export function scaleStyleLengths(html, k) {
+  const out = html.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_, open, css, close) => open + scaleLengths(css, k) + close)
+  return out.replace(/\bstyle\s*=\s*"([^"]*)"/gi, (_, css) => `style="${scaleLengths(css, k)}"`)
+}
+
 export function retargetHtml(html, { fromW, fromH, toW, toH }) {
   const k = toW / fromW
 
-  // Only inside style contexts. Copy text is not geometry.
-  let out = html.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_, open, css, close) => open + scaleLengths(css, k) + close)
-  out = out.replace(/\bstyle\s*=\s*"([^"]*)"/gi, (_, css) => `style="${scaleLengths(css, k)}"`)
+  let out = scaleStyleLengths(html, k)
 
   // Snap the panel box: scaling by width leaves the height a few px out.
   const scaledH = trim(fromH * k)

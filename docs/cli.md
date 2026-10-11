@@ -349,7 +349,8 @@ it.
 
 `--agent stub` fakes a designer: no model, no API key, no cost. It copies the
 tracked fixture `composer/test/bio-strip.html` into `strips/<target>/`, swapping
-the frame pack for one whose type matches the target. Its only asset reference
+the frame pack for one whose type matches the target and scaling the fixture to
+fit that target's panel size from `composer/targets.json`. Its only asset reference
 is the tracked `composer/test/screen.svg`, so it renders in a fresh clone with
 no `input/` at all.
 
