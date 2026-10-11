@@ -50,6 +50,10 @@ unselectable in the editor or invisible to the exporter.
 2. Each panel is `<section data-panel="N">` (N is 0-based), sized to the
    **exact export dimensions** of the target — e.g. 1290×2796 for `iphone`,
    as `composer/targets.json` declares — with `position: relative; overflow: hidden`.
+   `check-schema` enforces it for `strips/<target>/strip.html` when the target
+   is in that file, and for a `retarget` output `strip-WxH.html` against the
+   W×H in its name. The size is read from the `.panel` rule's px `width` and
+   `height`.
 3. Panels are screenshotted **individually**. Anything that appears to span
    panels must still export correctly panel by panel.
 4. Reference assets **root-relatively**; the server root is the repo root:

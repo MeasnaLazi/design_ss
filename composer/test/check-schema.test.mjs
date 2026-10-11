@@ -14,7 +14,8 @@ import assert from 'node:assert/strict'
 import { promises as fsp } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { checkStrip } from '../check-schema.mjs'
+import { checkStrip, expectedPanelSize, panelSize } from '../check-schema.mjs'
+import { TARGETS } from '../targets.mjs'
 
 const wrap = (panelBody, extra = '') => `<!doctype html><html><head>
 <script type="module" src="/composer/device-frames.mjs"></script>
@@ -358,6 +359,36 @@ console.log('PASS  the offending panel is named correctly')
     { errors: ['not found on disk'] }, { stripsRoot })
 
   await fsp.rm(stripsRoot, { recursive: true, force: true })
+}
+
+// --- panel size -------------------------------------------------------------
+// strips/<target>/strip.html must be the target's size; a retarget output
+// strip-WxH.html must be W×H; anything else is not size-checked.
+{
+  const sized = (w, h) => wrap(TEXT).replace('</head>', `<style>.panel { position: relative; width: ${w}px; height: ${h}px; }</style></head>`)
+  const ip = TARGETS.iphone.panel
+  const sizeCase = async (name, file, html, { errors = [], noErrors = [] }) => {
+    const joined = (await checkStrip(html, file)).errors.join(' | ')
+    const bad = [...errors.filter((e) => !joined.includes(e)), ...noErrors.filter((e) => joined.includes(e))]
+    if (bad.length) { failures += 1; console.log(`FAIL  ${name}\n        errors: ${joined || '(none)'}`) } else console.log(`PASS  ${name}`)
+  }
+  const quiet = { noErrors: ['panel is', 'no panel size'] }
+  await sizeCase('strip.html at its target size passes', 'strips/iphone/strip.html', sized(ip.width, ip.height), quiet)
+  await sizeCase('strip.html at another size fails', 'strips/iphone/strip.html', sized(1000, 2000),
+    { errors: [`panel is 1000×2000 but strips/iphone/ is ${ip.width}×${ip.height}`] })
+  await sizeCase('strip.html with no panel size fails', 'strips/iphone/strip.html', wrap(TEXT), { errors: ['no panel size found'] })
+  await sizeCase('strip-1284x2778.html at 1284×2778 passes', 'strips/iphone/strip-1284x2778.html', sized(1284, 2778), quiet)
+  await sizeCase('strip-1284x2778.html at another size fails', 'strips/iphone/strip-1284x2778.html', sized(ip.width, ip.height),
+    { errors: ['strip-1284x2778.html names 1284×2778'] })
+  await sizeCase('a folder targets.json does not list is not size-checked', 'strips/my.app/strip.html', sized(1000, 2000), quiet)
+  await sizeCase('a fixture outside strips/ is not size-checked', 'composer/test/x.html', sized(1000, 2000), quiet)
+  await sizeCase('a Windows-style path is read the same way', 'strips\\iphone\\strip.html', sized(1000, 2000), { errors: ['panel is 1000×2000'] })
+
+  const ok = (label, cond) => { if (!cond) { failures += 1; console.log(`FAIL  ${label}`) } else console.log(`PASS  ${label}`) }
+  ok('panelSize: later .panel rules win', panelSize('<style>.panel{width:1px;height:2px}.strip .panel{width:3px;height:4px}</style>')?.width === 3)
+  ok('panelSize: min-width is not width', panelSize('<style>.panel{min-width:9px;width:3px;height:4px}</style>')?.width === 3)
+  ok('panelSize: .panel-inner is not .panel', panelSize('<style>.panel-inner{width:3px;height:4px}</style>') === null)
+  ok('expectedPanelSize: other files in a target folder are not checked', expectedPanelSize('strips/iphone/notes.html') === null)
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)

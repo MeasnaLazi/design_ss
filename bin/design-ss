@@ -34,6 +34,7 @@ import { installEditor, startEditor, stopEditor, editorStatus, parsePort, DEFAUL
 import { installBrowser, requireBrowser, browserArgs } from '../cli/browser.mjs'
 import { loadConfig } from '../cli/agents.mjs'
 import { resolveRoots, workRootFor, isTarget, TOOLKIT_ROOT } from '../cli/roots.mjs'
+import { TARGET_NAMES } from '../composer/targets.mjs'
 
 const VERSION = JSON.parse(readFileSync(path.join(TOOLKIT_ROOT, 'package.json'), 'utf8')).version
 
@@ -116,6 +117,7 @@ DESIGN OPTIONS
   browser at all.
 
   --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
+                        must be a key in composer/targets.json
   --message <text>      the operator request handed to the agent                     [required]
   --agent <name>        claude or stub, or one your project's config adds (default: claude)
   --timeout <seconds>   deadline for the agent (default: 1800)
@@ -156,6 +158,14 @@ const str = (v, name) => { if (!v || v === true) die(`--${name} is required`); r
 const target = (v) => {
   const t = str(v, 'target')
   if (!isTarget(roots, t)) die(`--target must be a single folder name under strips/, got "${t}"`)
+  return t
+}
+// `design` also needs a panel size: the agent reads it from composer/targets.json,
+// so a name that file does not list has nothing to design to. The other commands
+// work on a strip that already exists and keep accepting any folder name.
+const designTarget = (v) => {
+  const t = target(v)
+  if (!TARGET_NAMES.includes(t)) die(`--target "${t}" is not in composer/targets.json; design one of: ${TARGET_NAMES.join(', ')}`)
   return t
 }
 
@@ -200,7 +210,7 @@ switch (command) {
     const d = config.defaults
     process.exit(await design(roots, {
       config,
-      target: target(args.target),
+      target: designTarget(args.target),
       message: str(args.message, 'message'),
       agentName: String(args.agent || d.agent),
       timeoutMs: Number(args.timeout || d.timeoutSeconds) * 1000,

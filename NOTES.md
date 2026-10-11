@@ -88,6 +88,14 @@ fails when the table in the root `README.md` disagrees with it. That README
 table is the one deliberate copy, kept because it is the npm landing page; do
 not add another.
 
+`check-schema` enforces the size, but only where it can name one: a
+`strips/<target>/strip.html` whose target the file lists, and a `retarget`
+output `strip-WxH.html`, whose file name *is* its size statement. A folder the
+file does not list is not size-checked, deliberately — `--target` accepts any
+single folder name for `gate`, `render` and `retarget`, and inventing a size for
+it would be a guess. `design` is stricter and refuses unlisted names, because
+the agent takes its panel size from the file and would have none.
+
 Likewise, `input/<device>/` folders declare which targets a run covers. Adding a
 list of targets to `app.md` would recreate the same problem one level up.
 

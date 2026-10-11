@@ -83,6 +83,11 @@ design-ss design --target iphone --message "..." --input ~/store-assets/bio
 #   writes ~/apps/bio/strips/iphone/
 ```
 
+**`design` designs only targets listed in `composer/targets.json`.** The agent
+takes its panel size from that file, so `--target` must be one of its keys, or
+`design` exits `2` and lists them. `gate`, `render`, `retarget` and `check` work
+on a strip that already exists and accept any single folder name under `strips/`.
+
 ## The idea in one picture
 
 ```
@@ -503,7 +508,11 @@ strips/iphone/rendered-1284x2778/       its PNGs
 
 A sibling document rather than a new folder, so the two sizes share
 `screenshots/` and `images/` and the folder name still matches the frame pack's
-type — which is what `check-schema`'s target rule reads.
+type — which is what `check-schema`'s target rule reads. The file name also
+states the size: `check-schema` requires `strip-1284x2778.html` to be exactly
+1284×2778, as it requires `strip.html` to be the target's size in
+`composer/targets.json`. To keep a variant as your main strip, rename it to
+`strip.html` in a folder whose target has that size.
 
 **The residual.** One factor cannot hit both dimensions when the aspect ratios
 differ slightly (1290×2796 is 0.46137; 1284×2778 is 0.46220). Scaling is done by

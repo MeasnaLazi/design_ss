@@ -18,6 +18,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { screenOutline, containmentReport, enclosingQuad, isIdentityAffine } from './screen-geometry.mjs'
+import { panelFor } from './targets.mjs'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const TEXT_ROLES = new Set(['title', 'subtitle', 'caption'])
@@ -176,6 +177,51 @@ async function exists(rootRelUrl, stripsRoot = null) {
   } catch {
     return false
   }
+}
+
+/**
+ * The panel size a document states: pixel `width` and `height` in a rule whose
+ * selector names `.panel` as a whole class. Later rules win, as in CSS. The
+ * same reading as the editor's `panelSizeFromHtml`, so the gate and the editor
+ * agree on which target a strip is.
+ *
+ * @returns `{ width, height }`, or `null` when the document does not state one.
+ */
+export function panelSize(html) {
+  let width = null
+  let height = null
+  const rule = /([^{}]+)\{([^{}]*)\}/g
+  for (let m = rule.exec(html); m !== null; m = rule.exec(html)) {
+    const [, selector, body] = m
+    if (!/(^|[\s,>+~])\.panel(?![\w-])/.test(selector)) continue
+    const w = /(?:^|[;{\s])width\s*:\s*(\d+(?:\.\d+)?)px/i.exec(body)
+    const h = /(?:^|[;{\s])height\s*:\s*(\d+(?:\.\d+)?)px/i.exec(body)
+    if (w) width = Math.round(Number(w[1]))
+    if (h) height = Math.round(Number(h[1]))
+  }
+  return width !== null && height !== null ? { width, height } : null
+}
+
+/**
+ * The panel size a file under strips/ must have, or `null` when no rule applies.
+ *
+ *   strips/<target>/strip.html          the target's size in composer/targets.json
+ *   strips/<target>/strip-WxH.html      W×H — a `retarget` output names its own size
+ *
+ * Only for targets the file lists: a folder it does not list (a project's own
+ * name) and anything outside strips/ (fixtures, the schema example) are not
+ * checked, because there is no size to check them against.
+ */
+export function expectedPanelSize(label) {
+  const m = /(?:^|[\\/])strips[\\/]([^\\/]+)[\\/]([^\\/]+)$/.exec(label ?? '')
+  if (!m) return null
+  const [, folder, file] = m
+  const target = panelFor(folder)
+  if (!target) return null
+  if (file === 'strip.html') return { ...target, source: `strips/${folder}/ is ${target.width}×${target.height} (composer/targets.json)` }
+  const v = /^strip-(\d+)x(\d+)\.html$/.exec(file)
+  if (v) return { width: Number(v[1]), height: Number(v[2]), source: `${file} names ${v[1]}×${v[2]}` }
+  return null
 }
 
 export async function checkStrip(html, label, { stripsRoot = null } = {}) {
@@ -395,6 +441,20 @@ export async function checkStrip(html, label, { stripsRoot = null } = {}) {
           }
         }
       }
+    }
+  }
+
+  // --- panel size ---------------------------------------------------------
+  // The panel size is the export size. A strip in a known target's folder that
+  // states any other size exports PNGs the store rejects, and nothing else in
+  // the pipeline would say so before the upload.
+  const expected = expectedPanelSize(label)
+  if (expected) {
+    const size = panelSize(html)
+    if (!size) {
+      E(`no panel size found — a \`.panel\` rule must state width and height in px; ${expected.source}`)
+    } else if (size.width !== expected.width || size.height !== expected.height) {
+      E(`panel is ${size.width}×${size.height} but ${expected.source}`)
     }
   }
 
